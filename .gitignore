@@ -1,0 +1,15 @@
+node_modules
+dist
+.DS_Store
+._*
+.env
+.env.local
+.env.*.local
+.npm-cache
+backend/data/
+.run/
+logs/
+.pytest_cache/
+__pycache__
+backend/__pycache__
+backend/tests/__pycache__
