@@ -2,15 +2,18 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="${INTEL_WORKBENCH_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 RUN_DIR="$ROOT_DIR/.run"
 LOG_DIR="$ROOT_DIR/logs"
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
 BACKEND_LOG="$LOG_DIR/backend.log"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
-BACKEND_URL="http://127.0.0.1:8000/api/health"
-FRONTEND_URL="http://127.0.0.1:5173"
+BACKEND_URL="${INTEL_BACKEND_URL:-http://127.0.0.1:8000/api/health}"
+FRONTEND_URL="${INTEL_FRONTEND_URL:-http://127.0.0.1:5173}"
+BACKEND_CMD="${INTEL_BACKEND_CMD:-python3 -m backend.server}"
+FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 127.0.0.1 --port 5173}"
+OPEN_BROWSER_CMD="${INTEL_OPEN_CMD:-open}"
 
 print_help() {
   cat <<'EOF'
@@ -35,7 +38,12 @@ is_running() {
   local pid
   pid="$(cat "$pid_file" 2>/dev/null || true)"
   [[ -n "$pid" ]] || return 1
-  kill -0 "$pid" 2>/dev/null
+  kill -0 "$pid" 2>/dev/null || return 1
+
+  local state
+  state="$(ps -p "$pid" -o state= 2>/dev/null | tr -d '[:space:]')"
+  [[ -n "$state" ]] || return 1
+  [[ "$state" != Z* ]]
 }
 
 cleanup_stale_pid() {
@@ -45,13 +53,24 @@ cleanup_stale_pid() {
   fi
 }
 
-wait_for_url() {
-  local url="$1"
-  local label="$2"
+wait_for_process_url() {
+  local pid_file="$1"
+  local url="$2"
+  local label="$3"
   local retries=30
+  local stable_delay=1
 
   for _ in $(seq 1 "$retries"); do
+    if ! is_running "$pid_file"; then
+      echo "$label process exited before readiness" >&2
+      return 1
+    fi
     if curl -fsS "$url" >/dev/null 2>&1; then
+      sleep "$stable_delay"
+      if ! is_running "$pid_file"; then
+        echo "$label process exited after readiness probe" >&2
+        return 1
+      fi
       return 0
     fi
     sleep 1
@@ -70,7 +89,7 @@ start_backend() {
   echo "starting backend..."
   (
     cd "$ROOT_DIR"
-    nohup python3 -m backend.server >"$BACKEND_LOG" 2>&1 &
+    nohup bash -lc "$BACKEND_CMD" >"$BACKEND_LOG" 2>&1 &
     echo $! >"$BACKEND_PID_FILE"
   )
 }
@@ -84,7 +103,7 @@ start_frontend() {
   echo "starting frontend..."
   (
     cd "$ROOT_DIR"
-    nohup ./node_modules/.bin/vite --host 127.0.0.1 --port 5173 >"$FRONTEND_LOG" 2>&1 &
+    nohup bash -lc "$FRONTEND_CMD" >"$FRONTEND_LOG" 2>&1 &
     echo $! >"$FRONTEND_PID_FILE"
   )
 }
@@ -101,10 +120,10 @@ cleanup_stale_pid "$FRONTEND_PID_FILE"
 start_backend
 start_frontend
 
-wait_for_url "$BACKEND_URL" "backend"
-wait_for_url "$FRONTEND_URL" "frontend"
+wait_for_process_url "$BACKEND_PID_FILE" "$BACKEND_URL" "backend"
+wait_for_process_url "$FRONTEND_PID_FILE" "$FRONTEND_URL" "frontend"
 
-open "$FRONTEND_URL"
+"$OPEN_BROWSER_CMD" "$FRONTEND_URL"
 
 echo "Intel Workbench is running."
 echo "frontend: $FRONTEND_URL"

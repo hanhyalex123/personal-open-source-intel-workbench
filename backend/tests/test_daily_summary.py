@@ -93,3 +93,21 @@ def test_build_daily_project_summaries_generates_ranked_project_cards():
     assert len(summaries[0]["evidence_items"]) == 2
     assert summaries[1]["summary_zh"] == "今日没有显著新增高影响变化，建议先关注最近仍值得跟进的项目结论。"
     assert summaries[1]["evidence_items"][0]["title_zh"] == "OpenClaw 2.4.0 发布"
+
+
+def test_resolve_summary_date_prefers_freshest_known_date():
+    from backend.daily_summary import resolve_summary_date
+
+    snapshot = {
+        "events": {
+            "github-release:cilium/cilium:v1.20.0-pre.0": {
+                "published_at": "2026-03-10T08:00:00Z",
+            }
+        },
+        "state": {
+            "last_sync_at": "2026-03-10T09:30:00Z",
+            "last_daily_summary_at": "2026-03-09T21:00:00Z",
+        },
+    }
+
+    assert resolve_summary_date(snapshot) == "2026-03-10"

@@ -1,3 +1,5 @@
+import { projectThemeStyle } from "../lib/projectTheme";
+
 function formatDate(value) {
   if (!value) return "暂无";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -14,7 +16,11 @@ function importanceLabel(level) {
 
 export default function ProjectSummaryCard({ item }) {
   return (
-    <article className="project-summary-card">
+    <article
+      className="project-summary-card"
+      data-project-id={item.project_id}
+      style={projectThemeStyle(item.project_id)}
+    >
       <header className="project-summary-card__header">
         <div>
           <p className="section-kicker">Project Intel</p>

@@ -298,8 +298,11 @@ a {
   gap: 18px;
   padding: 22px 24px;
   border-radius: 28px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(246, 240, 229, 0.92));
-  border: 1px solid rgba(16, 34, 29, 0.08);
+  background:
+    linear-gradient(90deg, var(--project-soft) 0 8px, transparent 8px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(246, 240, 229, 0.92));
+  border: 1px solid var(--project-border);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--project-soft) 62%, rgba(43, 57, 51, 0.06));
 }
 
 .project-summary-card__header,
@@ -317,6 +320,11 @@ a {
 .assistant-answer h3,
 .assistant-result-block h3 {
   margin: 0;
+}
+
+.project-summary-card__header h2,
+.project-panel__header h2 {
+  color: var(--project-ink);
 }
 
 .project-summary-card__body {
@@ -347,7 +355,7 @@ a {
 .project-summary-card__reason {
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(16, 34, 29, 0.05);
+  background: var(--project-soft);
 }
 
 .project-summary-card__section-head h4 {
@@ -373,7 +381,7 @@ a {
   padding: 16px 18px;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(16, 34, 29, 0.08);
+  border: 1px solid var(--project-border);
 }
 
 .project-evidence-row__meta {
@@ -650,8 +658,10 @@ a {
 .project-panel {
   padding: 24px;
   border-radius: 30px;
-  border: 1px solid rgba(16, 34, 29, 0.08);
-  background: rgba(255, 250, 242, 0.88);
+  border: 1px solid var(--project-border);
+  background:
+    linear-gradient(90deg, var(--project-soft) 0 10px, transparent 10px),
+    rgba(255, 250, 242, 0.88);
   box-shadow: 0 22px 60px rgba(43, 57, 51, 0.08);
 }
 
@@ -677,8 +687,8 @@ a {
   padding: 9px 12px;
   border-radius: 999px;
   text-decoration: none;
-  background: rgba(16, 34, 29, 0.08);
-  color: #1f6a52;
+  background: var(--project-soft);
+  color: var(--project-ink);
   font-weight: 700;
 }
 
@@ -706,8 +716,8 @@ a {
 .docs-category {
   padding: 18px;
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.58);
-  border: 1px solid rgba(16, 34, 29, 0.07);
+  background: color-mix(in srgb, var(--project-soft) 55%, rgba(255, 255, 255, 0.78));
+  border: 1px solid var(--project-border);
 }
 
 .project-card-grid {

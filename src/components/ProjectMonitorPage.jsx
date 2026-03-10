@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import InsightCard from "./InsightCard";
+import { projectThemeStyle } from "../lib/projectTheme";
 
 function CollapsibleItemGrid({ title, items }) {
   const [expanded, setExpanded] = useState(false);
@@ -28,7 +29,7 @@ function CollapsibleItemGrid({ title, items }) {
 
 function ProjectPanel({ project }) {
   return (
-    <section className="project-panel">
+    <section className="project-panel" data-project-id={project.id} style={projectThemeStyle(project.id)}>
       <header className="project-panel__header">
         <div>
           <p className="section-kicker">Project</p>

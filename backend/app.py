@@ -6,7 +6,12 @@ from flask import Flask, request
 
 from .assistant import answer_query
 from .config import DATA_DIR
-from .daily_summary import build_daily_project_summaries, load_daily_project_summaries_for_date, resolve_summary_date
+from .daily_summary import (
+    IMPORTANCE_ORDER,
+    build_daily_project_summaries,
+    load_daily_project_summaries_for_date,
+    resolve_summary_date,
+)
 from .discovery import generate_crawl_profile
 from .docs_classify import group_docs_records
 from .llm import normalize_analysis_record
@@ -259,7 +264,15 @@ def _build_homepage_projects(snapshot: dict, summary_date: str) -> list[dict]:
     existing_by_project = {item["project_id"]: item for item in stored}
     for item in generated:
         existing_by_project.setdefault(item["project_id"], item)
-    return list(existing_by_project.values())
+    merged = list(existing_by_project.values())
+    return sorted(
+        merged,
+        key=lambda item: (
+            IMPORTANCE_ORDER.get(item.get("importance"), 2),
+            -(int(datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00")).timestamp()) if item.get("updated_at") else 0),
+            item.get("project_name", ""),
+        ),
+    )
 
 
 def _infer_project_id(event: dict, projects: list[dict]) -> str:

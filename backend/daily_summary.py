@@ -26,24 +26,18 @@ def resolve_summary_date(snapshot: dict, now_iso: str | None = None) -> str:
     if now_iso:
         return now_iso[:10]
 
-    last_summary_at = (snapshot.get("state") or {}).get("last_daily_summary_at")
-    if last_summary_at:
-        return last_summary_at[:10]
-
-    published_dates = [
-        item[:10]
-        for item in (
-            event.get("published_at") or event.get("last_seen_at")
-            for event in (snapshot.get("events") or {}).values()
-        )
-        if item
+    state = snapshot.get("state") or {}
+    candidate_values = [
+        state.get("last_daily_summary_at"),
+        state.get("last_sync_at"),
     ]
-    if published_dates:
-        return max(published_dates)
-
-    last_sync_at = (snapshot.get("state") or {}).get("last_sync_at")
-    if last_sync_at:
-        return last_sync_at[:10]
+    candidate_values.extend(
+        event.get("published_at") or event.get("last_seen_at")
+        for event in (snapshot.get("events") or {}).values()
+    )
+    candidate_dates = [value[:10] for value in candidate_values if value]
+    if candidate_dates:
+        return max(candidate_dates)
 
     return datetime.now(UTC).date().isoformat()
 

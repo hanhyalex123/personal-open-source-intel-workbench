@@ -348,12 +348,14 @@ describe("App", () => {
     expect(screen.getByText("当前优先级")).toBeInTheDocument();
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
     expect(screen.getAllByText("技术情报").length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-project-id="kubernetes"]')).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "项目监控" })[0]);
     expect(screen.getByText("按项目查看版本变化和文档结论")).toBeInTheDocument();
     expect(screen.getByText("ReleaseNote 区")).toBeInTheDocument();
     expect(screen.getByText("文档区")).toBeInTheDocument();
     expect(screen.getByText("网络")).toBeInTheDocument();
     expect(screen.getByText("网络策略文档更新")).toBeInTheDocument();
+    expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "展开更多" }));
     expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();

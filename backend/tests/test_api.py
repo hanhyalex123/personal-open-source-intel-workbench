@@ -203,6 +203,103 @@ def test_manual_sync_endpoint_returns_runner_result(tmp_path: Path):
     assert response.get_json()["analyzed_events"] == 2
 
 
+def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "low-project",
+                "name": "Low Project",
+                "github_url": "https://example.com/low",
+                "repo": "example/low",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-09T12:00:00Z",
+                "updated_at": "2026-03-09T12:00:00Z",
+            },
+            {
+                "id": "high-project",
+                "name": "High Project",
+                "github_url": "https://example.com/high",
+                "repo": "example/high",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-09T12:00:00Z",
+                "updated_at": "2026-03-09T12:00:00Z",
+            },
+        ]
+    )
+    store.save_daily_project_summaries(
+        {
+            "2026-03-10:low-project": {
+                "id": "2026-03-10:low-project",
+                "date": "2026-03-10",
+                "project_id": "low-project",
+                "project_name": "Low Project",
+                "headline": "Low Project 近期待关注：旧条目",
+                "summary_zh": "旧低优先级摘要。",
+                "reason": "低优先级。",
+                "importance": "low",
+                "evidence_ids": [],
+                "evidence_items": [],
+                "updated_at": "2026-03-10T08:00:00Z",
+            }
+        }
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/high:v2.0.0",
+            "source": "github_release",
+            "repo": "example/high",
+            "source_key": "example/high",
+            "title": "High 2.0.0",
+            "version": "v2.0.0",
+            "url": "https://example.com/high/v2.0.0",
+            "content_hash": "hash-high",
+            "published_at": "2026-03-10T10:00:00Z",
+        }
+    )
+    store.save_analysis(
+        "github-release:example/high:v2.0.0",
+        {
+            "title_zh": "High Project 核心升级",
+            "summary_zh": "高优先级变化。",
+            "detail_sections": [{"title": "核心变化点", "bullets": ["重大变更"]}],
+            "impact_scope": "cluster",
+            "impact_points": ["cluster"],
+            "suggested_action": "验证升级。",
+            "action_items": ["验证升级。"],
+            "urgency": "high",
+            "tags": ["high"],
+            "is_stable": True,
+        },
+    )
+    store.save_state(
+        {
+            "last_sync_at": "2026-03-10T10:00:00Z",
+            "last_analysis_at": "2026-03-10T10:00:00Z",
+            "last_daily_summary_at": "2026-03-09T23:00:00Z",
+            "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    payload = client.get("/api/dashboard").get_json()
+
+    assert [item["project_id"] for item in payload["homepage_projects"][:2]] == ["high-project", "low-project"]
+
+
 def test_dashboard_orders_release_items_by_stable_semver_not_publish_time(tmp_path: Path):
     from backend.app import create_app
     from backend.storage import JsonStore
