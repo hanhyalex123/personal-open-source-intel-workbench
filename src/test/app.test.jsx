@@ -8,9 +8,14 @@ const dashboardPayload = {
     stable_items: 1,
     last_sync_at: "2026-03-09T12:00:00Z",
     last_analysis_at: "2026-03-09T12:00:00Z",
+    last_fetch_success_at: "2026-03-10T04:00:00Z",
+    last_incremental_analysis_at: "2026-03-10T04:05:00Z",
+    last_daily_digest_at: "2026-03-10T01:00:00Z",
+    last_heartbeat_at: "2026-03-10T04:05:00Z",
     scheduler: {
       running: true,
       interval_minutes: 60,
+      timezone: "Asia/Shanghai",
     },
   },
   homepage_projects: [
@@ -41,6 +46,39 @@ const dashboardPayload = {
           category: "网络",
         },
       ],
+    },
+  ],
+  recent_project_updates: [
+    {
+      project_id: "cilium",
+      project_name: "Cilium",
+      latest_published_at: "2026-03-10T13:00:00Z",
+      highest_urgency: "high",
+      items: [
+        {
+          id: "github-release:cilium/cilium:v1.20.0-pre.0",
+          title_zh: "Cilium 1.20 预发布",
+          summary_zh: "新增 KCNP 和 BackendTLSPolicy。",
+          urgency: "high",
+          source: "github_release",
+          url: "https://example.com/cilium",
+          version: "v1.20.0-pre.0",
+        },
+      ],
+    },
+  ],
+  daily_digest_history: [
+    {
+      date: "2026-03-10",
+      project_count: 8,
+      high_importance_count: 5,
+      updated_at: "2026-03-10T01:00:00Z",
+    },
+    {
+      date: "2026-03-09",
+      project_count: 6,
+      high_importance_count: 3,
+      updated_at: "2026-03-09T01:00:00Z",
     },
   ],
   sources: [
@@ -332,30 +370,31 @@ describe("App", () => {
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
     expect(screen.getByText("每日项目情报")).toBeInTheDocument();
-    expect(screen.getByText("每个项目只保留今天最值得你看的 AI 摘要和关键依据。")).toBeInTheDocument();
-    expect(screen.queryByText("高影响变化")).not.toBeInTheDocument();
+    expect(screen.getByText("首页主内容是固定日报；小时级抓取只刷新增量提醒和项目监控。")).toBeInTheDocument();
     expect(screen.getByText("本地知识与变更分析工作台")).toBeInTheDocument();
-    expect(screen.getByText("同一天同时出现补丁和网络文档更新，并且都有明确行动项。")).toBeInTheDocument();
-    expect(screen.getByText("这是最新补丁。")).toBeInTheDocument();
-    expect(screen.getByText("文档强调了网络策略和 CNI 相关行为。")).toBeInTheDocument();
+    expect(screen.getByText("今日日报")).toBeInTheDocument();
+    expect(screen.getByText("自日报后更新")).toBeInTheDocument();
+    expect(screen.getByText("历史日报")).toBeInTheDocument();
+    expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
+    expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
-    expect(screen.queryByText("这是次新补丁。")).not.toBeInTheDocument();
-    expect(screen.getByText("最近同步")).toBeInTheDocument();
-    expect(screen.getByText("来源状态")).toBeInTheDocument();
-    expect(screen.getByText("这里不是评分，数字表示这个来源下已经完成中文分析的更新条目数。")).toBeInTheDocument();
-    expect(screen.getByText("已分析更新")).toBeInTheDocument();
-    expect(screen.getByText("固定结论")).toBeInTheDocument();
-    expect(screen.getByText("当前优先级")).toBeInTheDocument();
+    expect(screen.getByText("最近抓取")).toBeInTheDocument();
+    expect(screen.getByText("日报生成")).toBeInTheDocument();
+    expect(screen.getByText("最近抓取成功")).toBeInTheDocument();
+    expect(screen.getByText("最近日报生成")).toBeInTheDocument();
+    expect(screen.getByText("2026-03-10")).toBeInTheDocument();
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("技术情报").length).toBeGreaterThan(0);
-    expect(document.querySelector('[data-project-id="kubernetes"]')).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "项目监控" })[0]);
     expect(screen.getByText("按项目查看版本变化和文档结论")).toBeInTheDocument();
-    expect(screen.getByText("ReleaseNote 区")).toBeInTheDocument();
+    expect(screen.getAllByText("ReleaseNote 区").length).toBeGreaterThan(0);
     expect(screen.getByText("文档区")).toBeInTheDocument();
-    expect(screen.getByText("网络")).toBeInTheDocument();
+    expect(screen.getAllByText("网络").length).toBeGreaterThan(0);
     expect(screen.getByText("网络策略文档更新")).toBeInTheDocument();
     expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
+    expect(screen.getByText("快速定位")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Kubernetes" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ReleaseNote 区" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "网络" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "展开更多" }));
     expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();

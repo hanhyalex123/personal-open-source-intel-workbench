@@ -44,7 +44,19 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
             "last_sync_at": None,
             "last_analysis_at": None,
             "last_daily_summary_at": None,
-            "scheduler": {"running": False, "interval_minutes": 60},
+            "last_fetch_success_at": None,
+            "last_incremental_analysis_at": None,
+            "last_daily_digest_at": None,
+            "last_heartbeat_at": None,
+            "scheduler": {
+                "running": False,
+                "interval_minutes": 60,
+                "timezone": "Asia/Shanghai",
+                "jobs": {
+                    "incremental": {"enabled": True},
+                    "daily_digest": {"enabled": True, "hour": 8, "minute": 0},
+                },
+            },
         },
     }
 

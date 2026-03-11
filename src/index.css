@@ -246,6 +246,10 @@ a {
   margin-top: 18px;
 }
 
+.stat-grid--secondary {
+  margin-top: 0;
+}
+
 .intel-page,
 .project-monitor-page,
 .settings-page {
@@ -402,6 +406,94 @@ a {
   margin: 0;
   line-height: 1.6;
   color: rgba(16, 34, 29, 0.72);
+}
+
+.incremental-update-list,
+.digest-history-list {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.incremental-project-card,
+.digest-history-card {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(16, 34, 29, 0.08);
+}
+
+.incremental-project-card {
+  display: grid;
+  gap: 14px;
+}
+
+.incremental-project-card__header,
+.incremental-update-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.incremental-project-card__header h3 {
+  margin: 8px 0 0;
+  font-size: 24px;
+}
+
+.incremental-project-card__timestamp {
+  margin: 0;
+  color: rgba(16, 34, 29, 0.6);
+  font-size: 13px;
+}
+
+.incremental-project-card__items {
+  display: grid;
+  gap: 12px;
+}
+
+.incremental-update-row {
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(16, 34, 29, 0.05);
+}
+
+.incremental-update-row__meta {
+  flex: 0 0 auto;
+}
+
+.incremental-update-row__copy {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}
+
+.incremental-update-row__copy strong {
+  font-size: 17px;
+}
+
+.incremental-update-row__copy p {
+  margin: 0;
+  line-height: 1.6;
+  color: rgba(16, 34, 29, 0.72);
+}
+
+.digest-history-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.digest-history-card {
+  display: grid;
+  gap: 8px;
+}
+
+.digest-history-card strong {
+  font-family: "Space Grotesk", "IBM Plex Sans SC", sans-serif;
+  font-size: 24px;
+}
+
+.digest-history-card span {
+  color: rgba(16, 34, 29, 0.62);
 }
 
 .intel-grid {
@@ -655,6 +747,13 @@ a {
   gap: 22px;
 }
 
+.project-monitor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 18px;
+  align-items: start;
+}
+
 .project-panel {
   padding: 24px;
   border-radius: 30px;
@@ -663,6 +762,12 @@ a {
     linear-gradient(90deg, var(--project-soft) 0 10px, transparent 10px),
     rgba(255, 250, 242, 0.88);
   box-shadow: 0 22px 60px rgba(43, 57, 51, 0.08);
+}
+
+.project-panel,
+.project-subsection,
+.docs-category {
+  scroll-margin-top: 96px;
 }
 
 .project-panel__header {
@@ -718,6 +823,83 @@ a {
   border-radius: 22px;
   background: color-mix(in srgb, var(--project-soft) 55%, rgba(255, 255, 255, 0.78));
   border: 1px solid var(--project-border);
+}
+
+.project-outline {
+  position: sticky;
+  top: 24px;
+}
+
+.project-outline__inner {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 252, 246, 0.9);
+  border: 1px solid rgba(16, 34, 29, 0.08);
+  box-shadow: 0 18px 44px rgba(43, 57, 51, 0.08);
+}
+
+.project-outline__inner h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.project-outline__list {
+  display: grid;
+  gap: 12px;
+}
+
+.project-outline__group {
+  display: grid;
+  gap: 10px;
+  padding: 14px 14px 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(90deg, var(--project-soft) 0 5px, rgba(255, 255, 255, 0.66) 5px);
+  border: 1px solid var(--project-border);
+}
+
+.project-outline__group--active {
+  box-shadow: inset 0 0 0 1px var(--project-border);
+}
+
+.project-outline__project-link,
+.project-outline__child-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.project-outline__project-link {
+  font-weight: 800;
+  color: var(--project-ink);
+}
+
+.project-outline__children {
+  display: grid;
+  gap: 8px;
+  padding-left: 8px;
+}
+
+.project-outline__child-link {
+  position: relative;
+  padding-left: 14px;
+  color: rgba(16, 34, 29, 0.72);
+}
+
+.project-outline__child-link::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--project-accent);
+}
+
+.project-outline__link--active {
+  color: var(--project-ink);
+  font-weight: 700;
 }
 
 .project-card-grid {
@@ -1150,7 +1332,9 @@ a {
   .assistant-page,
   .source-overview__grid,
   .source-section__grid,
-  .stat-grid {
+  .stat-grid,
+  .project-monitor-layout,
+  .digest-history-list {
     grid-template-columns: 1fr;
   }
 
@@ -1164,6 +1348,8 @@ a {
   .project-summary-card__header,
   .project-summary-card__section-head,
   .project-evidence-row,
+  .incremental-project-card__header,
+  .incremental-update-row,
   .source-overview__header {
     align-items: start;
     flex-direction: column;
@@ -1180,6 +1366,10 @@ a {
   .project-panel__header {
     align-items: start;
     flex-direction: column;
+  }
+
+  .project-outline {
+    position: static;
   }
 
   .coverage-card__metric-grid {

@@ -6,6 +6,7 @@ from flask import Flask, request
 
 from .assistant import answer_query
 from .config import DATA_DIR
+from .digest_history import build_daily_digest_history, build_recent_project_updates, sort_daily_digest_projects
 from .daily_summary import (
     IMPORTANCE_ORDER,
     build_daily_project_summaries,
@@ -33,7 +34,8 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None) -> Flask:
         snapshot = app.config["STORE"].load_all()
         items = _build_dashboard_items(snapshot["events"], snapshot["analyses"], snapshot["projects"])
         groups = _group_items(items, snapshot["projects"], snapshot["crawl_profiles"])
-        summary_date = resolve_summary_date(snapshot)
+        digest_history = build_daily_digest_history(snapshot.get("daily_project_summaries"))
+        digest_date = digest_history[0]["date"] if digest_history else resolve_summary_date(snapshot)
         return {
             "overview": {
                 "total_items": len(items),
@@ -41,9 +43,18 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None) -> Flask:
                 "last_sync_at": snapshot["state"].get("last_sync_at"),
                 "last_analysis_at": snapshot["state"].get("last_analysis_at"),
                 "last_daily_summary_at": snapshot["state"].get("last_daily_summary_at"),
+                "last_fetch_success_at": snapshot["state"].get("last_fetch_success_at"),
+                "last_incremental_analysis_at": snapshot["state"].get("last_incremental_analysis_at"),
+                "last_daily_digest_at": snapshot["state"].get("last_daily_digest_at"),
+                "last_heartbeat_at": snapshot["state"].get("last_heartbeat_at"),
                 "scheduler": snapshot["state"].get("scheduler", {}),
             },
-            "homepage_projects": _build_homepage_projects(snapshot, summary_date),
+            "homepage_projects": _build_homepage_projects(snapshot, digest_date),
+            "recent_project_updates": build_recent_project_updates(
+                snapshot=snapshot,
+                since_iso=snapshot["state"].get("last_daily_digest_at"),
+            ),
+            "daily_digest_history": digest_history,
             "projects": _build_project_sections(snapshot["projects"], snapshot["events"], items),
             "sources": _build_source_summaries(groups),
             "groups": groups,
@@ -247,6 +258,10 @@ def _build_project_sections(projects: list[dict], events: dict, items: list[dict
 
 def _build_homepage_projects(snapshot: dict, summary_date: str) -> list[dict]:
     stored = load_daily_project_summaries_for_date(snapshot.get("daily_project_summaries"), summary_date)
+    current_summary_date = resolve_summary_date(snapshot)
+    if stored and summary_date != current_summary_date:
+        return stored
+
     if stored and len(stored) >= len(snapshot.get("projects") or []):
         return stored
 
@@ -265,14 +280,7 @@ def _build_homepage_projects(snapshot: dict, summary_date: str) -> list[dict]:
     for item in generated:
         existing_by_project.setdefault(item["project_id"], item)
     merged = list(existing_by_project.values())
-    return sorted(
-        merged,
-        key=lambda item: (
-            IMPORTANCE_ORDER.get(item.get("importance"), 2),
-            -(int(datetime.fromisoformat(item["updated_at"].replace("Z", "+00:00")).timestamp()) if item.get("updated_at") else 0),
-            item.get("project_name", ""),
-        ),
-    )
+    return sort_daily_digest_projects(merged)
 
 
 def _infer_project_id(event: dict, projects: list[dict]) -> str:

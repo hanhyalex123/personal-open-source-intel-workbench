@@ -1,15 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import InsightCard from "./InsightCard";
 import { projectThemeStyle } from "../lib/projectTheme";
 
-function CollapsibleItemGrid({ title, items }) {
+function sectionId(...parts) {
+  return parts
+    .filter(Boolean)
+    .join("-")
+    .replace(/[^a-zA-Z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
+function CollapsibleItemGrid({ title, items, sectionAnchorId }) {
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? items : items.slice(0, 3);
   const hasMore = items.length > 3;
 
   return (
-    <section className="project-subsection">
+    <section className="project-subsection" id={sectionAnchorId}>
       <div className="project-subsection__header">
         <h3>{title}</h3>
         {hasMore ? (
@@ -28,8 +37,16 @@ function CollapsibleItemGrid({ title, items }) {
 }
 
 function ProjectPanel({ project }) {
+  const releaseId = sectionId("project", project.id, "release");
+  const docsId = sectionId("project", project.id, "docs");
+
   return (
-    <section className="project-panel" data-project-id={project.id} style={projectThemeStyle(project.id)}>
+    <section
+      className="project-panel"
+      id={sectionId("project", project.id)}
+      data-project-id={project.id}
+      style={projectThemeStyle(project.id)}
+    >
       <header className="project-panel__header">
         <div>
           <p className="section-kicker">Project</p>
@@ -48,16 +65,22 @@ function ProjectPanel({ project }) {
         </div>
       </header>
 
-      {project.release_area?.enabled ? <CollapsibleItemGrid title="ReleaseNote 区" items={project.release_area.items || []} /> : null}
+      {project.release_area?.enabled ? (
+        <CollapsibleItemGrid title="ReleaseNote 区" items={project.release_area.items || []} sectionAnchorId={releaseId} />
+      ) : null}
 
       {project.docs_area?.enabled ? (
-        <section className="project-subsection">
+        <section className="project-subsection" id={docsId}>
           <div className="project-subsection__header">
             <h3>文档区</h3>
           </div>
           <div className="docs-category-stack">
             {(project.docs_area.categories || []).map((category) => (
-              <section key={category.category} className="docs-category">
+              <section
+                key={category.category}
+                className="docs-category"
+                id={sectionId("project", project.id, "docs", category.category)}
+              >
                 <CollapsibleItemGrid title={category.category} items={category.items} />
               </section>
             ))}
@@ -68,7 +91,120 @@ function ProjectPanel({ project }) {
   );
 }
 
+function ProjectOutline({ projectSections, activeSectionId }) {
+  return (
+    <aside className="project-outline">
+      <div className="project-outline__inner">
+        <p className="section-kicker">Navigator</p>
+        <h3>快速定位</h3>
+        <div className="project-outline__list">
+          {projectSections.map((project) => {
+            const projectRootId = sectionId("project", project.id);
+            const releaseId = sectionId("project", project.id, "release");
+
+            return (
+              <section
+                key={project.id}
+                className={`project-outline__group ${activeSectionId?.startsWith(projectRootId) ? "project-outline__group--active" : ""}`}
+                style={projectThemeStyle(project.id)}
+              >
+                <a
+                  href={`#${projectRootId}`}
+                  className={`project-outline__project-link ${activeSectionId === projectRootId ? "project-outline__link--active" : ""}`}
+                >
+                  {project.name}
+                </a>
+                <div className="project-outline__children">
+                  {project.release_area?.enabled ? (
+                    <a
+                      href={`#${releaseId}`}
+                      className={`project-outline__child-link ${activeSectionId === releaseId ? "project-outline__link--active" : ""}`}
+                    >
+                      ReleaseNote 区
+                    </a>
+                  ) : null}
+                  {(project.docs_area?.categories || []).map((category) => {
+                    const categoryId = sectionId("project", project.id, "docs", category.category);
+                    return (
+                      <a
+                        key={category.category}
+                        href={`#${categoryId}`}
+                        className={`project-outline__child-link ${activeSectionId === categoryId ? "project-outline__link--active" : ""}`}
+                      >
+                        {category.category}
+                      </a>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function useActiveProjectSection(projectSections) {
+  const [activeSectionId, setActiveSectionId] = useState("");
+
+  useEffect(() => {
+    const ids = [];
+    for (const project of projectSections) {
+      ids.push(sectionId("project", project.id));
+      if (project.release_area?.enabled) {
+        ids.push(sectionId("project", project.id, "release"));
+      }
+      for (const category of project.docs_area?.categories || []) {
+        ids.push(sectionId("project", project.id, "docs", category.category));
+      }
+    }
+
+    const elements = ids
+      .map((id) => document.getElementById(id))
+      .filter(Boolean);
+
+    if (!elements.length) {
+      return undefined;
+    }
+
+    if (typeof window === "undefined" || typeof window.IntersectionObserver === "undefined") {
+      setActiveSectionId(elements[0].id);
+      return undefined;
+    }
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((left, right) => right.intersectionRatio - left.intersectionRatio);
+        if (visible[0]?.target?.id) {
+          setActiveSectionId(visible[0].target.id);
+        }
+      },
+      {
+        rootMargin: "-20% 0px -65% 0px",
+        threshold: [0.1, 0.4, 0.7],
+      },
+    );
+
+    for (const element of elements) {
+      observer.observe(element);
+    }
+
+    setActiveSectionId(elements[0].id);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [projectSections]);
+
+  return activeSectionId;
+}
+
 export default function ProjectMonitorPage({ projectSections }) {
+  const activeSectionId = useActiveProjectSection(projectSections);
+
   return (
     <section className="project-monitor-page">
       <div className="project-monitor-intro">
@@ -77,10 +213,13 @@ export default function ProjectMonitorPage({ projectSections }) {
         <p>从总览切到单项目视角，逐个查看 ReleaseNote 与文档结论。</p>
       </div>
 
-      <div className="project-sections">
-        {projectSections.map((project) => (
-          <ProjectPanel key={project.id} project={project} />
-        ))}
+      <div className="project-monitor-layout">
+        <div className="project-sections">
+          {projectSections.map((project) => (
+            <ProjectPanel key={project.id} project={project} />
+          ))}
+        </div>
+        <ProjectOutline projectSections={projectSections} activeSectionId={activeSectionId} />
       </div>
     </section>
   );

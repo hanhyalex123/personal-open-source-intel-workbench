@@ -15,7 +15,7 @@ import {
 } from "./lib/api";
 
 const NAV_ITEMS = [
-  { id: "intel", label: "技术情报", title: "技术情报", subtitle: "跨项目摘要、技术分类和来源状态" },
+  { id: "intel", label: "技术情报", title: "技术情报", subtitle: "每日固定摘要、增量提醒和历史日报" },
   { id: "projects", label: "项目监控", title: "项目监控", subtitle: "按项目查看版本变化和文档结论" },
   { id: "assistant", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
   { id: "settings", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
@@ -132,8 +132,9 @@ export default function App() {
 
   const overview = dashboard?.overview;
   const homepageProjects = dashboard?.homepage_projects ?? [];
+  const recentProjectUpdates = dashboard?.recent_project_updates ?? [];
+  const dailyDigestHistory = dashboard?.daily_digest_history ?? [];
   const projectSections = dashboard?.projects ?? [];
-  const sources = dashboard?.sources ?? [];
   const currentPage = useMemo(() => NAV_ITEMS.find((item) => item.id === activePage) || NAV_ITEMS[0], [activePage]);
 
   return (
@@ -174,7 +175,12 @@ export default function App() {
         {loading ? <section className="empty-state">正在读取最新数据...</section> : null}
 
         {!loading && activePage === "intel" ? (
-          <IntelOverviewPage overview={overview} homepageProjects={homepageProjects} sources={sources} projectSections={projectSections} />
+          <IntelOverviewPage
+            overview={overview}
+            homepageProjects={homepageProjects}
+            recentProjectUpdates={recentProjectUpdates}
+            dailyDigestHistory={dailyDigestHistory}
+          />
         ) : null}
 
         {!loading && activePage === "projects" ? <ProjectMonitorPage projectSections={projectSections} /> : null}

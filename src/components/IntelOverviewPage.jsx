@@ -1,3 +1,5 @@
+import DailyDigestHistory from "./DailyDigestHistory";
+import IncrementalUpdateList from "./IncrementalUpdateList";
 import ProjectSummaryCard from "./ProjectSummaryCard";
 
 function formatDate(value) {
@@ -18,31 +20,7 @@ function StatCard({ label, value, hint }) {
   );
 }
 
-function urgencyLabel(level) {
-  if (level === "high") return "高";
-  if (level === "medium") return "中";
-  return "低";
-}
-
-function sourceDescription(source) {
-  if (source.kind === "docs") {
-    return "表示这个文档来源下，已经有多少条页面更新被抓取并整理成中文结论。";
-  }
-  return "表示这个项目来源下，已经有多少条版本或变更信息被抓取并整理成中文结论。";
-}
-
-function collectCategoryCards(projectSections) {
-  const counts = new Map();
-  for (const project of projectSections) {
-    for (const category of project.docs_area?.categories || []) {
-      counts.set(category.category, (counts.get(category.category) || 0) + (category.items?.length || 0));
-    }
-  }
-  return Array.from(counts.entries()).map(([category, count]) => ({ category, count }));
-}
-
-export default function IntelOverviewPage({ overview, homepageProjects, sources, projectSections }) {
-  const categoryCards = collectCategoryCards(projectSections);
+export default function IntelOverviewPage({ overview, homepageProjects, recentProjectUpdates, dailyDigestHistory }) {
 
   return (
     <div className="intel-page">
@@ -50,24 +28,32 @@ export default function IntelOverviewPage({ overview, homepageProjects, sources,
         <div className="hero-copy">
           <p className="eyebrow">Daily Intel</p>
           <h1>每日项目情报</h1>
-          <p className="hero-text">每个项目只保留今天最值得你看的 AI 摘要和关键依据。</p>
+          <p className="hero-text">首页主内容是固定日报；小时级抓取只刷新增量提醒和项目监控。</p>
         </div>
 
         <div className="hero-actions">
           <div className="sync-note">
-            <span>最近同步</span>
-            <strong>{formatDate(overview?.last_sync_at)}</strong>
+            <span>最近抓取</span>
+            <strong>{formatDate(overview?.last_fetch_success_at || overview?.last_sync_at)}</strong>
           </div>
           <div className="sync-note">
-            <span>日报刷新</span>
-            <strong>{formatDate(overview?.last_daily_summary_at)}</strong>
+            <span>日报生成</span>
+            <strong>{formatDate(overview?.last_daily_digest_at || overview?.last_daily_summary_at)}</strong>
           </div>
         </div>
       </section>
 
       <section className="stat-grid">
         <StatCard label="结论总数" value={overview?.total_items ?? 0} />
-        <StatCard label="项目数" value={projectSections.length} />
+        <StatCard label="项目数" value={homepageProjects.length} />
+        <StatCard
+          label="最近抓取成功"
+          value={formatDate(overview?.last_incremental_analysis_at || overview?.last_fetch_success_at)}
+        />
+      </section>
+
+      <section className="stat-grid stat-grid--secondary">
+        <StatCard label="最近日报生成" value={formatDate(overview?.last_daily_digest_at)} />
         <StatCard
           label="后台调度"
           value={overview?.scheduler?.running ? "已开启" : "未开启"}
@@ -78,10 +64,10 @@ export default function IntelOverviewPage({ overview, homepageProjects, sources,
       <section className="intel-section">
         <div className="intel-section__header">
           <div>
-            <p className="section-kicker">Project Daily Brief</p>
-            <h2>项目摘要卡</h2>
+            <p className="section-kicker">Daily Digest</p>
+            <h2>今日日报</h2>
           </div>
-          <p className="intel-section__copy">首页按项目汇总，不再平铺全局时间流。每张卡只保留今天最值得看的情报。</p>
+          <p className="intel-section__copy">每天固定生成一版，主要告诉你今天最值得看的项目结论。</p>
         </div>
         <div className="project-summary-stack">
           {homepageProjects.length ? (
@@ -92,64 +78,27 @@ export default function IntelOverviewPage({ overview, homepageProjects, sources,
         </div>
       </section>
 
-      <div className="intel-grid">
-        <section className="intel-section">
-          <div className="intel-section__header">
-            <div>
-              <p className="section-kicker">Categories</p>
-              <h2>技术分类</h2>
-            </div>
-            <p className="intel-section__copy">把文档变化按技术域聚起来，和项目监控页的逐项目视角做明确区分。</p>
+      <section className="intel-section">
+        <div className="intel-section__header">
+          <div>
+            <p className="section-kicker">Incremental Feed</p>
+            <h2>自日报后更新</h2>
           </div>
-          <div className="category-grid">
-            {categoryCards.length ? (
-              categoryCards.map((item) => (
-                <article key={item.category} className="category-card">
-                  <strong>{item.category}</strong>
-                  <span>{item.count} 条关联结论</span>
-                </article>
-              ))
-            ) : (
-              <div className="empty-state">当前还没有分类化的文档结论。</div>
-            )}
-          </div>
-        </section>
+          <p className="intel-section__copy">这部分只放日报生成之后的新变化，小时级自动刷新。</p>
+        </div>
+        <IncrementalUpdateList updates={recentProjectUpdates} />
+      </section>
 
-        <section className="intel-section">
-          <div className="intel-section__header">
-            <div>
-              <p className="section-kicker">Source Status</p>
-              <h2>来源状态</h2>
-            </div>
-            <p className="intel-section__copy">这里不是评分，数字表示这个来源下已经完成中文分析的更新条目数。</p>
+      <section className="intel-section">
+        <div className="intel-section__header">
+          <div>
+            <p className="section-kicker">Digest Archive</p>
+            <h2>历史日报</h2>
           </div>
-          <div className="coverage-list">
-            {sources.map((source) => (
-              <article key={source.id} className="coverage-card coverage-card--status">
-                <div className="coverage-card__intro">
-                  <p className="source-overview-card__kind">{source.kind === "docs" ? "Docs" : "Repo"}</p>
-                  <h3>{source.title}</h3>
-                  <p className="coverage-card__summary">{sourceDescription(source)}</p>
-                </div>
-                <div className="coverage-card__metric-grid">
-                  <div className="coverage-metric">
-                    <span>已分析更新</span>
-                    <strong>{source.total_items}</strong>
-                  </div>
-                  <div className="coverage-metric">
-                    <span>固定结论</span>
-                    <strong>{source.stable_items}</strong>
-                  </div>
-                  <div className="coverage-metric">
-                    <span>当前优先级</span>
-                    <strong>{urgencyLabel(source.highest_urgency)}</strong>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
+          <p className="intel-section__copy">只保留每天一版摘要，旧内容去项目监控页细看。</p>
+        </div>
+        <DailyDigestHistory history={dailyDigestHistory} />
+      </section>
     </div>
   );
 }

@@ -177,9 +177,13 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     assert response.status_code == 200
     assert payload["overview"]["total_items"] == 3
     assert payload["overview"]["stable_items"] == 3
+    assert payload["overview"]["last_fetch_success_at"] is None
+    assert payload["overview"]["last_daily_digest_at"] is None
     assert payload["homepage_projects"][0]["project_id"] == "kubernetes"
     assert payload["homepage_projects"][0]["headline"] == "Kubernetes 今日重点：Kubernetes 1.31.1 补丁说明"
     assert payload["homepage_projects"][0]["evidence_items"][0]["title_zh"] == "Kubernetes 1.31.1 补丁说明"
+    assert payload["recent_project_updates"] == []
+    assert payload["daily_digest_history"] == []
     assert payload["projects"][0]["name"] == "Kubernetes"
     assert payload["projects"][0]["release_area"]["items"][0]["version"] == "v1.31.1"
     assert payload["projects"][0]["release_area"]["items"][0]["summary_zh"] == "Kubernetes 1.31.1 比 1.31.0 更新。"
@@ -298,6 +302,97 @@ def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries
     payload = client.get("/api/dashboard").get_json()
 
     assert [item["project_id"] for item in payload["homepage_projects"][:2]] == ["high-project", "low-project"]
+
+
+def test_dashboard_returns_digest_history_and_recent_updates_separately(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "cilium",
+                "name": "Cilium",
+                "github_url": "https://github.com/cilium/cilium",
+                "repo": "cilium/cilium",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-10T12:00:00Z",
+                "updated_at": "2026-03-10T12:00:00Z",
+            }
+        ]
+    )
+    store.save_event(
+        {
+            "id": "github-release:cilium/cilium:v1.20.0-pre.0",
+            "source": "github_release",
+            "repo": "cilium/cilium",
+            "source_key": "cilium/cilium",
+            "project_id": "cilium",
+            "title": "Cilium v1.20.0-pre.0",
+            "version": "v1.20.0-pre.0",
+            "url": "https://example.com/cilium",
+            "content_hash": "hash-cilium",
+            "published_at": "2026-03-11T09:00:00Z",
+        }
+    )
+    store.save_analysis(
+        "github-release:cilium/cilium:v1.20.0-pre.0",
+        {
+            "title_zh": "Cilium 1.20 预发布",
+            "summary_zh": "高优先级变化。",
+            "detail_sections": [{"title": "核心变化点", "bullets": ["重大变更"]}],
+            "impact_scope": "cluster",
+            "impact_points": ["cluster"],
+            "suggested_action": "验证升级。",
+            "action_items": ["验证升级。"],
+            "urgency": "high",
+            "tags": ["cilium"],
+            "is_stable": True,
+        },
+    )
+    store.save_daily_project_summaries(
+        {
+            "2026-03-10:cilium": {
+                "id": "2026-03-10:cilium",
+                "date": "2026-03-10",
+                "project_id": "cilium",
+                "project_name": "Cilium",
+                "headline": "昨日摘要",
+                "summary_zh": "昨日内容。",
+                "reason": "昨日原因。",
+                "importance": "high",
+                "evidence_ids": [],
+                "evidence_items": [],
+                "updated_at": "2026-03-10T08:00:00Z",
+            }
+        }
+    )
+    store.save_state(
+        {
+            "last_sync_at": "2026-03-11T09:30:00Z",
+            "last_analysis_at": "2026-03-11T09:30:00Z",
+            "last_fetch_success_at": "2026-03-11T09:30:00Z",
+            "last_incremental_analysis_at": "2026-03-11T09:30:00Z",
+            "last_daily_summary_at": "2026-03-10T08:00:00Z",
+            "last_daily_digest_at": "2026-03-10T08:00:00Z",
+            "last_heartbeat_at": "2026-03-11T09:30:00Z",
+            "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    payload = app.test_client().get("/api/dashboard").get_json()
+
+    assert payload["homepage_projects"][0]["date"] == "2026-03-10"
+    assert payload["daily_digest_history"][0]["date"] == "2026-03-10"
+    assert payload["recent_project_updates"][0]["project_id"] == "cilium"
+    assert payload["overview"]["last_daily_digest_at"] == "2026-03-10T08:00:00Z"
+    assert payload["overview"]["last_incremental_analysis_at"] == "2026-03-11T09:30:00Z"
 
 
 def test_dashboard_orders_release_items_by_stable_semver_not_publish_time(tmp_path: Path):
