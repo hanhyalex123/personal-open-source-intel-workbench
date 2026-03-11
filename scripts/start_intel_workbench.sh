@@ -83,7 +83,7 @@ wait_for_process_url() {
       echo "$label process exited before readiness" >&2
       return 1
     fi
-    if curl -fsS "$url" >/dev/null 2>&1; then
+    if curl --noproxy '*' -fsS "$url" >/dev/null 2>&1; then
       sleep "$stable_delay"
       if ! is_running "$pid_file"; then
         echo "$label process exited after readiness probe" >&2

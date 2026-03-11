@@ -102,3 +102,48 @@ def test_collect_project_sources_returns_enabled_release_and_docs_inputs():
             "classification_prompt": "",
         }
     ]
+
+
+def test_collect_project_sources_docs_only_project_returns_docs_feed_only():
+    from backend.projects import collect_project_sources
+
+    repos, feeds = collect_project_sources(
+        [
+            {
+                "id": "cuda-toolkit",
+                "name": "CUDA 工具链",
+                "repo": "",
+                "docs_url": "https://docs.nvidia.com/cuda/",
+                "enabled": True,
+                "release_area_enabled": False,
+                "docs_area_enabled": True,
+            }
+        ],
+        {
+            "cuda-toolkit": {
+                "entry_urls": ["https://docs.nvidia.com/cuda/"],
+                "allowed_path_prefixes": ["/cuda"],
+                "blocked_path_prefixes": [],
+                "max_depth": 3,
+            }
+        },
+    )
+
+    assert repos == []
+    assert feeds == [
+        {
+            "id": "cuda-toolkit:docs",
+            "project_id": "cuda-toolkit",
+            "name": "CUDA 工具链 文档",
+            "url": "https://docs.nvidia.com/cuda/",
+            "type": "page",
+            "entry_urls": ["https://docs.nvidia.com/cuda/"],
+            "allowed_path_prefixes": ["/cuda"],
+            "blocked_path_prefixes": [],
+            "max_depth": 3,
+            "max_pages": 40,
+            "category_hints": [],
+            "discovery_prompt": "",
+            "classification_prompt": "",
+        }
+    ]
