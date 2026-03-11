@@ -25,7 +25,7 @@ def build_incremental_sync_runner(store, now_provider=None):
             return now_provider()
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    def _run():
+    def _run(*, progress_callback=None):
         now_iso = _now_iso()
         snapshot = store.load_all()
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
@@ -38,6 +38,7 @@ def build_incremental_sync_runner(store, now_provider=None):
             analyzer=analyze_event,
             event_enricher=enrich_event_for_analysis,
             now_iso=now_iso,
+            progress_callback=progress_callback,
         )
         _update_incremental_state(store=store, now_iso=now_iso, analyzed_events=result["analyzed_events"])
         return result
@@ -53,10 +54,18 @@ def build_daily_digest_runner(store, now_provider=None):
             return now_provider()
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    def _run():
+    def _run(*, progress_callback=None):
         now_iso = _now_iso()
         summary_date = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).astimezone(LOCAL_TIMEZONE).date().isoformat()
         snapshot = store.load_all()
+        if progress_callback is not None:
+            progress_callback(
+                phase="daily_digest",
+                message="正在整理今日日报",
+                current_label=f"{len(snapshot.get('projects') or [])} 个项目",
+                processed_sources=0,
+                total_sources=len(snapshot.get("projects") or []),
+            )
         summaries = build_daily_project_summaries(
             snapshot=snapshot,
             summary_date=summary_date,

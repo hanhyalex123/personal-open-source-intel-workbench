@@ -6,6 +6,7 @@ from flask import Flask, request
 
 from .assistant import answer_query
 from .config import DATA_DIR
+from .sync_status import SyncCoordinator
 from .digest_history import build_daily_digest_history, build_recent_project_updates, sort_daily_digest_projects
 from .daily_summary import (
     IMPORTANCE_ORDER,
@@ -20,10 +21,15 @@ from .projects import build_default_crawl_profile, build_project_record
 from .storage import JsonStore, normalize_config
 
 
-def create_app(*, store: JsonStore | None = None, sync_runner=None) -> Flask:
+def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest_runner=None) -> Flask:
     app = Flask(__name__)
     app.config["STORE"] = store or JsonStore(DATA_DIR)
     app.config["SYNC_RUNNER"] = sync_runner or (lambda: {"status": "noop"})
+    app.config["DAILY_DIGEST_RUNNER"] = daily_digest_runner or (lambda **_kwargs: {"status": "noop"})
+    app.config["SYNC_COORDINATOR"] = SyncCoordinator(
+        incremental_runner=app.config["SYNC_RUNNER"],
+        daily_digest_runner=app.config["DAILY_DIGEST_RUNNER"],
+    )
 
     @app.get("/api/health")
     def health():
@@ -111,7 +117,12 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None) -> Flask:
 
     @app.post("/api/sync")
     def sync():
-        return app.config["SYNC_RUNNER"]()
+        started, status = app.config["SYNC_COORDINATOR"].start_manual_sync()
+        return status, 202 if started else 409
+
+    @app.get("/api/sync/status")
+    def sync_status():
+        return app.config["SYNC_COORDINATOR"].get_status()
 
     @app.post("/api/assistant/query")
     def assistant_query():

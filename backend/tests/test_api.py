@@ -197,14 +197,14 @@ def test_manual_sync_endpoint_returns_runner_result(tmp_path: Path):
 
     app = create_app(
         store=JsonStore(tmp_path),
-        sync_runner=lambda: {"new_events": 2, "analyzed_events": 2},
+        sync_runner=lambda **_kwargs: {"new_events": 2, "analyzed_events": 2},
     )
     client = app.test_client()
 
     response = client.post("/api/sync")
 
-    assert response.status_code == 200
-    assert response.get_json()["analyzed_events"] == 2
+    assert response.status_code == 202
+    assert response.get_json()["status"] == "running"
 
 
 def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries(tmp_path: Path):

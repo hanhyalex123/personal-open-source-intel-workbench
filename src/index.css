@@ -601,6 +601,66 @@ a {
   font-size: 13px;
 }
 
+.sync-status-panel {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 20px 22px;
+  border-radius: 26px;
+  background: rgba(255, 252, 246, 0.92);
+  border: 1px solid rgba(16, 34, 29, 0.08);
+  box-shadow: 0 20px 46px rgba(43, 57, 51, 0.08);
+}
+
+.sync-status-panel--failed {
+  border-color: rgba(155, 54, 38, 0.2);
+  background: rgba(251, 236, 231, 0.92);
+}
+
+.sync-status-panel__header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sync-status-panel__header h2 {
+  margin: 8px 0 0;
+  font-size: clamp(24px, 3vw, 34px);
+}
+
+.sync-status-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sync-status-metric {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(16, 34, 29, 0.05);
+}
+
+.sync-status-metric span {
+  font-size: 12px;
+  color: rgba(16, 34, 29, 0.56);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sync-status-metric strong {
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.sync-status-panel__error {
+  margin: 0;
+  color: #9b3626;
+  line-height: 1.6;
+}
+
 .error-banner,
 .empty-state {
   margin-top: 18px;
@@ -1334,7 +1394,8 @@ a {
   .source-section__grid,
   .stat-grid,
   .project-monitor-layout,
-  .digest-history-list {
+  .digest-history-list,
+  .sync-status-panel__grid {
     grid-template-columns: 1fr;
   }
 
@@ -1350,6 +1411,7 @@ a {
   .project-evidence-row,
   .incremental-project-card__header,
   .incremental-update-row,
+  .sync-status-panel__header,
   .source-overview__header {
     align-items: start;
     flex-direction: column;

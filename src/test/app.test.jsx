@@ -295,6 +295,24 @@ const assistantPayload = {
   },
 };
 
+const syncStatusPayload = {
+  status: "running",
+  run_kind: "manual",
+  phase: "incremental",
+  message: "正在抓取 GitHub releases",
+  started_at: "2026-03-10T04:10:00Z",
+  finished_at: null,
+  last_heartbeat_at: "2026-03-10T04:10:10Z",
+  current_label: "cilium/cilium",
+  processed_sources: 1,
+  total_sources: 8,
+  new_events: 2,
+  analyzed_events: 1,
+  failed_events: 0,
+  error: "",
+  result: {},
+};
+
 describe("App", () => {
   beforeEach(() => {
     global.fetch = vi.fn((url, options) => {
@@ -335,7 +353,15 @@ describe("App", () => {
       if (String(url).includes("/api/sync") && options?.method === "POST") {
         return Promise.resolve({
           ok: true,
-          json: () => Promise.resolve({ analyzed_events: 1 }),
+          status: 202,
+          json: () => Promise.resolve(syncStatusPayload),
+        });
+      }
+
+      if (String(url).includes("/api/sync/status")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(syncStatusPayload),
         });
       }
 
@@ -375,6 +401,10 @@ describe("App", () => {
     expect(screen.getByText("今日日报")).toBeInTheDocument();
     expect(screen.getByText("自日报后更新")).toBeInTheDocument();
     expect(screen.getByText("历史日报")).toBeInTheDocument();
+    expect(screen.getByText("同步状态")).toBeInTheDocument();
+    expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
+    expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
+    expect(screen.getByText("1 / 8")).toBeInTheDocument();
     expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
     expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);

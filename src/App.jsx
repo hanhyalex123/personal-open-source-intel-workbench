@@ -4,11 +4,13 @@ import AIConsolePage from "./components/AIConsolePage";
 import IntelOverviewPage from "./components/IntelOverviewPage";
 import ProjectMonitorPage from "./components/ProjectMonitorPage";
 import SettingsPage from "./components/SettingsPage";
+import SyncStatusPanel from "./components/SyncStatusPanel";
 import {
   createProject,
   fetchConfig,
   fetchDashboard,
   fetchProjects,
+  fetchSyncStatus,
   queryAssistant,
   triggerSync,
   updateConfig,
@@ -28,6 +30,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);
   const [submittingProject, setSubmittingProject] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [activePage, setActivePage] = useState("intel");
@@ -48,10 +51,12 @@ export default function App() {
           fetchProjects(signal),
           fetchConfig(signal),
         ]);
+        const syncStatusPayload = await fetchSyncStatus(signal);
         startTransition(() => {
           setDashboard(dashboardPayload);
           setProjects(projectsPayload);
           setConfig(configPayload);
+          setSyncStatus(syncStatusPayload);
           setError("");
           setLoading(false);
         });
@@ -78,13 +83,44 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let timerId = 0;
+    let activeController = null;
+
+    async function loadStatus(signal) {
+      try {
+        const payload = await fetchSyncStatus(signal);
+        startTransition(() => {
+          setSyncStatus(payload);
+        });
+      } catch (statusError) {
+        if (statusError.name !== "AbortError") {
+          setError(statusError instanceof Error ? statusError.message : "同步状态读取失败");
+        }
+      }
+    }
+
+    function scheduleStatusLoad() {
+      activeController?.abort();
+      activeController = new AbortController();
+      loadStatus(activeController.signal);
+    }
+
+    scheduleStatusLoad();
+    timerId = window.setInterval(scheduleStatusLoad, syncStatus?.status === "running" ? 2000 : 10000);
+
+    return () => {
+      activeController?.abort();
+      window.clearInterval(timerId);
+    };
+  }, [syncStatus?.status]);
+
   async function handleSync() {
     setSyncing(true);
     try {
-      await triggerSync();
-      const payload = await fetchDashboard();
+      const statusPayload = await triggerSync();
       startTransition(() => {
-        setDashboard(payload);
+        setSyncStatus(statusPayload);
         setError("");
       });
     } catch (syncError) {
@@ -172,6 +208,7 @@ export default function App() {
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
+        <SyncStatusPanel status={syncStatus} />
         {loading ? <section className="empty-state">正在读取最新数据...</section> : null}
 
         {!loading && activePage === "intel" ? (

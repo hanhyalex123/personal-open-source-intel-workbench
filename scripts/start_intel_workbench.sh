@@ -11,9 +11,27 @@ BACKEND_LOG="$LOG_DIR/backend.log"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
 BACKEND_URL="${INTEL_BACKEND_URL:-http://127.0.0.1:8000/api/health}"
 FRONTEND_URL="${INTEL_FRONTEND_URL:-http://127.0.0.1:5173}"
-BACKEND_CMD="${INTEL_BACKEND_CMD:-python3 -m backend.server}"
 FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 127.0.0.1 --port 5173}"
 OPEN_BROWSER_CMD="${INTEL_OPEN_CMD:-open}"
+
+detect_backend_python() {
+  if [[ -n "${INTEL_BACKEND_PYTHON:-}" ]]; then
+    echo "$INTEL_BACKEND_PYTHON"
+    return 0
+  fi
+
+  for candidate in python3.12 /opt/homebrew/anaconda3/bin/python3 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      command -v "$candidate"
+      return 0
+    fi
+  done
+
+  echo "python3"
+}
+
+BACKEND_PYTHON="$(detect_backend_python)"
+BACKEND_CMD="${INTEL_BACKEND_CMD:-$BACKEND_PYTHON -m backend.server}"
 
 print_help() {
   cat <<'EOF'

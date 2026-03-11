@@ -14,6 +14,14 @@ export async function triggerSync() {
   return response.json();
 }
 
+export async function fetchSyncStatus(signal) {
+  const response = await fetch("/api/sync/status", { signal });
+  if (!response.ok) {
+    throw new Error(`sync status request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchProjects(signal) {
   const response = await fetch("/api/projects", { signal });
   if (!response.ok) {
