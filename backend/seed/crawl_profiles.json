@@ -1,0 +1,222 @@
+{
+  "kubernetes": {
+    "entry_urls": [
+      "https://kubernetes.io/zh-cn/docs/concepts/storage/",
+      "https://kubernetes.io/zh-cn/docs/concepts/services-networking/",
+      "https://kubernetes.io/zh-cn/docs/concepts/workloads/",
+      "https://kubernetes.io/zh-cn/docs/concepts/containers/",
+      "https://kubernetes.io/zh-cn/docs/concepts/architecture/",
+      "https://kubernetes.io/zh-cn/docs/concepts/scheduling-eviction/"
+    ],
+    "allowed_path_prefixes": [
+      "/zh-cn/docs/concepts/storage",
+      "/zh-cn/docs/concepts/services-networking",
+      "/zh-cn/docs/concepts/workloads",
+      "/zh-cn/docs/concepts/containers",
+      "/zh-cn/docs/concepts/architecture",
+      "/zh-cn/docs/concepts/scheduling-eviction"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 3,
+    "max_pages": 40,
+    "expand_mode": "auto",
+    "category_hints": [
+      "存储",
+      "网络",
+      "工作负载",
+      "容器",
+      "架构",
+      "调度"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "nvidia-gpu-operator": {
+    "entry_urls": [
+      "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/release-notes.html",
+      "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/upgrade.html",
+      "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-operator-rdma.html"
+    ],
+    "allowed_path_prefixes": [
+      "/datacenter/cloud-native/gpu-operator/latest"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 18,
+    "expand_mode": "auto",
+    "category_hints": [
+      "运行时",
+      "架构",
+      "升级",
+      "可观测性",
+      "网络"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "cilium": {
+    "entry_urls": [
+      "https://docs.cilium.io/en/stable/operations/upgrade/",
+      "https://docs.cilium.io/en/stable/network/concepts/",
+      "https://docs.cilium.io/en/stable/security/policy/",
+      "https://docs.cilium.io/en/stable/observability/metrics/",
+      "https://docs.cilium.io/en/stable/network/bgp-toc/"
+    ],
+    "allowed_path_prefixes": [
+      "/en/stable"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 20,
+    "expand_mode": "auto",
+    "category_hints": [
+      "网络",
+      "安全",
+      "可观测性",
+      "架构",
+      "升级"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "iperf3": {
+    "entry_urls": [
+      "https://software.es.net/iperf/",
+      "https://software.es.net/iperf/invoking.html",
+      "https://software.es.net/iperf/faq.html",
+      "https://software.es.net/iperf/obtaining.html"
+    ],
+    "allowed_path_prefixes": [
+      "/iperf"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 12,
+    "expand_mode": "auto",
+    "category_hints": [
+      "网络",
+      "可观测性"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "vllm": {
+    "entry_urls": [
+      "https://docs.vllm.ai/en/stable/serving/openai_compatible_server/",
+      "https://docs.vllm.ai/en/stable/deployment/k8s/",
+      "https://docs.vllm.ai/en/stable/configuration/optimization/",
+      "https://docs.vllm.ai/en/stable/features/lora/",
+      "https://docs.vllm.ai/en/stable/models/supported_models/"
+    ],
+    "allowed_path_prefixes": [
+      "/en/stable"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 18,
+    "expand_mode": "auto",
+    "category_hints": [
+      "架构",
+      "运行时",
+      "升级",
+      "可观测性"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "sglang": {
+    "entry_urls": [
+      "https://docs.sglang.io/get_started/install.html",
+      "https://docs.sglang.io/basic_usage/openai_api.html",
+      "https://docs.sglang.io/advanced_features/server_arguments.html",
+      "https://docs.sglang.io/advanced_features/lora.html",
+      "https://docs.sglang.io/advanced_features/sgl_model_gateway.html",
+      "https://docs.sglang.io/advanced_features/observability.html"
+    ],
+    "allowed_path_prefixes": [
+      "/"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 18,
+    "expand_mode": "auto",
+    "category_hints": [
+      "架构",
+      "运行时",
+      "升级",
+      "可观测性"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "ktransformers": {
+    "entry_urls": [
+      "https://kvcache-ai.github.io/ktransformers/en/",
+      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/Qwen3.5.md",
+      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/Kimi-K2.5.md",
+      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/MiniMax-M2.5.md",
+      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/kt-kernel/GLM-5-Tutorial.md"
+    ],
+    "allowed_path_prefixes": [
+      "/ktransformers/en",
+      "/kvcache-ai/ktransformers/blob/main/doc/en"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 12,
+    "expand_mode": "auto",
+    "category_hints": [
+      "架构",
+      "运行时",
+      "升级",
+      "可观测性"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "cuda-toolkit": {
+    "entry_urls": [
+      "https://docs.nvidia.com/cuda/"
+    ],
+    "allowed_path_prefixes": [
+      "/cuda"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 3,
+    "max_pages": 40,
+    "expand_mode": "auto",
+    "category_hints": [],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "ascend-cann": {
+    "entry_urls": [
+      "https://www.hiascend.com/document"
+    ],
+    "allowed_path_prefixes": [
+      "/document"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 3,
+    "max_pages": 40,
+    "expand_mode": "auto",
+    "category_hints": [],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "mindspore": {
+    "entry_urls": [
+      "https://www.mindspore.cn/docs/"
+    ],
+    "allowed_path_prefixes": [
+      "/docs"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 3,
+    "max_pages": 40,
+    "expand_mode": "auto",
+    "category_hints": [],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  }
+}

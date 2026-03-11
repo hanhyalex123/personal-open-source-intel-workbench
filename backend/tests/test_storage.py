@@ -121,3 +121,58 @@ def test_storage_round_trips_projects_and_crawl_profiles(tmp_path: Path):
 
     assert snapshot["projects"][0]["repo"] == "openclaw/openclaw"
     assert snapshot["crawl_profiles"]["openclaw"]["entry_urls"] == ["https://openclaw.dev/docs"]
+
+
+def test_seed_projects_loaded_when_data_missing(tmp_path: Path):
+    from backend.storage import JsonStore
+
+    seed_dir = tmp_path / "seed"
+    seed_dir.mkdir()
+    (seed_dir / "projects.json").write_text(
+        '[{"id":"seed","name":"Seed","repo":"","docs_url":"https://example.com","enabled":true,"release_area_enabled":false,"docs_area_enabled":true,"sync_interval_minutes":60,"created_at":"2026-03-11T00:00:00Z","updated_at":"2026-03-11T00:00:00Z"}]',
+        encoding="utf-8",
+    )
+    (seed_dir / "crawl_profiles.json").write_text(
+        '{"seed":{"entry_urls":["https://example.com"],"allowed_path_prefixes":["/"],"blocked_path_prefixes":[],"max_depth":3,"max_pages":40,"expand_mode":"auto","category_hints":[],"discovery_prompt":"","classification_prompt":""}}',
+        encoding="utf-8",
+    )
+
+    store = JsonStore(tmp_path)
+    store.seed_dir = seed_dir
+    snapshot = store.load_all()
+
+    assert snapshot["projects"][0]["id"] == "seed"
+    assert snapshot["crawl_profiles"]["seed"]["entry_urls"] == ["https://example.com"]
+
+
+def test_seed_projects_not_overwrite_existing_data(tmp_path: Path):
+    from backend.storage import JsonStore
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "projects.json").write_text(
+        '[{"id":"local","name":"Local","repo":"","docs_url":"","enabled":true,"release_area_enabled":false,"docs_area_enabled":false,"sync_interval_minutes":60,"created_at":"2026-03-11T00:00:00Z","updated_at":"2026-03-11T00:00:00Z"}]',
+        encoding="utf-8",
+    )
+    (data_dir / "crawl_profiles.json").write_text(
+        '{"local":{"entry_urls":[],"allowed_path_prefixes":[],"blocked_path_prefixes":[],"max_depth":3,"max_pages":40,"expand_mode":"auto","category_hints":[],"discovery_prompt":"","classification_prompt":""}}',
+        encoding="utf-8",
+    )
+
+    seed_dir = tmp_path / "seed"
+    seed_dir.mkdir()
+    (seed_dir / "projects.json").write_text(
+        '[{"id":"seed","name":"Seed","repo":"","docs_url":"https://example.com","enabled":true,"release_area_enabled":false,"docs_area_enabled":true,"sync_interval_minutes":60,"created_at":"2026-03-11T00:00:00Z","updated_at":"2026-03-11T00:00:00Z"}]',
+        encoding="utf-8",
+    )
+    (seed_dir / "crawl_profiles.json").write_text(
+        '{"seed":{"entry_urls":["https://example.com"],"allowed_path_prefixes":["/"],"blocked_path_prefixes":[],"max_depth":3,"max_pages":40,"expand_mode":"auto","category_hints":[],"discovery_prompt":"","classification_prompt":""}}',
+        encoding="utf-8",
+    )
+
+    store = JsonStore(data_dir)
+    store.seed_dir = seed_dir
+    snapshot = store.load_all()
+
+    assert snapshot["projects"][0]["id"] == "local"
+    assert "seed" not in snapshot["crawl_profiles"]

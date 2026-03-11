@@ -55,6 +55,7 @@ class JsonStore:
     def __init__(self, base_dir: str | Path):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
+        self.seed_dir = self.base_dir.parent / "seed"
 
     @property
     def config_path(self) -> Path:
@@ -133,6 +134,11 @@ class JsonStore:
 
     def _load_json(self, path: Path, default: dict) -> dict:
         if not path.exists():
+            seed_path = self.seed_dir / path.name
+            if seed_path.exists():
+                seeded = json.loads(seed_path.read_text(encoding="utf-8"))
+                self._write_json(path, seeded)
+                return json.loads(json.dumps(seeded))
             self._write_json(path, default)
             return json.loads(json.dumps(default))
         return json.loads(path.read_text(encoding="utf-8"))
