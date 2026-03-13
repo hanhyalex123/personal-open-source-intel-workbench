@@ -25,7 +25,7 @@ def build_incremental_sync_runner(store, now_provider=None):
             return now_provider()
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    def _run(*, progress_callback=None):
+    def _run(*, progress_callback=None, run_logger=None, run_id=None):
         now_iso = _now_iso()
         snapshot = store.load_all()
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
@@ -39,6 +39,8 @@ def build_incremental_sync_runner(store, now_provider=None):
             event_enricher=enrich_event_for_analysis,
             now_iso=now_iso,
             progress_callback=progress_callback,
+            run_logger=run_logger,
+            run_id=run_id,
         )
         _update_incremental_state(store=store, now_iso=now_iso, analyzed_events=result["analyzed_events"])
         return result
@@ -54,7 +56,7 @@ def build_daily_digest_runner(store, now_provider=None):
             return now_provider()
         return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    def _run(*, progress_callback=None):
+    def _run(*, progress_callback=None, run_logger=None, run_id=None):
         now_iso = _now_iso()
         summary_date = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).astimezone(LOCAL_TIMEZONE).date().isoformat()
         snapshot = store.load_all()

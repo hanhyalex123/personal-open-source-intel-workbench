@@ -138,3 +138,27 @@ def test_build_daily_digest_runner_persists_digest_and_history(tmp_path: Path):
     assert snapshot["state"]["last_daily_digest_at"] == "2026-03-11T00:30:00Z"
     assert snapshot["state"]["last_heartbeat_at"] == "2026-03-11T00:30:00Z"
     assert "2026-03-11:cilium" in snapshot["daily_project_summaries"]
+
+
+def test_incremental_runner_passes_run_logger_and_id(tmp_path: Path, monkeypatch):
+    from backend.runtime import build_incremental_sync_runner
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_config({})
+
+    captured = {}
+
+    def fake_run_sync_once(*, run_logger=None, run_id=None, **_kwargs):
+        captured["run_logger"] = run_logger
+        captured["run_id"] = run_id
+        return {"new_events": 0, "analyzed_events": 0, "failed_events": 0}
+
+    monkeypatch.setattr("backend.runtime.run_sync_once", fake_run_sync_once)
+
+    runner = build_incremental_sync_runner(store, now_provider=lambda: "2026-03-09T12:00:00Z")
+    recorder = object()
+    runner(run_logger=recorder, run_id="run_1")
+
+    assert captured["run_logger"] is recorder
+    assert captured["run_id"] == "run_1"
