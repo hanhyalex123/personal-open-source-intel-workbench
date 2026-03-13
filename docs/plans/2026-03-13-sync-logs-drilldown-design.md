@@ -91,12 +91,15 @@ Radar panel changes:
 - Show only: Status pill, Phase, Current label, Source progress, Counters.
 - Counters (`新增/已分析/失败`) are clickable.
 - Add a `日志` entry in the header to open logs even when idle.
+ - Language: **Chinese-only** labels and copy.
 
 Log drawer:
 - Default to **current run** using `run_id` from `/api/sync/status`.
 - Two tabs: `本次同步` (current run) and `历史同步` (list of recent runs).
 - Event list grouped by source with filters: `全部 / 新增 / 已分析 / 失败`.
 - Each event shows `title/version`, `time`, `url`, `analysis summary` (if present) or `error`.
+ - Drawer is **right-side** and does not navigate away from the current page.
+ - No background polling; provide manual refresh if needed.
 
 Empty states:
 - If no runs exist, show “暂无同步日志”.
@@ -106,6 +109,7 @@ Empty states:
 - Record errors from fetch/analyze per event or per source.
 - Timeouts recorded with `status=timeout` and error message.
 - Packy/API failures captured on event errors to explain failed analysis spikes.
+ - If detail fetch fails, keep last successful details and show a lightweight error hint.
 
 ## Retention & Reset
 - Keep last 20 runs. Older entries dropped on write.
@@ -122,4 +126,3 @@ Frontend:
 - Radar renders simplified layout.
 - Clicking counters opens drawer and loads current run.
 - History tab loads run list and details.
-
