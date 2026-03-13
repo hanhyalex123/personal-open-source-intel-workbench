@@ -4,6 +4,7 @@ import AIConsolePage from "./components/AIConsolePage";
 import IntelOverviewPage from "./components/IntelOverviewPage";
 import ProjectMonitorPage from "./components/ProjectMonitorPage";
 import SettingsPage from "./components/SettingsPage";
+import SyncLogDrawer from "./components/SyncLogDrawer";
 import SyncStatusPanel from "./components/SyncStatusPanel";
 import {
   createProject,
@@ -34,6 +35,8 @@ export default function App() {
   const [submittingProject, setSubmittingProject] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
   const [activePage, setActivePage] = useState("intel");
+  const [logDrawerOpen, setLogDrawerOpen] = useState(false);
+  const [logFilter, setLogFilter] = useState("all");
   const [projectForm, setProjectForm] = useState({
     name: "",
     githubUrl: "",
@@ -173,6 +176,11 @@ export default function App() {
   const projectSections = dashboard?.projects ?? [];
   const currentPage = useMemo(() => NAV_ITEMS.find((item) => item.id === activePage) || NAV_ITEMS[0], [activePage]);
 
+  function handleOpenLogs(filter = "all") {
+    setLogFilter(filter);
+    setLogDrawerOpen(true);
+  }
+
   return (
     <div className="workbench-shell">
       <aside className="sidebar">
@@ -208,7 +216,7 @@ export default function App() {
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
-        <SyncStatusPanel status={syncStatus} />
+        <SyncStatusPanel status={syncStatus} onOpenLogs={handleOpenLogs} />
         {loading ? <section className="empty-state">正在读取最新数据...</section> : null}
 
         {!loading && activePage === "intel" ? (
@@ -238,6 +246,13 @@ export default function App() {
             onConfigSave={handleConfigSave}
           />
         ) : null}
+
+        <SyncLogDrawer
+          open={logDrawerOpen}
+          onClose={() => setLogDrawerOpen(false)}
+          currentRunId={syncStatus?.run_id}
+          initialFilter={logFilter}
+        />
       </main>
     </div>
   );

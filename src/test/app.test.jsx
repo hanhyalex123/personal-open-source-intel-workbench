@@ -313,6 +313,25 @@ const syncStatusPayload = {
   result: {},
 };
 
+const syncRunsPayload = [
+  {
+    id: "run_2026-03-10T04:10:00Z_manual",
+    run_kind: "manual",
+    status: "running",
+    phase: "incremental",
+    message: "正在抓取 GitHub releases",
+    started_at: "2026-03-10T04:10:00Z",
+    finished_at: null,
+    last_heartbeat_at: "2026-03-10T04:10:10Z",
+    metrics: { total_sources: 8, processed_sources: 1, new_events: 2, analyzed_events: 1, failed_events: 0 },
+  },
+];
+
+const syncRunDetailPayload = {
+  ...syncRunsPayload[0],
+  sources: [],
+};
+
 describe("App", () => {
   beforeEach(() => {
     global.fetch = vi.fn((url, options) => {
@@ -365,6 +384,20 @@ describe("App", () => {
         });
       }
 
+      if (String(url).includes("/api/sync/runs/") && !String(url).endsWith("/api/sync/runs")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(syncRunDetailPayload),
+        });
+      }
+
+      if (String(url).includes("/api/sync/runs")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(syncRunsPayload),
+        });
+      }
+
       if (String(url).includes("/api/assistant/query") && options?.method === "POST") {
         return Promise.resolve({
           ok: true,
@@ -401,10 +434,16 @@ describe("App", () => {
     expect(screen.getByText("今日日报")).toBeInTheDocument();
     expect(screen.getByText("自日报后更新")).toBeInTheDocument();
     expect(screen.getByText("历史日报")).toBeInTheDocument();
-    expect(screen.getByText("同步状态")).toBeInTheDocument();
+    expect(screen.getByText("同步雷达")).toBeInTheDocument();
     expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
     expect(screen.getByText("1 / 8")).toBeInTheDocument();
+    expect(screen.getByText("心跳状态")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "日志" }));
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
+    });
     expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
     expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);

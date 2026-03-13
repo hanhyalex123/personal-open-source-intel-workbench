@@ -22,6 +22,34 @@ export async function fetchSyncStatus(signal) {
   return response.json();
 }
 
+export async function fetchSyncRuns(signal, limit = 20) {
+  const params = new URLSearchParams();
+  if (limit !== undefined && limit !== null) {
+    params.set("limit", String(limit));
+  }
+  const response = await fetch(`/api/sync/runs${params.toString() ? `?${params.toString()}` : ""}`, { signal });
+  if (!response.ok) {
+    throw new Error(`sync runs request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchSyncRun(runId, signal) {
+  const response = await fetch(`/api/sync/runs/${encodeURIComponent(runId)}`, { signal });
+  if (!response.ok) {
+    throw new Error(`sync run request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function clearSyncRuns() {
+  const response = await fetch("/api/sync/runs", { method: "DELETE" });
+  if (!response.ok) {
+    throw new Error(`sync runs clear failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function fetchProjects(signal) {
   const response = await fetch("/api/projects", { signal });
   if (!response.ok) {

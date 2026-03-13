@@ -6,6 +6,14 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
+function heartbeatLabel(status) {
+  if (status?.is_stalled) return "心跳超时";
+  if (status?.status === "running") return "运行中";
+  if (status?.status === "failed") return "已失败";
+  if (status?.status === "success") return "已完成";
+  return "等待中";
+}
+
 function statusLabel(status) {
   if (status === "running") return "同步中";
   if (status === "failed") return "同步失败";
@@ -13,20 +21,32 @@ function statusLabel(status) {
   return "空闲";
 }
 
-export default function SyncStatusPanel({ status }) {
-  if (!status || status.status === "idle") {
+function metricValue(value, fallback = "暂无") {
+  if (value === 0) return "0";
+  if (!value) return fallback;
+  return value;
+}
+
+export default function SyncStatusPanel({ status, onOpenLogs }) {
+  if (!status) {
     return null;
   }
 
+  const stateText = status.is_stalled ? "可能卡住" : statusLabel(status.status);
+  const pillTone = status.is_stalled ? "high" : status.status === "failed" ? "high" : status.status === "success" ? "stable" : "medium";
+
   return (
-    <section className={`sync-status-panel sync-status-panel--${status.status}`}>
+    <section className={`sync-status-panel sync-status-panel--${status.status} ${status.is_stalled ? "sync-status-panel--stalled" : ""}`}>
       <div className="sync-status-panel__header">
         <div>
-          <p className="section-kicker">Sync</p>
-          <h2>同步状态</h2>
+          <p className="section-kicker">Radar</p>
+          <h2>同步雷达</h2>
         </div>
-        <div className={`pill pill--${status.status === "failed" ? "high" : status.status === "success" ? "stable" : "medium"}`}>
-          {statusLabel(status.status)}
+        <div className="sync-status-panel__actions">
+          <button className="secondary-button" type="button" onClick={() => onOpenLogs?.("all")}>
+            日志
+          </button>
+          <div className={`pill pill--${pillTone}`}>{stateText}</div>
         </div>
       </div>
 
@@ -43,13 +63,42 @@ export default function SyncStatusPanel({ status }) {
           <span>来源进度</span>
           <strong>{`${status.processed_sources || 0} / ${status.total_sources || 0}`}</strong>
         </div>
-        <div className="sync-status-metric">
-          <span>新增事件</span>
-          <strong>{status.new_events || 0}</strong>
-        </div>
-        <div className="sync-status-metric">
+      </div>
+
+      <div className="sync-status-panel__grid sync-status-panel__grid--compact">
+        <button
+          className="sync-status-metric sync-status-metric--button"
+          type="button"
+          onClick={() => onOpenLogs?.("new")}
+          aria-label="新增"
+        >
+          <span>新增</span>
+          <strong>{metricValue(status.new_events, "0")}</strong>
+        </button>
+        <button
+          className="sync-status-metric sync-status-metric--button"
+          type="button"
+          onClick={() => onOpenLogs?.("analyzed")}
+          aria-label="已分析"
+        >
           <span>已分析</span>
-          <strong>{status.analyzed_events || 0}</strong>
+          <strong>{metricValue(status.analyzed_events, "0")}</strong>
+        </button>
+        <button
+          className="sync-status-metric sync-status-metric--button"
+          type="button"
+          onClick={() => onOpenLogs?.("failed")}
+          aria-label="失败"
+        >
+          <span>失败</span>
+          <strong>{metricValue(status.failed_events, "0")}</strong>
+        </button>
+      </div>
+
+      <div className="sync-status-panel__grid sync-status-panel__grid--compact">
+        <div className="sync-status-metric">
+          <span>心跳状态</span>
+          <strong>{heartbeatLabel(status)}</strong>
         </div>
         <div className="sync-status-metric">
           <span>最后心跳</span>
