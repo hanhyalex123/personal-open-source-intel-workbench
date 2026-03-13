@@ -26,7 +26,9 @@ GITHUB_BLOB_LINK_PATTERN = re.compile(r"https://github\.com/([^/]+/[^/]+)/blob/(
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 
 
-def fetch_github_releases(repo: str) -> list[dict]:
+def fetch_github_releases(repo: str, progress_callback=None) -> list[dict]:
+    if progress_callback is not None:
+        progress_callback(stage="requesting")
     response = requests.get(
         f"https://api.github.com/repos/{repo}/releases?per_page=6",
         headers={
@@ -41,15 +43,26 @@ def fetch_github_releases(repo: str) -> list[dict]:
     )
     response.raise_for_status()
     releases = response.json()
-    return [_expand_release_body(item) for item in releases]
+    expanded = []
+    total_items = len(releases)
+    for index, item in enumerate(releases, start=1):
+        expanded.append(_expand_release_body(item))
+        if progress_callback is not None:
+            progress_callback(
+                stage="processing",
+                processed_items=index,
+                total_items=total_items,
+            )
+    return expanded
 
 
-def fetch_feed_entries(feed: dict) -> list[dict]:
+def fetch_feed_entries(feed: dict, progress_callback=None) -> list[dict]:
     if feed.get("type") == "page":
         records = crawl_docs_pages(
             project_id=feed.get("project_id", ""),
             docs_url=feed["url"],
             profile=feed,
+            progress_callback=progress_callback,
         )
         grouped = group_docs_records(records)
         return [

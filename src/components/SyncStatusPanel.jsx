@@ -28,7 +28,7 @@ function metricValue(value, fallback = "暂无") {
 }
 
 export default function SyncStatusPanel({ status, onOpenLogs }) {
-  if (!status) {
+  if (!status || status.status === "idle") {
     return null;
   }
 
@@ -72,7 +72,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           onClick={() => onOpenLogs?.("new")}
           aria-label="新增"
         >
-          <span>新增</span>
+          <span>新增事件</span>
           <strong>{metricValue(status.new_events, "0")}</strong>
         </button>
         <button
@@ -90,7 +90,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           onClick={() => onOpenLogs?.("failed")}
           aria-label="失败"
         >
-          <span>失败</span>
+          <span>失败数</span>
           <strong>{metricValue(status.failed_events, "0")}</strong>
         </button>
       </div>

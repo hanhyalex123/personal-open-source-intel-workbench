@@ -30,55 +30,114 @@ def test_build_sync_runner_uses_store_config_and_persists_results(tmp_path: Path
     )
     store.save_config({"sync_interval_minutes": 30})
 
-    monkeypatch.setattr(
-        "backend.runtime.fetch_github_releases",
-        lambda repo: [
-            {
-                "tag_name": "v1.31.0",
-                "name": f"{repo} v1.31.0",
-                "body": "release note",
-                "html_url": "https://example.com/release",
-                "published_at": "2026-03-09T00:00:00Z",
-            }
-        ],
-    )
-    monkeypatch.setattr(
-        "backend.runtime.fetch_feed_entries",
-        lambda feed: [
-            {
-                "id": "entry-1",
-                "title": f'{feed["id"]} entry',
-                "link": "https://example.com/feed-entry",
-                "published": "2026-03-09T00:00:00Z",
-                "summary": "docs note",
-            }
-        ],
-    )
-    monkeypatch.setattr(
-        "backend.runtime.analyze_event",
-        lambda event: {
-            "title_zh": f'{event["title"]} 中文',
-            "summary_zh": "中文总结",
-            "details_zh": "中文详情",
-            "impact_scope": "测试范围",
-            "suggested_action": "关注变化",
-            "urgency": "medium",
-            "tags": ["test"],
-            "is_stable": True,
-        },
-    )
+    captured = {}
+
+    def fake_run_sync_once(**kwargs):
+        captured["kwargs"] = kwargs
+        return {
+            "new_events": 1,
+            "analyzed_events": 1,
+            "failed_events": 0,
+            "last_sync_at": kwargs["now_iso"],
+        }
+
+    monkeypatch.setattr("backend.runtime.run_sync_once", fake_run_sync_once)
 
     runner = build_incremental_sync_runner(store, now_provider=lambda: "2026-03-09T12:00:00Z")
 
     result = runner()
     snapshot = store.load_all()
 
-    assert result["analyzed_events"] == 2
+    assert result["analyzed_events"] == 1
+    assert captured["kwargs"]["max_workers"] == 4
+    assert captured["kwargs"]["source_timeout_seconds"] == 120
     assert snapshot["state"]["last_sync_at"] == "2026-03-09T12:00:00Z"
     assert snapshot["state"]["last_fetch_success_at"] == "2026-03-09T12:00:00Z"
     assert snapshot["state"]["last_incremental_analysis_at"] == "2026-03-09T12:00:00Z"
-    assert len(snapshot["events"]) == 2
+    assert captured["kwargs"]["repos"] == ["kubernetes/kubernetes"]
+    assert captured["kwargs"]["feeds"] == [
+        {
+            "id": "kubernetes:docs",
+            "project_id": "kubernetes",
+            "name": "Kubernetes 文档",
+            "url": "https://example.com/feed.atom",
+            "type": "page",
+            "entry_urls": ["https://example.com/feed.atom"],
+            "allowed_path_prefixes": ["/"],
+            "blocked_path_prefixes": [],
+            "max_depth": 1,
+            "max_pages": 40,
+            "category_hints": [],
+            "discovery_prompt": "",
+            "classification_prompt": "",
+        }
+    ]
+    assert snapshot["events"] == {}
     assert snapshot["daily_project_summaries"] == {}
+
+
+def test_build_sync_runner_uses_configured_concurrency_values(tmp_path: Path, monkeypatch):
+    from backend.runtime import build_incremental_sync_runner
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_config({"sync_interval_minutes": 30, "sync_concurrency": 7, "sync_source_timeout_seconds": 45})
+    captured = {}
+
+    def fake_run_sync_once(**kwargs):
+        captured["kwargs"] = kwargs
+        return {"new_events": 0, "analyzed_events": 0, "failed_events": 0, "last_sync_at": kwargs["now_iso"]}
+
+    monkeypatch.setattr("backend.runtime.run_sync_once", fake_run_sync_once)
+
+    runner = build_incremental_sync_runner(store, now_provider=lambda: "2026-03-09T12:00:00Z")
+    runner()
+
+    assert captured["kwargs"]["max_workers"] == 7
+    assert captured["kwargs"]["source_timeout_seconds"] == 45
+
+
+def test_build_sync_runner_includes_docs_only_projects(tmp_path: Path, monkeypatch):
+    from backend.runtime import build_incremental_sync_runner
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_project(
+        {
+            "id": "cuda-toolkit",
+            "name": "CUDA 工具链",
+            "github_url": "",
+            "repo": "",
+            "docs_url": "https://docs.nvidia.com/cuda/",
+            "enabled": True,
+            "release_area_enabled": False,
+            "docs_area_enabled": True,
+            "sync_interval_minutes": 60,
+        }
+    )
+    store.save_crawl_profile(
+        "cuda-toolkit",
+        {
+            "entry_urls": ["https://docs.nvidia.com/cuda/"],
+            "allowed_path_prefixes": ["/cuda"],
+            "blocked_path_prefixes": [],
+            "max_depth": 3,
+        }
+    )
+
+    captured = {}
+
+    def fake_run_sync_once(**kwargs):
+        captured["kwargs"] = kwargs
+        return {"new_events": 0, "analyzed_events": 0, "failed_events": 0, "last_sync_at": kwargs["now_iso"]}
+
+    monkeypatch.setattr("backend.runtime.run_sync_once", fake_run_sync_once)
+
+    runner = build_incremental_sync_runner(store, now_provider=lambda: "2026-03-09T12:00:00Z")
+    runner()
+
+    assert captured["kwargs"]["repos"] == []
+    assert [feed["project_id"] for feed in captured["kwargs"]["feeds"]] == ["cuda-toolkit"]
 
 
 def test_build_daily_digest_runner_persists_digest_and_history(tmp_path: Path):

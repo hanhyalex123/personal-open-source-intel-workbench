@@ -28,6 +28,8 @@ DEFAULT_ASSISTANT_CONFIG = {
 
 DEFAULT_CONFIG = {
     "sync_interval_minutes": 60,
+    "sync_concurrency": 4,
+    "sync_source_timeout_seconds": 120,
     "assistant": DEFAULT_ASSISTANT_CONFIG,
 }
 
@@ -110,6 +112,12 @@ class JsonStore:
         analyses[event_id] = analysis
         self._write_json(self.analyses_path, analyses)
 
+    def load_sync_runs(self) -> dict:
+        return self._load_json(self.sync_runs_path, {"runs": []})
+
+    def save_sync_runs(self, payload: dict) -> None:
+        self._write_json(self.sync_runs_path, payload)
+
     def save_state(self, state: dict) -> None:
         self._write_json(self.state_path, state)
 
@@ -167,6 +175,10 @@ def normalize_config(config: dict | None) -> dict:
     assistant = config.get("assistant") or {}
     return {
         "sync_interval_minutes": config.get("sync_interval_minutes", DEFAULT_CONFIG["sync_interval_minutes"]),
+        "sync_concurrency": config.get("sync_concurrency", DEFAULT_CONFIG["sync_concurrency"]),
+        "sync_source_timeout_seconds": config.get(
+            "sync_source_timeout_seconds", DEFAULT_CONFIG["sync_source_timeout_seconds"]
+        ),
         "assistant": {
             "enabled": assistant.get("enabled", DEFAULT_ASSISTANT_CONFIG["enabled"]),
             "default_mode": assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"]),

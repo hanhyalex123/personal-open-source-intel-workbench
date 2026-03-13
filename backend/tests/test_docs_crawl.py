@@ -215,3 +215,44 @@ def test_crawl_docs_pages_extracts_main_content_without_nav_noise(monkeypatch):
     )
 
     assert records[0]["body"] == "Storage Concepts CSI volume snapshot provisioning"
+
+
+def test_crawl_docs_pages_reports_progress_per_page(monkeypatch):
+    from backend.docs_crawl import crawl_docs_pages
+
+    pages = {
+        "https://example.com/docs": '<main><h1>Docs</h1><a href="/docs/a">A</a></main>',
+        "https://example.com/docs/a": "<main><h1>A</h1><p>alpha</p></main>",
+    }
+    progress = []
+
+    class DummyResponse:
+        def __init__(self, text):
+            self.text = text
+            self.headers = {}
+
+        def raise_for_status(self):
+            return None
+
+    monkeypatch.setattr(
+        "backend.docs_crawl.requests.get",
+        lambda url, timeout=30: DummyResponse(pages[url]),
+    )
+
+    crawl_docs_pages(
+        project_id="demo",
+        docs_url="https://example.com/docs",
+        profile={
+            "entry_urls": ["https://example.com/docs"],
+            "allowed_path_prefixes": ["/docs"],
+            "blocked_path_prefixes": [],
+            "max_depth": 1,
+        },
+        progress_callback=lambda **payload: progress.append(payload),
+    )
+
+    assert [item["current_url"] for item in progress] == [
+        "https://example.com/docs",
+        "https://example.com/docs/a",
+    ]
+    assert progress[-1]["processed_pages"] == 2

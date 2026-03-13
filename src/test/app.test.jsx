@@ -135,7 +135,7 @@ const dashboardPayload = {
             impact_points: ["Kubernetes 集群"],
             action_items: ["优先验证。"],
             urgency: "high",
-            tags: ["kubernetes"],
+            tags: ["kubernetes", "gpu", "大模型训练"],
             is_stable: true,
             title: "Kubernetes v1.31.3",
             url: "https://example.com/v1.31.3",
@@ -145,7 +145,7 @@ const dashboardPayload = {
           {
             id: "github-release:kubernetes/kubernetes:v1.31.2",
             title_zh: "Kubernetes 1.31.2 次新补丁",
-            summary_zh: "这是次新补丁。",
+            summary_zh: "这是次新补丁，涉及 containerd 与 CRI-O 兼容性修正。",
             detail_sections: [{ title: "核心变化点", bullets: ["次新变化"] }],
             impact_points: ["Kubernetes 集群"],
             action_items: ["继续验证。"],
@@ -309,6 +309,8 @@ const syncStatusPayload = {
   new_events: 2,
   analyzed_events: 1,
   failed_events: 0,
+  heartbeat_age_seconds: 10,
+  is_stalled: false,
   error: "",
   result: {},
 };
@@ -423,22 +425,25 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    expect(screen.getAllByText("技术情报").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("项目监控").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("日报").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("情报监控").length).toBeGreaterThan(0);
     expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
-    expect(screen.getByText("每日项目情报")).toBeInTheDocument();
-    expect(screen.getByText("首页主内容是固定日报；小时级抓取只刷新增量提醒和项目监控。")).toBeInTheDocument();
-    expect(screen.getByText("本地知识与变更分析工作台")).toBeInTheDocument();
+    expect(screen.getByText("日报首页")).toBeInTheDocument();
+    expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
+    expect(screen.getByText("首页看日报，第二页看情报监控")).toBeInTheDocument();
     expect(screen.getByText("今日日报")).toBeInTheDocument();
-    expect(screen.getByText("自日报后更新")).toBeInTheDocument();
-    expect(screen.getByText("历史日报")).toBeInTheDocument();
+    expect(screen.getByText("增量提醒")).toBeInTheDocument();
+    expect(screen.getByText("日报归档")).toBeInTheDocument();
     expect(screen.getByText("同步雷达")).toBeInTheDocument();
+    expect(screen.queryByText("Sync")).not.toBeInTheDocument();
     expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
     expect(screen.getByText("1 / 8")).toBeInTheDocument();
     expect(screen.getByText("心跳状态")).toBeInTheDocument();
+    expect(screen.getByText("运行中")).toBeInTheDocument();
+    expect(screen.getByText("失败数")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "日志" }));
     await waitFor(() => {
@@ -447,14 +452,15 @@ describe("App", () => {
     expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
     expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
-    expect(screen.getByText("最近抓取")).toBeInTheDocument();
-    expect(screen.getByText("日报生成")).toBeInTheDocument();
-    expect(screen.getByText("最近抓取成功")).toBeInTheDocument();
-    expect(screen.getByText("最近日报生成")).toBeInTheDocument();
+    expect(screen.getAllByText("最近抓取成功").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("最近日报生成").length).toBeGreaterThan(0);
+    expect(screen.getByText("调度状态")).toBeInTheDocument();
     expect(screen.getByText("2026-03-10")).toBeInTheDocument();
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "项目监控" })[0]);
-    expect(screen.getByText("按项目查看版本变化和文档结论")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
+    expect(screen.getByText("按项目跟踪版本、文档与分析结论")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "GPU" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "网络" })).toBeInTheDocument();
     expect(screen.getAllByText("ReleaseNote 区").length).toBeGreaterThan(0);
     expect(screen.getByText("文档区")).toBeInTheDocument();
     expect(screen.getAllByText("网络").length).toBeGreaterThan(0);
@@ -464,11 +470,15 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Kubernetes" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "ReleaseNote 区" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "网络" })).toBeInTheDocument();
-
+    expect(screen.getAllByText("虚拟化").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "展开更多" }));
     expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
     expect(screen.getByText("优先验证。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "GPU" }));
+    expect(screen.getAllByText("大模型训练").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "网络" }));
+    expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);

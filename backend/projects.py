@@ -46,6 +46,49 @@ def build_default_crawl_profile(project: dict) -> dict:
             "discovery_prompt": "",
             "classification_prompt": "",
         }
+    if docs_url == "https://www.mindspore.cn/docs/":
+        return {
+            "entry_urls": [
+                "https://www.mindspore.cn/docs/zh-CN/master/index.html",
+                "https://www.mindspore.cn/tutorials/zh-CN/master/index.html",
+            ],
+            "allowed_path_prefixes": [
+                "/docs/zh-CN/master",
+                "/tutorials/zh-CN/master",
+            ],
+            "blocked_path_prefixes": [
+                "/docs/zh-CN/master/_static",
+                "/docs/zh-CN/master/_sources",
+                "/docs/zh-CN/master/genindex",
+                "/docs/zh-CN/master/search",
+                "/tutorials/zh-CN/master/_static",
+                "/tutorials/zh-CN/master/_sources",
+                "/tutorials/zh-CN/master/genindex",
+                "/tutorials/zh-CN/master/search",
+            ],
+            "max_depth": 1,
+            "max_pages": 24,
+            "expand_mode": "auto",
+            "category_hints": ["运行时", "架构", "网络", "存储", "调度"],
+            "discovery_prompt": "",
+            "classification_prompt": "",
+        }
+    if docs_url == "https://www.hiascend.com/document":
+        return {
+            "entry_urls": [
+                "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/releasenote/releasenote_0005.html",
+                "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/softwareinst/instg/instg_0102.html",
+                "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnn",
+            ],
+            "allowed_path_prefixes": ["/document/detail/zh/CANNCommunityEdition"],
+            "blocked_path_prefixes": [],
+            "max_depth": 0,
+            "max_pages": 12,
+            "expand_mode": "auto",
+            "category_hints": ["升级", "运行时", "架构"],
+            "discovery_prompt": "",
+            "classification_prompt": "",
+        }
 
     parsed = urlparse(docs_url)
     prefix = parsed.path or "/"

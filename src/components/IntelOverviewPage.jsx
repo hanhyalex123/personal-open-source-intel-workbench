@@ -21,23 +21,22 @@ function StatCard({ label, value, hint }) {
 }
 
 export default function IntelOverviewPage({ overview, homepageProjects, recentProjectUpdates, dailyDigestHistory }) {
-
   return (
     <div className="intel-page">
       <section className="hero-card">
         <div className="hero-copy">
-          <p className="eyebrow">Daily Intel</p>
-          <h1>每日项目情报</h1>
-          <p className="hero-text">首页主内容是固定日报；小时级抓取只刷新增量提醒和项目监控。</p>
+          <p className="eyebrow">Daily Brief</p>
+          <h1>日报首页</h1>
+          <p className="hero-text">固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。</p>
         </div>
 
         <div className="hero-actions">
           <div className="sync-note">
-            <span>最近抓取</span>
+            <span>最近抓取成功</span>
             <strong>{formatDate(overview?.last_fetch_success_at || overview?.last_sync_at)}</strong>
           </div>
           <div className="sync-note">
-            <span>日报生成</span>
+            <span>最近日报生成</span>
             <strong>{formatDate(overview?.last_daily_digest_at || overview?.last_daily_summary_at)}</strong>
           </div>
         </div>
@@ -53,12 +52,12 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
       </section>
 
       <section className="stat-grid stat-grid--secondary">
-        <StatCard label="最近日报生成" value={formatDate(overview?.last_daily_digest_at)} />
         <StatCard
-          label="后台调度"
+          label="调度状态"
           value={overview?.scheduler?.running ? "已开启" : "未开启"}
           hint={overview?.scheduler?.interval_minutes ? `${overview.scheduler.interval_minutes} 分钟一次` : ""}
         />
+        <StatCard label="最近日报生成" value={formatDate(overview?.last_daily_digest_at)} />
       </section>
 
       <section className="intel-section">
@@ -81,10 +80,10 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
       <section className="intel-section">
         <div className="intel-section__header">
           <div>
-            <p className="section-kicker">Incremental Feed</p>
-            <h2>自日报后更新</h2>
+            <p className="section-kicker">Incremental Watch</p>
+            <h2>增量提醒</h2>
           </div>
-          <p className="intel-section__copy">这部分只放日报生成之后的新变化，小时级自动刷新。</p>
+          <p className="intel-section__copy">日报生成后出现的新变化统一放这里，方便快速扫一遍。</p>
         </div>
         <IncrementalUpdateList updates={recentProjectUpdates} />
       </section>
@@ -92,10 +91,10 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
       <section className="intel-section">
         <div className="intel-section__header">
           <div>
-            <p className="section-kicker">Digest Archive</p>
-            <h2>历史日报</h2>
+            <p className="section-kicker">Archive</p>
+            <h2>日报归档</h2>
           </div>
-          <p className="intel-section__copy">只保留每天一版摘要，旧内容去项目监控页细看。</p>
+          <p className="intel-section__copy">每天只保留一版日报，往期结论在这里回看。</p>
         </div>
         <DailyDigestHistory history={dailyDigestHistory} />
       </section>

@@ -175,8 +175,8 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     payload = response.get_json()
 
     assert response.status_code == 200
-    assert payload["overview"]["total_items"] == 3
-    assert payload["overview"]["stable_items"] == 3
+    assert payload["overview"]["total_items"] == 4
+    assert payload["overview"]["stable_items"] == 4
     assert payload["overview"]["last_fetch_success_at"] is None
     assert payload["overview"]["last_daily_digest_at"] is None
     assert payload["homepage_projects"][0]["project_id"] == "kubernetes"
@@ -215,21 +215,52 @@ def test_sync_runs_endpoints_list_detail_and_clear(tmp_path: Path):
     store = JsonStore(tmp_path)
     recorder = SyncRunRecorder(store)
     run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+    recorder.record_source(
+        run_id,
+        {
+            "kind": "repo",
+            "label": "openclaw/openclaw",
+            "url": "https://github.com/openclaw/openclaw",
+            "status": "success",
+            "metrics": {"new_events": 1, "analyzed_events": 1, "failed_events": 0},
+            "error": None,
+            "events": [
+                {
+                    "event_id": "github-release:openclaw/openclaw:v2026.3.12",
+                    "title": "OpenClaw v2026.3.12",
+                    "version": "v2026.3.12",
+                    "url": "https://github.com/openclaw/openclaw",
+                    "published_at": "2026-03-13T00:00:00Z",
+                    "status": "analyzed",
+                    "is_new": True,
+                    "analysis": {"title_zh": "t", "summary_zh": "s", "urgency": "low", "action_items": []},
+                    "error": None,
+                }
+            ],
+        },
+    )
 
     app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
     client = app.test_client()
 
-    response = client.get("/api/sync/runs")
-    assert response.status_code == 200
-    assert response.get_json()[0]["id"] == run_id
+    list_response = client.get("/api/sync/runs?limit=5")
+    list_payload = list_response.get_json()
 
-    detail = client.get(f"/api/sync/runs/{run_id}")
-    assert detail.status_code == 200
-    assert detail.get_json()["id"] == run_id
+    assert list_response.status_code == 200
+    assert list_payload[0]["id"] == run_id
+    assert "sources" not in list_payload[0]
 
-    cleared = client.delete("/api/sync/runs")
-    assert cleared.status_code == 200
-    assert cleared.get_json()["runs"] == []
+    detail_response = client.get(f"/api/sync/runs/{run_id}")
+    detail_payload = detail_response.get_json()
+
+    assert detail_response.status_code == 200
+    assert detail_payload["id"] == run_id
+    assert detail_payload["sources"][0]["label"] == "openclaw/openclaw"
+
+    clear_response = client.delete("/api/sync/runs")
+    assert clear_response.status_code == 200
+    assert clear_response.get_json()["runs"] == []
+    assert client.get("/api/sync/runs").get_json() == []
 
 
 def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries(tmp_path: Path):

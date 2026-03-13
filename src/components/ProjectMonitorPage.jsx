@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import InsightCard from "./InsightCard";
 import { projectThemeStyle } from "../lib/projectTheme";
+import { deriveFocusTopics, FOCUS_CATEGORIES } from "../lib/focusTags";
 
 function sectionId(...parts) {
   return parts
@@ -87,6 +88,43 @@ function ProjectPanel({ project }) {
           </div>
         </section>
       ) : null}
+    </section>
+  );
+}
+
+function FilterBar({ categoryOptions, topicOptions, selectedCategory, selectedTopic, onCategoryChange, onTopicChange }) {
+  return (
+    <section className="monitor-filter-bar">
+      <div className="monitor-filter-group">
+        <span>技术分类</span>
+        <div className="monitor-filter-pills">
+          {categoryOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`monitor-filter-pill ${selectedCategory === option ? "monitor-filter-pill--active" : ""}`}
+              onClick={() => onCategoryChange(selectedCategory === option ? "" : option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="monitor-filter-group">
+        <span>关注主题</span>
+        <div className="monitor-filter-pills">
+          {topicOptions.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={`monitor-filter-pill ${selectedTopic === option ? "monitor-filter-pill--active" : ""}`}
+              onClick={() => onTopicChange(selectedTopic === option ? "" : option)}
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -203,23 +241,87 @@ function useActiveProjectSection(projectSections) {
 }
 
 export default function ProjectMonitorPage({ projectSections }) {
-  const activeSectionId = useActiveProjectSection(projectSections);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedTopic, setSelectedTopic] = useState("");
+
+  const topicOptions = useMemo(() => {
+    const labels = new Set();
+    for (const project of projectSections) {
+      for (const item of project.release_area?.items || []) {
+        for (const topic of deriveFocusTopics(item)) labels.add(topic);
+      }
+      for (const category of project.docs_area?.categories || []) {
+        for (const item of category.items || []) {
+          for (const topic of deriveFocusTopics(item)) labels.add(topic);
+        }
+      }
+    }
+    return Array.from(labels);
+  }, [projectSections]);
+
+  const filteredProjectSections = useMemo(() => {
+    return projectSections
+      .map((project) => {
+        const releaseItems = (project.release_area?.items || []).filter((item) => {
+          if (selectedCategory) return false;
+          if (selectedTopic && !deriveFocusTopics(item).includes(selectedTopic)) return false;
+          return true;
+        });
+
+        const docsCategories = (project.docs_area?.categories || [])
+          .filter((category) => !selectedCategory || category.category === selectedCategory)
+          .map((category) => ({
+            ...category,
+            items: (category.items || []).filter((item) => {
+              if (selectedTopic && !deriveFocusTopics(item).includes(selectedTopic)) return false;
+              return true;
+            }),
+          }))
+          .filter((category) => category.items.length > 0);
+
+        return {
+          ...project,
+          release_area: {
+            ...(project.release_area || {}),
+            items: releaseItems,
+          },
+          docs_area: {
+            ...(project.docs_area || {}),
+            categories: docsCategories,
+          },
+        };
+      })
+      .filter((project) => (project.release_area?.items || []).length > 0 || (project.docs_area?.categories || []).length > 0);
+  }, [projectSections, selectedCategory, selectedTopic]);
+
+  const activeSectionId = useActiveProjectSection(filteredProjectSections);
 
   return (
     <section className="project-monitor-page">
       <div className="project-monitor-intro">
-        <p className="section-kicker">Project Stream</p>
-        <h2>项目工作流视图</h2>
-        <p>从总览切到单项目视角，逐个查看 ReleaseNote 与文档结论。</p>
+        <p className="section-kicker">Monitoring</p>
+        <h2>情报监控</h2>
+        <p>按项目跟踪版本、文档与分析结论。</p>
       </div>
+
+      <FilterBar
+        categoryOptions={FOCUS_CATEGORIES}
+        topicOptions={topicOptions}
+        selectedCategory={selectedCategory}
+        selectedTopic={selectedTopic}
+        onCategoryChange={setSelectedCategory}
+        onTopicChange={setSelectedTopic}
+      />
+
+      {!filteredProjectSections.length ? <div className="empty-state">当前筛选下没有匹配内容。</div> : null}
 
       <div className="project-monitor-layout">
         <div className="project-sections">
-          {projectSections.map((project) => (
+          {filteredProjectSections.map((project) => (
             <ProjectPanel key={project.id} project={project} />
           ))}
         </div>
-        <ProjectOutline projectSections={projectSections} activeSectionId={activeSectionId} />
+        <ProjectOutline projectSections={filteredProjectSections} activeSectionId={activeSectionId} />
       </div>
     </section>
   );

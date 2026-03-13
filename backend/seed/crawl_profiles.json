@@ -151,15 +151,10 @@
   },
   "ktransformers": {
     "entry_urls": [
-      "https://kvcache-ai.github.io/ktransformers/en/",
-      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/Qwen3.5.md",
-      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/Kimi-K2.5.md",
-      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/MiniMax-M2.5.md",
-      "https://github.com/kvcache-ai/ktransformers/blob/main/doc/en/kt-kernel/GLM-5-Tutorial.md"
+      "https://kvcache-ai.github.io/ktransformers/"
     ],
     "allowed_path_prefixes": [
-      "/ktransformers/en",
-      "/kvcache-ai/ktransformers/blob/main/doc/en"
+      "/ktransformers"
     ],
     "blocked_path_prefixes": [],
     "max_depth": 1,
@@ -170,6 +165,73 @@
       "运行时",
       "升级",
       "可观测性"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "containerd": {
+    "entry_urls": [
+      "https://containerd.io/docs/getting-started/",
+      "https://containerd.io/docs/"
+    ],
+    "allowed_path_prefixes": [
+      "/docs"
+    ],
+    "blocked_path_prefixes": [],
+    "max_depth": 1,
+    "max_pages": 16,
+    "expand_mode": "auto",
+    "category_hints": [
+      "运行时",
+      "架构",
+      "升级",
+      "存储"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "cri-o": {
+    "entry_urls": [
+      "https://cri-o.io/"
+    ],
+    "allowed_path_prefixes": [
+      "/"
+    ],
+    "blocked_path_prefixes": [
+      "/assets",
+      "/logo"
+    ],
+    "max_depth": 1,
+    "max_pages": 12,
+    "expand_mode": "auto",
+    "category_hints": [
+      "运行时",
+      "架构",
+      "升级"
+    ],
+    "discovery_prompt": "",
+    "classification_prompt": ""
+  },
+  "podman": {
+    "entry_urls": [
+      "https://podman.io/docs",
+      "https://podman.io/docs/installation"
+    ],
+    "allowed_path_prefixes": [
+      "/docs"
+    ],
+    "blocked_path_prefixes": [
+      "/assets",
+      "/blogs",
+      "/release"
+    ],
+    "max_depth": 1,
+    "max_pages": 16,
+    "expand_mode": "auto",
+    "category_hints": [
+      "运行时",
+      "虚拟化",
+      "升级"
     ],
     "discovery_prompt": "",
     "classification_prompt": ""
@@ -191,31 +253,54 @@
   },
   "ascend-cann": {
     "entry_urls": [
-      "https://www.hiascend.com/document"
+      "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/releasenote/releasenote_0005.html",
+      "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/softwareinst/instg/instg_0102.html",
+      "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnn"
     ],
     "allowed_path_prefixes": [
-      "/document"
+      "/document/detail/zh/CANNCommunityEdition"
     ],
     "blocked_path_prefixes": [],
-    "max_depth": 3,
-    "max_pages": 40,
+    "max_depth": 0,
+    "max_pages": 12,
     "expand_mode": "auto",
-    "category_hints": [],
+    "category_hints": [
+      "升级",
+      "运行时",
+      "架构"
+    ],
     "discovery_prompt": "",
     "classification_prompt": ""
   },
   "mindspore": {
     "entry_urls": [
-      "https://www.mindspore.cn/docs/"
+      "https://www.mindspore.cn/docs/zh-CN/master/index.html",
+      "https://www.mindspore.cn/tutorials/zh-CN/master/index.html"
     ],
     "allowed_path_prefixes": [
-      "/docs"
+      "/docs/zh-CN/master",
+      "/tutorials/zh-CN/master"
     ],
-    "blocked_path_prefixes": [],
-    "max_depth": 3,
-    "max_pages": 40,
+    "blocked_path_prefixes": [
+      "/docs/zh-CN/master/_static",
+      "/docs/zh-CN/master/_sources",
+      "/docs/zh-CN/master/genindex",
+      "/docs/zh-CN/master/search",
+      "/tutorials/zh-CN/master/_static",
+      "/tutorials/zh-CN/master/_sources",
+      "/tutorials/zh-CN/master/genindex",
+      "/tutorials/zh-CN/master/search"
+    ],
+    "max_depth": 1,
+    "max_pages": 24,
     "expand_mode": "auto",
-    "category_hints": [],
+    "category_hints": [
+      "运行时",
+      "架构",
+      "网络",
+      "存储",
+      "调度"
+    ],
     "discovery_prompt": "",
     "classification_prompt": ""
   }

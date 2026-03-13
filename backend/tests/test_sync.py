@@ -1,4 +1,5 @@
 from pathlib import Path
+from time import sleep
 
 
 def test_sync_analyzes_only_new_or_changed_events(tmp_path: Path):
@@ -328,3 +329,208 @@ def test_sync_enriches_only_events_that_need_analysis(tmp_path: Path):
     )
 
     assert enriched_ids == ["github-release:kubernetes/kubernetes:v1.32.0"]
+
+
+def test_sync_continues_when_source_times_out(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+
+    def slow_release_fetcher(_repo: str):
+        sleep(0.2)
+        return []
+
+    result = run_sync_once(
+        store=store,
+        repos=["repo/slow"],
+        feeds=[],
+        release_fetcher=slow_release_fetcher,
+        feed_fetcher=lambda _feed: [],
+        analyzer=lambda _event: {},
+        now_iso="2026-03-11T12:00:00Z",
+        max_workers=2,
+        source_timeout_seconds=0.05,
+    )
+
+    assert result["failed_events"] == 1
+    assert result["new_events"] == 0
+    assert result["analyzed_events"] == 0
+
+
+def test_sync_continues_after_source_exception(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+
+    def failing_release_fetcher(_repo: str):
+        raise RuntimeError("boom")
+
+    def ok_feed_fetcher(_feed: dict):
+        return [{"id": "feed-1", "title": "Doc", "link": "x", "published": "2026-03-11"}]
+
+    def analyzer(event: dict):
+        return {"title_zh": event.get("title", ""), "summary_zh": "ok", "is_stable": True}
+
+    result = run_sync_once(
+        store=store,
+        repos=["repo/fail"],
+        feeds=[{"id": "docs", "name": "Docs", "url": "https://example.com", "type": "page"}],
+        release_fetcher=failing_release_fetcher,
+        feed_fetcher=ok_feed_fetcher,
+        analyzer=analyzer,
+        now_iso="2026-03-11T12:00:00Z",
+        max_workers=2,
+        source_timeout_seconds=1,
+    )
+
+    assert result["failed_events"] == 1
+    assert len(store.load_all()["events"]) == 1
+
+
+def test_sync_reports_page_feed_progress_while_crawling(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+    progress_updates = []
+
+    def feed_fetcher(_feed: dict, progress_callback=None):
+        progress_callback(current_url="https://example.com/docs", processed_pages=1, max_pages=40)
+        progress_callback(current_url="https://example.com/docs/network", processed_pages=2, max_pages=40)
+        return []
+
+    run_sync_once(
+        store=store,
+        repos=[],
+        feeds=[{"id": "docs", "name": "MindSpore 文档", "url": "https://example.com/docs", "type": "page", "max_pages": 40}],
+        release_fetcher=lambda _repo: [],
+        feed_fetcher=feed_fetcher,
+        analyzer=lambda _event: {},
+        now_iso="2026-03-11T12:00:00Z",
+        progress_callback=lambda **payload: progress_updates.append(payload),
+    )
+
+    labels = [item["current_label"] for item in progress_updates if item.get("current_label")]
+
+    assert "MindSpore 文档 · 1 / 40 页" in labels
+    assert "MindSpore 文档 · 2 / 40 页" in labels
+
+
+def test_sync_reports_release_progress_while_processing_repo(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+    progress_updates = []
+
+    def release_fetcher(_repo: str, progress_callback=None):
+        progress_callback(stage="requesting")
+        progress_callback(stage="processing", processed_items=1, total_items=2)
+        progress_callback(stage="processing", processed_items=2, total_items=2)
+        return []
+
+    run_sync_once(
+        store=store,
+        repos=["kubernetes/kubernetes"],
+        feeds=[],
+        release_fetcher=release_fetcher,
+        feed_fetcher=lambda _feed: [],
+        analyzer=lambda _event: {},
+        now_iso="2026-03-11T12:00:00Z",
+        progress_callback=lambda **payload: progress_updates.append(payload),
+    )
+
+    labels = [item["current_label"] for item in progress_updates if item.get("current_label")]
+
+    assert "kubernetes/kubernetes · 正在请求 GitHub releases" in labels
+    assert "kubernetes/kubernetes · 1 / 2 条 release" in labels
+    assert "kubernetes/kubernetes · 2 / 2 条 release" in labels
+
+
+def test_run_sync_once_records_event_logs(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+    from backend.sync_runs import SyncRunRecorder, load_runs
+
+    store = JsonStore(tmp_path)
+    recorder = SyncRunRecorder(store)
+    run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+
+    def fake_release_fetcher(repo: str, progress_callback=None):
+        return [
+            {
+                "name": "v1",
+                "tag_name": "v1",
+                "html_url": "https://x",
+                "published_at": "2026-03-13T00:00:00Z",
+            }
+        ]
+
+    def fake_feed_fetcher(feed: dict, progress_callback=None):
+        return []
+
+    def fake_analyzer(event: dict):
+        return {
+            "title_zh": "t",
+            "summary_zh": "s",
+            "details_zh": "",
+            "impact_scope": "low",
+            "suggested_action": "",
+            "urgency": "low",
+            "tags": [],
+            "is_stable": True,
+        }
+
+    run_sync_once(
+        store=store,
+        repos=["openclaw/openclaw"],
+        feeds=[],
+        release_fetcher=fake_release_fetcher,
+        feed_fetcher=fake_feed_fetcher,
+        analyzer=fake_analyzer,
+        now_iso="2026-03-13T00:00:00Z",
+        run_logger=recorder,
+        run_id=run_id,
+        max_workers=1,
+        source_timeout_seconds=1,
+    )
+
+    runs = load_runs(store)["runs"]
+    assert runs[0]["sources"]
+    assert runs[0]["sources"][0]["events"][0]["status"] in {"analyzed", "failed", "skipped"}
+
+
+def test_run_sync_once_records_source_fetch_failure(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+    from backend.sync_runs import SyncRunRecorder, load_runs
+
+    store = JsonStore(tmp_path)
+    recorder = SyncRunRecorder(store)
+    run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+
+    def failing_release_fetcher(_repo: str, progress_callback=None):
+        raise RuntimeError("fetch boom")
+
+    result = run_sync_once(
+        store=store,
+        repos=["openclaw/openclaw"],
+        feeds=[],
+        release_fetcher=failing_release_fetcher,
+        feed_fetcher=lambda _feed, progress_callback=None: [],
+        analyzer=lambda _event: {},
+        now_iso="2026-03-13T00:00:00Z",
+        run_logger=recorder,
+        run_id=run_id,
+        max_workers=1,
+        source_timeout_seconds=1,
+    )
+
+    runs = load_runs(store)["runs"]
+    source = runs[0]["sources"][0]
+    assert source["status"] == "failed"
+    assert "fetch boom" in source["error"]
+    assert source["metrics"]["failed_events"] == 1
+    assert result["failed_events"] == 1

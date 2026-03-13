@@ -127,21 +127,21 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
         return app.config["SYNC_COORDINATOR"].get_status()
 
     @app.get("/api/sync/runs")
-    def list_sync_runs():
-        payload = load_runs(app.config["STORE"])
+    def sync_runs():
         limit = request.args.get("limit", type=int)
-        runs = payload.get("runs", [])
-        if limit:
+        runs = load_runs(app.config["STORE"]).get("runs", [])
+        if limit is not None and limit >= 0:
             runs = runs[:limit]
-        return runs
+        summaries = [{key: value for key, value in run.items() if key != "sources"} for run in runs]
+        return summaries
 
     @app.get("/api/sync/runs/<run_id>")
-    def get_sync_run(run_id: str):
-        payload = load_runs(app.config["STORE"])
-        run = next((item for item in payload.get("runs", []) if item.get("id") == run_id), None)
-        if run is None:
-            return {"error": "run not found"}, 404
-        return run
+    def sync_run_detail(run_id: str):
+        runs = load_runs(app.config["STORE"]).get("runs", [])
+        for run in runs:
+            if run.get("id") == run_id:
+                return run
+        return {"error": "run not found"}, 404
 
     @app.delete("/api/sync/runs")
     def clear_sync_runs():
@@ -166,8 +166,6 @@ def _build_dashboard_items(events: dict, analyses: dict, projects: list[dict]) -
         event = events.get(event_id, {})
         project_id = event.get("project_id") or _infer_project_id(event, projects)
         if not project_id:
-            continue
-        if event.get("source") == "docs_feed" and event.get("category") == "其他":
             continue
         normalized = normalize_analysis_record(analysis)
         items.append(

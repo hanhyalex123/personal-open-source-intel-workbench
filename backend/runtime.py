@@ -28,6 +28,7 @@ def build_incremental_sync_runner(store, now_provider=None):
     def _run(*, progress_callback=None, run_logger=None, run_id=None):
         now_iso = _now_iso()
         snapshot = store.load_all()
+        config = snapshot.get("config") or {}
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
         result = run_sync_once(
             store=store,
@@ -41,6 +42,8 @@ def build_incremental_sync_runner(store, now_provider=None):
             progress_callback=progress_callback,
             run_logger=run_logger,
             run_id=run_id,
+            max_workers=config.get("sync_concurrency", 4),
+            source_timeout_seconds=config.get("sync_source_timeout_seconds", 120),
         )
         _update_incremental_state(store=store, now_iso=now_iso, analyzed_events=result["analyzed_events"])
         return result
@@ -60,6 +63,25 @@ def build_daily_digest_runner(store, now_provider=None):
         now_iso = _now_iso()
         summary_date = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).astimezone(LOCAL_TIMEZONE).date().isoformat()
         snapshot = store.load_all()
+        config = snapshot.get("config") or {}
+        repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
+        if feeds:
+            run_sync_once(
+                store=store,
+                repos=[],
+                feeds=feeds,
+                release_fetcher=fetch_github_releases,
+                feed_fetcher=fetch_feed_entries,
+                analyzer=analyze_event,
+                event_enricher=enrich_event_for_analysis,
+                now_iso=now_iso,
+                progress_callback=progress_callback,
+                run_logger=run_logger,
+                run_id=run_id,
+                max_workers=config.get("sync_concurrency", 4),
+                source_timeout_seconds=config.get("sync_source_timeout_seconds", 120),
+            )
+            snapshot = store.load_all()
         if progress_callback is not None:
             progress_callback(
                 phase="daily_digest",

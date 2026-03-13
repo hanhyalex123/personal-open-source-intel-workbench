@@ -46,7 +46,7 @@
 ```bash
 PACKY_API_KEY=...
 PACKY_API_URL=https://www.packyapi.com/v1/messages
-PACKY_MODEL=claude-sonnet-4-6
+PACKY_MODEL=claude-opus-4-6
 GITHUB_TOKEN=
 ```
 

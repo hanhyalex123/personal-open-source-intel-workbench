@@ -54,7 +54,13 @@ class SyncRunRecorder:
             payload = load_runs(self.store)
             for run in payload.get("runs", []):
                 if run.get("id") == run_id:
-                    run.update({key: value for key, value in updates.items() if value is not None})
+                    metrics_update = updates.get("metrics")
+                    if metrics_update is not None:
+                        metrics = run.setdefault("metrics", {})
+                        metrics.update({key: value for key, value in metrics_update.items() if value is not None})
+                    run.update(
+                        {key: value for key, value in updates.items() if key != "metrics" and value is not None}
+                    )
                     break
             save_runs(self.store, payload)
 

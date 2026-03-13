@@ -38,8 +38,8 @@ print_help() {
 Usage: bash scripts/start_intel_workbench.sh
 
 Starts:
-- Flask backend on http://127.0.0.1:8000
-- Vite frontend on http://127.0.0.1:5173
+- Flask backend on http://0.0.0.0:8000
+- Vite frontend on http://0.0.0.0:5173
 
 Writes:
 - PID files under .run/
@@ -145,5 +145,5 @@ wait_for_process_url "$FRONTEND_PID_FILE" "$FRONTEND_URL" "frontend"
 
 echo "Intel Workbench is running."
 echo "frontend: $FRONTEND_URL"
-echo "backend:  http://127.0.0.1:8000"
+echo "backend:  http://0.0.0.0:8000"
 echo "logs:     $LOG_DIR"

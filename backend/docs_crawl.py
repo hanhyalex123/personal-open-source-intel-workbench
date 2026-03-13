@@ -13,7 +13,7 @@ MAIN_PATTERN = re.compile(r"<main[^>]*>(.*?)</main>", re.I | re.S)
 ARTICLE_PATTERN = re.compile(r"<article[^>]*>(.*?)</article>", re.I | re.S)
 
 
-def crawl_docs_pages(*, project_id: str, docs_url: str, profile: dict) -> list[dict]:
+def crawl_docs_pages(*, project_id: str, docs_url: str, profile: dict, progress_callback=None) -> list[dict]:
     allowed_prefixes = profile.get("allowed_path_prefixes", ["/"])
     blocked_prefixes = profile.get("blocked_path_prefixes", [])
     max_depth = profile.get("max_depth", 2)
@@ -50,6 +50,13 @@ def crawl_docs_pages(*, project_id: str, docs_url: str, profile: dict) -> list[d
                 "extractor_hint": "html-main",
             }
         )
+
+        if progress_callback is not None:
+            progress_callback(
+                current_url=url,
+                processed_pages=len(records),
+                max_pages=max_pages,
+            )
 
         if depth >= max_depth:
             continue

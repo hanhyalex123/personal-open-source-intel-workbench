@@ -11,6 +11,8 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
     assert snapshot == {
         "config": {
             "sync_interval_minutes": 60,
+            "sync_concurrency": 4,
+            "sync_source_timeout_seconds": 120,
             "assistant": {
                 "enabled": True,
                 "default_mode": "hybrid",
@@ -143,6 +145,21 @@ def test_seed_projects_loaded_when_data_missing(tmp_path: Path):
 
     assert snapshot["projects"][0]["id"] == "seed"
     assert snapshot["crawl_profiles"]["seed"]["entry_urls"] == ["https://example.com"]
+
+
+def test_bundled_seed_projects_include_container_runtimes():
+    import json
+    from pathlib import Path
+
+    projects = json.loads((Path.cwd() / "backend" / "seed" / "projects.json").read_text(encoding="utf-8"))
+    crawl_profiles = json.loads((Path.cwd() / "backend" / "seed" / "crawl_profiles.json").read_text(encoding="utf-8"))
+
+    project_ids = {project["id"] for project in projects}
+
+    assert {"containerd", "cri-o", "podman"}.issubset(project_ids)
+    assert "containerd" in crawl_profiles
+    assert "cri-o" in crawl_profiles
+    assert "podman" in crawl_profiles
 
 
 def test_seed_projects_not_overwrite_existing_data(tmp_path: Path):

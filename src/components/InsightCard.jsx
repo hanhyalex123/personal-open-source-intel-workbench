@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { deriveFocusTopics, normalizeDisplayTag } from "../lib/focusTags";
 
 function urgencyLabel(level) {
   if (level === "high") return "高优先级";
@@ -11,8 +12,13 @@ export default function InsightCard({ item, compact = false }) {
   const showExpanded = !compact || expanded;
   const previewTitle = item.detail_sections?.[0]?.title || "核心变化点";
   const previewBullets = item.detail_sections?.[0]?.bullets?.slice(0, 1) || [];
-  const visibleTags = compact && !expanded ? (item.tags || []).slice(0, 4) : item.tags || [];
-  const hiddenTagCount = compact && !expanded ? Math.max((item.tags || []).length - visibleTags.length, 0) : 0;
+  const focusTags = deriveFocusTopics(item);
+  const mergedTags = [
+    ...focusTags,
+    ...(item.tags || []).map((tag) => normalizeDisplayTag(tag)).filter((tag) => !focusTags.includes(tag)),
+  ];
+  const visibleTags = compact && !expanded ? mergedTags.slice(0, 4) : mergedTags;
+  const hiddenTagCount = compact && !expanded ? Math.max(mergedTags.length - visibleTags.length, 0) : 0;
 
   return (
     <article className={`insight-card ${compact ? "insight-card--compact" : ""}`}>

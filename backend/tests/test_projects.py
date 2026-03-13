@@ -59,6 +59,47 @@ def test_build_default_crawl_profile_special_cases_kubernetes_docs_home():
     ]
 
 
+def test_build_default_crawl_profile_special_cases_mindspore_docs():
+    from backend.projects import build_default_crawl_profile
+
+    profile = build_default_crawl_profile(
+        {
+            "id": "mindspore",
+            "docs_url": "https://www.mindspore.cn/docs/",
+        }
+    )
+
+    assert profile["entry_urls"] == [
+        "https://www.mindspore.cn/docs/zh-CN/master/index.html",
+        "https://www.mindspore.cn/tutorials/zh-CN/master/index.html",
+    ]
+    assert profile["allowed_path_prefixes"] == [
+        "/docs/zh-CN/master",
+        "/tutorials/zh-CN/master",
+    ]
+    assert "/docs/zh-CN/master/_static" in profile["blocked_path_prefixes"]
+    assert "/docs/zh-CN/master/genindex" in profile["blocked_path_prefixes"]
+
+
+def test_build_default_crawl_profile_special_cases_ascend_cann_docs():
+    from backend.projects import build_default_crawl_profile
+
+    profile = build_default_crawl_profile(
+        {
+            "id": "ascend-cann",
+            "docs_url": "https://www.hiascend.com/document",
+        }
+    )
+
+    assert profile["entry_urls"] == [
+        "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850/releasenote/releasenote_0005.html",
+        "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900beta1/softwareinst/instg/instg_0102.html",
+        "https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/80RC3alpha003/apiref/aolapi/context/aclnn",
+    ]
+    assert profile["allowed_path_prefixes"] == ["/document/detail/zh/CANNCommunityEdition"]
+    assert profile["max_depth"] == 0
+
+
 def test_collect_project_sources_returns_enabled_release_and_docs_inputs():
     from backend.projects import collect_project_sources
 

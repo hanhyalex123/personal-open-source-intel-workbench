@@ -18,8 +18,8 @@ import {
 } from "./lib/api";
 
 const NAV_ITEMS = [
-  { id: "intel", label: "技术情报", title: "技术情报", subtitle: "每日固定摘要、增量提醒和历史日报" },
-  { id: "projects", label: "项目监控", title: "项目监控", subtitle: "按项目查看版本变化和文档结论" },
+  { id: "intel", label: "日报", title: "日报", subtitle: "固定日报、同步雷达和增量提醒" },
+  { id: "projects", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
   { id: "assistant", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
   { id: "settings", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
 ];
@@ -200,7 +200,7 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <footer className="sidebar__footer">本地知识与变更分析工作台</footer>
+        <footer className="sidebar__footer">首页看日报，第二页看情报监控</footer>
       </aside>
 
       <main className="workbench-main">
