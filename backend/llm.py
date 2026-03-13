@@ -98,22 +98,8 @@ def summarize_project_daily_intel(*, project: dict, evidence_items: list[dict], 
 
 
 def parse_analysis_response(payload: dict[str, Any]) -> dict:
-    chunks = payload.get("content", [])
-    text = "\n".join(
-        chunk.get("text", "")
-        for chunk in chunks
-        if chunk.get("type") == "text"
-    ).strip()
-    if text.startswith("```json"):
-        text = text[len("```json"):].strip()
-    if text.startswith("```"):
-        text = text[len("```"):].strip()
-    if text.endswith("```"):
-        text = text[:-3].strip()
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = json.loads(_repair_unescaped_quotes(text))
+    text = _extract_text(payload)
+    parsed = _parse_json_with_repair(text)
     detail_sections = parsed.get("detail_sections") or _derive_detail_sections(parsed.get("details_zh", ""))
     impact_points = parsed.get("impact_points") or _split_inline_points(parsed.get("impact_scope", ""))
     action_items = parsed.get("action_items") or _split_action_items(parsed.get("suggested_action", ""))
@@ -143,10 +129,7 @@ def parse_analysis_response(payload: dict[str, Any]) -> dict:
 
 def parse_assistant_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = json.loads(_repair_unescaped_quotes(text))
+    parsed = _parse_json_with_repair(text)
     return {
         "answer": parsed["answer"],
         "next_steps": parsed.get("next_steps", []),
@@ -155,10 +138,7 @@ def parse_assistant_response(payload: dict[str, Any]) -> dict:
 
 def parse_project_daily_summary_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    try:
-        parsed = json.loads(text)
-    except json.JSONDecodeError:
-        parsed = json.loads(_repair_unescaped_quotes(text))
+    parsed = _parse_json_with_repair(text)
     return {
         "headline": parsed["headline"],
         "summary_zh": parsed["summary_zh"],
@@ -205,6 +185,102 @@ def _extract_text(payload: dict[str, Any]) -> str:
     if text.endswith("```"):
         text = text[:-3].strip()
     return text
+
+
+def _extract_json_block(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[len("```json"):].strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned[len("```"):].strip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3].strip()
+
+    brace_index = cleaned.find("{")
+    bracket_index = cleaned.find("[")
+    if brace_index == -1 and bracket_index == -1:
+        return cleaned
+    candidates = [index for index in (brace_index, bracket_index) if index != -1]
+    start_index = min(candidates)
+    if start_index == brace_index:
+        end_index = cleaned.rfind("}")
+    else:
+        end_index = cleaned.rfind("]")
+    if end_index != -1 and end_index > start_index:
+        return cleaned[start_index : end_index + 1]
+    return cleaned[start_index:]
+
+
+def _sanitize_control_chars(text: str) -> str:
+    cleaned = []
+    for char in text:
+        if char in {"\n", "\t"} or ord(char) >= 32:
+            cleaned.append(char)
+        else:
+            cleaned.append(" ")
+    return "".join(cleaned)
+
+
+def _remove_trailing_commas(text: str) -> str:
+    return re.sub(r",\s*([}\]])", r"\1", text)
+
+
+def _balance_brackets(text: str) -> str:
+    in_string = False
+    escaped = False
+    brace_count = 0
+    bracket_count = 0
+
+    for char in text:
+        if char == '"' and not escaped:
+            in_string = not in_string
+        if not in_string:
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+            elif char == "[":
+                bracket_count += 1
+            elif char == "]":
+                bracket_count -= 1
+        escaped = char == "\\" and not escaped
+        if char != "\\":
+            escaped = False
+
+    suffix = ""
+    if in_string:
+        suffix += '"'
+    if bracket_count > 0:
+        suffix += "]" * bracket_count
+    if brace_count > 0:
+        suffix += "}" * brace_count
+    return text + suffix
+
+
+def _prepare_json_text(text: str) -> str:
+    text = _extract_json_block(text)
+    text = _sanitize_control_chars(text)
+    text = _remove_trailing_commas(text)
+    text = _repair_unescaped_quotes(text)
+    return text
+
+
+def _parse_json_with_repair(text: str) -> dict:
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        repaired = _prepare_json_text(text)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            balanced = _balance_brackets(repaired)
+            try:
+                return json.loads(balanced)
+            except json.JSONDecodeError as exc:
+                excerpt = text.replace("\n", "\\n")
+                if len(excerpt) > 400:
+                    excerpt = f"{excerpt[:400]}..."
+                raise ValueError(f"Failed to parse LLM JSON: {exc}. raw_excerpt='{excerpt}'") from exc
 
 
 def _next_non_space(text: str, start: int) -> str:
