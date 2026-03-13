@@ -70,6 +70,10 @@ class JsonStore:
         return self.base_dir / "analyses.json"
 
     @property
+    def sync_runs_path(self) -> Path:
+        return self.base_dir / "sync_runs.json"
+
+    @property
     def projects_path(self) -> Path:
         return self.base_dir / "projects.json"
 
@@ -131,6 +135,12 @@ class JsonStore:
 
     def save_daily_project_summaries(self, summaries: dict) -> None:
         self._write_json(self.daily_project_summaries_path, summaries)
+
+    def load_sync_runs(self) -> dict:
+        return self._load_json(self.sync_runs_path, {"runs": []})
+
+    def save_sync_runs(self, payload: dict) -> None:
+        self._write_json(self.sync_runs_path, payload)
 
     def _load_json(self, path: Path, default: dict) -> dict:
         if not path.exists():
