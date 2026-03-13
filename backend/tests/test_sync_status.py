@@ -87,3 +87,29 @@ def test_manual_sync_updates_run_id(tmp_path):
     assert response.status_code == 202
     payload = response.get_json()
     assert payload.get("run_id")
+
+
+def test_heartbeat_ticker_updates_last_heartbeat():
+    from backend.sync_status import SyncCoordinator
+
+    blocker = Event()
+
+    def slow_runner(**_kwargs):
+        blocker.wait(timeout=2)
+        return {}
+
+    coordinator = SyncCoordinator(slow_runner, slow_runner, heartbeat_interval_seconds=0.1)
+    ok, status = coordinator.start_manual_sync()
+    assert ok
+    first = status["last_heartbeat_at"]
+
+    updated = False
+    for _ in range(20):
+        sleep(0.05)
+        latest = coordinator.get_status()["last_heartbeat_at"]
+        if latest != first:
+            updated = True
+            break
+
+    blocker.set()
+    assert updated
