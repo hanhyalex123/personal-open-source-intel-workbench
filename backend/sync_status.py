@@ -9,6 +9,7 @@ def now_iso() -> str:
 
 def default_sync_status() -> dict:
     return {
+        "run_id": None,
         "status": "idle",
         "run_kind": "",
         "phase": "idle",
@@ -28,11 +29,28 @@ def default_sync_status() -> dict:
 
 
 class SyncCoordinator:
-    def __init__(self, incremental_runner, daily_digest_runner):
+    def __init__(self, incremental_runner, daily_digest_runner, store=None):
         self.incremental_runner = incremental_runner
         self.daily_digest_runner = daily_digest_runner
+        self.store = store
+        self._recorder = None
         self._lock = Lock()
         self._status = default_sync_status()
+
+    def _ensure_recorder(self):
+        if self.store is None:
+            return None
+        if self._recorder is None:
+            from .sync_runs import SyncRunRecorder
+
+            self._recorder = SyncRunRecorder(self.store)
+        return self._recorder
+
+    def _start_run(self, run_kind: str, *, started_at: str | None = None) -> str | None:
+        recorder = self._ensure_recorder()
+        if recorder is None:
+            return None
+        return recorder.start_run(run_kind=run_kind, started_at=started_at)
 
     def get_status(self) -> dict:
         with self._lock:
@@ -44,8 +62,10 @@ class SyncCoordinator:
                 return False, deepcopy(self._status)
 
             started_at = now_iso()
+            run_id = self._start_run("manual", started_at=started_at)
             initial_status = {
                 **default_sync_status(),
+                "run_id": run_id,
                 "status": "running",
                 "run_kind": "manual",
                 "phase": "queued",

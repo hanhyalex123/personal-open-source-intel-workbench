@@ -73,3 +73,17 @@ def test_manual_sync_runs_in_background_and_updates_status(tmp_path):
     assert payload["phase"] == "completed"
     assert payload["result"]["incremental"]["new_events"] == 2
     assert payload["result"]["daily_digest"]["summary_count"] == 8
+
+
+def test_manual_sync_updates_run_id(tmp_path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    app = create_app(store=JsonStore(tmp_path), sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.post("/api/sync")
+
+    assert response.status_code == 202
+    payload = response.get_json()
+    assert payload.get("run_id")

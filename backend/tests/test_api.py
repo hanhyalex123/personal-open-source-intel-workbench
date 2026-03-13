@@ -207,6 +207,31 @@ def test_manual_sync_endpoint_returns_runner_result(tmp_path: Path):
     assert response.get_json()["status"] == "running"
 
 
+def test_sync_runs_endpoints_list_detail_and_clear(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+    from backend.sync_runs import SyncRunRecorder
+
+    store = JsonStore(tmp_path)
+    recorder = SyncRunRecorder(store)
+    run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+
+    app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.get("/api/sync/runs")
+    assert response.status_code == 200
+    assert response.get_json()[0]["id"] == run_id
+
+    detail = client.get(f"/api/sync/runs/{run_id}")
+    assert detail.status_code == 200
+    assert detail.get_json()["id"] == run_id
+
+    cleared = client.delete("/api/sync/runs")
+    assert cleared.status_code == 200
+    assert cleared.get_json()["runs"] == []
+
+
 def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries(tmp_path: Path):
     from backend.app import create_app
     from backend.storage import JsonStore

@@ -7,6 +7,7 @@ from flask import Flask, request
 from .assistant import answer_query
 from .config import DATA_DIR
 from .sync_status import SyncCoordinator
+from .sync_runs import load_runs, save_runs
 from .digest_history import build_daily_digest_history, build_recent_project_updates, sort_daily_digest_projects
 from .daily_summary import (
     IMPORTANCE_ORDER,
@@ -24,11 +25,12 @@ from .storage import JsonStore, normalize_config
 def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest_runner=None) -> Flask:
     app = Flask(__name__)
     app.config["STORE"] = store or JsonStore(DATA_DIR)
-    app.config["SYNC_RUNNER"] = sync_runner or (lambda: {"status": "noop"})
+    app.config["SYNC_RUNNER"] = sync_runner or (lambda **_kwargs: {"status": "noop"})
     app.config["DAILY_DIGEST_RUNNER"] = daily_digest_runner or (lambda **_kwargs: {"status": "noop"})
     app.config["SYNC_COORDINATOR"] = SyncCoordinator(
         incremental_runner=app.config["SYNC_RUNNER"],
         daily_digest_runner=app.config["DAILY_DIGEST_RUNNER"],
+        store=app.config["STORE"],
     )
 
     @app.get("/api/health")
@@ -123,6 +125,29 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
     @app.get("/api/sync/status")
     def sync_status():
         return app.config["SYNC_COORDINATOR"].get_status()
+
+    @app.get("/api/sync/runs")
+    def list_sync_runs():
+        payload = load_runs(app.config["STORE"])
+        limit = request.args.get("limit", type=int)
+        runs = payload.get("runs", [])
+        if limit:
+            runs = runs[:limit]
+        return runs
+
+    @app.get("/api/sync/runs/<run_id>")
+    def get_sync_run(run_id: str):
+        payload = load_runs(app.config["STORE"])
+        run = next((item for item in payload.get("runs", []) if item.get("id") == run_id), None)
+        if run is None:
+            return {"error": "run not found"}, 404
+        return run
+
+    @app.delete("/api/sync/runs")
+    def clear_sync_runs():
+        payload = {"runs": []}
+        save_runs(app.config["STORE"], payload)
+        return payload
 
     @app.post("/api/assistant/query")
     def assistant_query():
