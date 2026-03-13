@@ -11,7 +11,7 @@ BACKEND_LOG="$LOG_DIR/backend.log"
 FRONTEND_LOG="$LOG_DIR/frontend.log"
 BACKEND_URL="${INTEL_BACKEND_URL:-http://127.0.0.1:8000/api/health}"
 FRONTEND_URL="${INTEL_FRONTEND_URL:-http://127.0.0.1:5173}"
-FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 127.0.0.1 --port 5173}"
+FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 0.0.0.0 --port 5173}"
 OPEN_BROWSER_CMD="${INTEL_OPEN_CMD:-open}"
 
 detect_backend_python() {
