@@ -12,7 +12,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
         "config": {
             "sync_interval_minutes": 60,
             "sync_concurrency": 4,
-            "sync_source_timeout_seconds": 120,
+            "sync_source_timeout_seconds": 240,
             "assistant": {
                 "enabled": True,
                 "default_mode": "hybrid",

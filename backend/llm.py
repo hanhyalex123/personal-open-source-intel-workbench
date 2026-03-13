@@ -100,12 +100,23 @@ def summarize_project_daily_intel(*, project: dict, evidence_items: list[dict], 
 def parse_analysis_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
     parsed = _parse_json_with_repair(text)
+    title_zh = parsed.get("title_zh") or parsed.get("title") or ""
+    summary_zh = parsed.get("summary_zh") or parsed.get("summary") or ""
+    impact_scope = parsed.get("impact_scope") or ""
+    suggested_action = parsed.get("suggested_action") or ""
+    urgency = parsed.get("urgency") or "low"
+    tags = parsed.get("tags") or []
+    if isinstance(tags, str):
+        tags = [tags]
+    is_stable = parsed.get("is_stable")
+    if is_stable is None:
+        is_stable = True
     detail_sections = parsed.get("detail_sections") or _derive_detail_sections(parsed.get("details_zh", ""))
-    impact_points = parsed.get("impact_points") or _split_inline_points(parsed.get("impact_scope", ""))
-    action_items = parsed.get("action_items") or _split_action_items(parsed.get("suggested_action", ""))
+    impact_points = parsed.get("impact_points") or _split_inline_points(impact_scope)
+    action_items = parsed.get("action_items") or _split_action_items(suggested_action)
     return {
-        "title_zh": parsed["title_zh"],
-        "summary_zh": parsed["summary_zh"],
+        "title_zh": title_zh,
+        "summary_zh": summary_zh,
         "details_zh": parsed.get("details_zh", ""),
         "detail_sections": detail_sections,
         "what_changed": parsed.get("what_changed", []),
@@ -117,13 +128,13 @@ def parse_analysis_response(payload: dict[str, Any]) -> dict:
         "upgrade_risks": parsed.get("upgrade_risks", []),
         "future_direction": parsed.get("future_direction", []),
         "evidence": parsed.get("evidence", []),
-        "impact_scope": parsed["impact_scope"],
+        "impact_scope": impact_scope,
         "impact_points": impact_points,
-        "suggested_action": parsed["suggested_action"],
+        "suggested_action": suggested_action,
         "action_items": action_items,
-        "urgency": parsed["urgency"],
-        "tags": parsed["tags"],
-        "is_stable": parsed["is_stable"],
+        "urgency": urgency,
+        "tags": tags,
+        "is_stable": is_stable,
     }
 
 

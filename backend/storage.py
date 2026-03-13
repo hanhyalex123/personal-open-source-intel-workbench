@@ -29,7 +29,7 @@ DEFAULT_ASSISTANT_CONFIG = {
 DEFAULT_CONFIG = {
     "sync_interval_minutes": 60,
     "sync_concurrency": 4,
-    "sync_source_timeout_seconds": 120,
+    "sync_source_timeout_seconds": 240,
     "assistant": DEFAULT_ASSISTANT_CONFIG,
 }
 

@@ -32,9 +32,12 @@ def crawl_docs_pages(*, project_id: str, docs_url: str, profile: dict, progress_
             continue
         seen.add(url)
 
-        response = requests.get(url, timeout=30)
-        response.raise_for_status()
-        html = response.text
+        try:
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            html = response.text
+        except requests.RequestException:
+            continue
 
         records.append(
             {

@@ -50,7 +50,7 @@ def test_build_sync_runner_uses_store_config_and_persists_results(tmp_path: Path
 
     assert result["analyzed_events"] == 1
     assert captured["kwargs"]["max_workers"] == 4
-    assert captured["kwargs"]["source_timeout_seconds"] == 120
+    assert captured["kwargs"]["source_timeout_seconds"] == 240
     assert snapshot["state"]["last_sync_at"] == "2026-03-09T12:00:00Z"
     assert snapshot["state"]["last_fetch_success_at"] == "2026-03-09T12:00:00Z"
     assert snapshot["state"]["last_incremental_analysis_at"] == "2026-03-09T12:00:00Z"

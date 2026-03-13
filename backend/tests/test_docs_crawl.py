@@ -256,3 +256,44 @@ def test_crawl_docs_pages_reports_progress_per_page(monkeypatch):
         "https://example.com/docs/a",
     ]
     assert progress[-1]["processed_pages"] == 2
+
+
+def test_crawl_docs_pages_skips_unreachable_pages(monkeypatch):
+    import requests
+    from backend.docs_crawl import crawl_docs_pages
+
+    pages = {
+        "https://example.com/docs": '<main><h1>Docs</h1><a href="/docs/good">Good</a><a href="/docs/bad">Bad</a></main>',
+        "https://example.com/docs/good": "<main><h1>Good</h1><p>ok</p></main>",
+    }
+
+    class DummyResponse:
+        def __init__(self, text):
+            self.text = text
+            self.headers = {}
+
+        def raise_for_status(self):
+            return None
+
+    def fake_get(url, timeout=30):
+        if url == "https://example.com/docs/bad":
+            raise requests.HTTPError("404 Client Error: Not Found for url")
+        return DummyResponse(pages[url])
+
+    monkeypatch.setattr("backend.docs_crawl.requests.get", fake_get)
+
+    records = crawl_docs_pages(
+        project_id="demo",
+        docs_url="https://example.com/docs",
+        profile={
+            "entry_urls": ["https://example.com/docs"],
+            "allowed_path_prefixes": ["/docs"],
+            "blocked_path_prefixes": [],
+            "max_depth": 1,
+        },
+    )
+
+    assert [record["url"] for record in records] == [
+        "https://example.com/docs",
+        "https://example.com/docs/good",
+    ]

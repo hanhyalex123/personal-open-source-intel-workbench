@@ -210,3 +210,28 @@ def test_parse_analysis_response_repairs_unterminated_string():
     }
     parsed = parse_analysis_response(payload)
     assert parsed["summary_zh"] == "s"
+
+
+def test_parse_analysis_response_defaults_missing_required_fields():
+    from backend.llm import parse_analysis_response
+
+    payload = {
+        "content": [
+            {
+                "type": "text",
+                "text": """{
+  "title_zh": "KTransformers v0.5.1",
+  "summary_zh": "Release notes extracted.",
+  "suggested_action": "review",
+  "urgency": "low",
+  "tags": ["ktransformers"],
+  "is_stable": true
+}""",
+            }
+        ]
+    }
+
+    analysis = parse_analysis_response(payload)
+
+    assert analysis["impact_scope"] == ""
+    assert analysis["impact_points"] == []
