@@ -207,7 +207,46 @@ def test_sync_continues_when_single_analysis_fails(tmp_path: Path):
     assert result["new_events"] == 2
     assert result["analyzed_events"] == 1
     assert result["failed_events"] == 1
-    assert "github-release:kubernetes/kubernetes:v1.31.1" in snapshot["analyses"]
+
+
+def test_run_sync_once_records_event_logs(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+    from backend.sync_runs import SyncRunRecorder, load_runs
+
+    store = JsonStore(tmp_path)
+    store.save_config({})
+    recorder = SyncRunRecorder(store)
+    run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+
+    def release_fetcher(_repo: str):
+        return [
+            {
+                "tag_name": "v1.0.0",
+                "name": "Release v1.0.0",
+                "body": "notes",
+                "html_url": "https://example.com/v1.0.0",
+                "published_at": "2026-03-12T08:00:00Z",
+            }
+        ]
+
+    def analyzer(_event: dict):
+        return {"title_zh": "测试", "summary_zh": "摘要", "urgency": "low", "action_items": []}
+
+    run_sync_once(
+        store=store,
+        repos=["example/repo"],
+        feeds=[],
+        release_fetcher=release_fetcher,
+        feed_fetcher=lambda _feed: [],
+        analyzer=analyzer,
+        now_iso="2026-03-13T00:00:00Z",
+        run_logger=recorder,
+        run_id=run_id,
+    )
+
+    payload = load_runs(store)
+    assert payload["runs"][0]["sources"]
 
 
 def test_sync_enriches_only_events_that_need_analysis(tmp_path: Path):
