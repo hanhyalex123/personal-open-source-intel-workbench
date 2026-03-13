@@ -635,6 +635,11 @@ a {
   gap: 12px;
 }
 
+.sync-status-panel__actions .pill {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
 .sync-status-panel__header h2 {
   margin: 8px 0 0;
   font-size: clamp(24px, 3vw, 34px);
