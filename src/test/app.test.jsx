@@ -331,7 +331,26 @@ const syncRunsPayload = [
 
 const syncRunDetailPayload = {
   ...syncRunsPayload[0],
-  sources: [],
+  sources: [
+    {
+      kind: "repo",
+      label: "cilium/cilium",
+      status: "success",
+      metrics: { new_events: 1, analyzed_events: 1, failed_events: 0 },
+      events: [
+        {
+          event_id: "github-release:cilium/cilium:v1.20.0-pre.0",
+          status: "analyzed",
+          title: "Cilium 1.20 预发布",
+          version: "v1.20.0-pre.0",
+          published_at: "2026-03-10T13:00:00Z",
+          analysis: {
+            summary_zh: "新增 KCNP 和 BackendTLSPolicy。",
+          },
+        },
+      ],
+    },
+  ],
 };
 
 describe("App", () => {
@@ -436,8 +455,16 @@ describe("App", () => {
     expect(screen.getByText("今日日报")).toBeInTheDocument();
     expect(screen.getByText("增量提醒")).toBeInTheDocument();
     expect(screen.getByText("日报归档")).toBeInTheDocument();
-    expect(screen.getByText("同步雷达")).toBeInTheDocument();
+    expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("最近抓取成功").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("最近日报生成").length).toBeGreaterThan(0);
+    expect(screen.getByText("调度状态")).toBeInTheDocument();
+    expect(screen.getByText("2026-03-10")).toBeInTheDocument();
     expect(screen.queryByText("Sync")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    expect(screen.getByRole("heading", { name: "同步监控", level: 1 })).toBeInTheDocument();
+    expect(screen.getByText("同步雷达")).toBeInTheDocument();
     expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
     expect(screen.getByText("1 / 8")).toBeInTheDocument();
@@ -451,11 +478,6 @@ describe("App", () => {
     });
     expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
     expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
-    expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("最近抓取成功").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("最近日报生成").length).toBeGreaterThan(0);
-    expect(screen.getByText("调度状态")).toBeInTheDocument();
-    expect(screen.getByText("2026-03-10")).toBeInTheDocument();
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
     expect(screen.getByText("按项目跟踪版本、文档与分析结论")).toBeInTheDocument();
@@ -488,11 +510,28 @@ describe("App", () => {
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
   });
 
+  it("shows sync monitor page in navigation", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报首页")).toBeInTheDocument();
+    });
+
+    const monitorTab = screen.getAllByRole("button", { name: "同步监控" })[0];
+    fireEvent.click(monitorTab);
+
+    expect(screen.getByRole("heading", { name: "同步监控", level: 1 })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText("日报首页")).not.toBeInTheDocument();
+    });
+    expect(screen.getByText("同步雷达")).toBeInTheDocument();
+  });
+
   it("creates a project from github and docs urls", async () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+      expect(screen.getAllByText("Kubernetes 今日重点：1.31 补丁与网络策略").length).toBeGreaterThan(0);
     });
 
     fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
