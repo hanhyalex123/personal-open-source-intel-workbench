@@ -298,6 +298,10 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                         </div>
                         <div className="sync-log-event__copy">
                           <strong>{event.title}</strong>
+                          {event.model || event.provider ? (
+                            <p>{`模型: ${event.model || "未知"}${event.provider ? ` · ${event.provider}` : ""}`}</p>
+                          ) : null}
+                          {event.used_fallback ? <p>{`备用模型: ${event.fallback_model || "未知"}`}</p> : null}
                           {event.analysis?.summary_zh ? <p>{event.analysis.summary_zh}</p> : null}
                           {event.error ? <p>{event.error}</p> : null}
                         </div>
