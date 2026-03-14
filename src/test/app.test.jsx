@@ -527,6 +527,22 @@ describe("App", () => {
     expect(screen.getByText("同步雷达")).toBeInTheDocument();
   });
 
+  it("shows sync actions only on sync monitor page", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报首页")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByRole("button", { name: "立即同步" })).not.toBeInTheDocument();
+    expect(screen.queryByText("同步雷达")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "同步监控" })[0]);
+
+    expect(screen.getByRole("button", { name: "立即同步" })).toBeInTheDocument();
+    expect(screen.getByText("同步雷达")).toBeInTheDocument();
+  });
+
   it("creates a project from github and docs urls", async () => {
     render(<App />);
 

@@ -18,7 +18,7 @@ import {
 } from "./lib/api";
 
 const NAV_ITEMS = [
-  { id: "intel", label: "日报", title: "日报", subtitle: "固定日报、同步雷达和增量提醒" },
+  { id: "intel", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
   { id: "monitor", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
   { id: "projects", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
   { id: "assistant", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
@@ -211,9 +211,11 @@ export default function App() {
             <h1>{currentPage.title}</h1>
             <p className="topbar__subtitle">{currentPage.subtitle}</p>
           </div>
-          <button className="primary-button" onClick={handleSync} disabled={syncing}>
-            {syncing ? "正在同步..." : "立即同步"}
-          </button>
+          {activePage === "monitor" ? (
+            <button className="primary-button" onClick={handleSync} disabled={syncing}>
+              {syncing ? "正在同步..." : "立即同步"}
+            </button>
+          ) : null}
         </header>
 
         {error ? <div className="error-banner">{error}</div> : null}
