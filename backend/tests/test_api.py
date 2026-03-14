@@ -191,6 +191,7 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     assert payload["projects"][0]["focus_topics"] == ["虚拟化"]
     assert payload["projects"][0]["release_area"]["items"][0]["version"] == "v1.31.1"
     assert payload["projects"][0]["release_area"]["items"][0]["summary_zh"] == "Kubernetes 1.31.1 比 1.31.0 更新。"
+    assert payload["projects"][0]["release_area"]["items"][0]["published_at"] == "2026-03-10T10:00:00Z"
     assert [item["category"] for item in payload["projects"][0]["docs_area"]["categories"]] == ["网络"]
     assert payload["projects"][0]["docs_area"]["categories"][0]["items"][0]["title_zh"] == "网络策略文档更新"
 
@@ -520,4 +521,4 @@ def test_dashboard_orders_release_items_by_stable_semver_not_publish_time(tmp_pa
     payload = client.get("/api/dashboard").get_json()
     versions = [item["version"] for item in payload["projects"][0]["release_area"]["items"]]
 
-    assert versions[:6] == ["v1.35.2", "v1.35.1", "v1.34.5", "v1.33.9", "v1.32.13", "v1.36.0-alpha.2"]
+    assert versions[:6] == ["v1.35.2", "v1.32.13", "v1.33.9", "v1.34.5", "v1.35.1", "v1.36.0-alpha.2"]

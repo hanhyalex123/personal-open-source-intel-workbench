@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 
+import brandAvatar from "./assets/brand-avatar-anime.png";
 import AIConsolePage from "./components/AIConsolePage";
 import IntelOverviewPage from "./components/IntelOverviewPage";
 import ProjectMonitorPage from "./components/ProjectMonitorPage";
@@ -212,9 +213,7 @@ export default function App() {
       <aside className="sidebar">
         <div className="sidebar__brand">
           <div className="sidebar__brand-mark">
-            <span className="sidebar__brand-seal" aria-hidden="true">
-              情
-            </span>
+            <img className="brand-avatar brand-avatar--sidebar" src={brandAvatar} alt="品牌头像" />
             <div>
               <p>架构师</p>
               <strong>开源情报站</strong>

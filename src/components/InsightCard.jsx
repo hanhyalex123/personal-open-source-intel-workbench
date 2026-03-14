@@ -7,6 +7,14 @@ function urgencyLabel(level) {
   return "低优先级";
 }
 
+function formatDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 export default function InsightCard({ item, compact = false }) {
   const [expanded, setExpanded] = useState(false);
   const showExpanded = !compact || expanded;
@@ -26,6 +34,7 @@ export default function InsightCard({ item, compact = false }) {
         <span className={`pill pill--${item.urgency || "low"}`}>{urgencyLabel(item.urgency)}</span>
         {item.is_stable ? <span className="pill pill--stable">固定结论</span> : null}
         {item.version ? <span className="pill pill--ghost">{item.version}</span> : null}
+        {item.published_at ? <span className="insight-card__timestamp">{formatDate(item.published_at)}</span> : null}
       </div>
 
       <h3 className="insight-card__title">{item.title_zh}</h3>

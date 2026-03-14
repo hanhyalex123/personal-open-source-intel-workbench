@@ -2,6 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 
+function formatZhDateTime(value) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
 const dashboardPayload = {
   overview: {
     total_items: 1,
@@ -468,15 +475,13 @@ describe("App", () => {
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
     expect(screen.getByText("情报值班台")).toBeInTheDocument();
-    expect(screen.getByText("日报首页")).toBeInTheDocument();
-    expect(screen.getByText("Open Source Desk")).toBeInTheDocument();
-    expect(screen.getByText("情报封面")).toBeInTheDocument();
-    expect(screen.getByText("同步信号")).toBeInTheDocument();
+    expect(screen.getAllByAltText("品牌头像").length).toBeGreaterThan(0);
+    expect(screen.getByText("重点结论")).toBeInTheDocument();
+    expect(screen.getByText("运行快照")).toBeInTheDocument();
     expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
-    expect(document.querySelector(".intel-info-band")).not.toBeNull();
-    expect(screen.getByText("首页看日报，第二页看情报监控")).toBeInTheDocument();
-    expect(screen.getByText("今日日报")).toBeInTheDocument();
-    expect(screen.getByText("增量提醒")).toBeInTheDocument();
+    expect(document.querySelector(".homepage-topline")).not.toBeNull();
+    expect(screen.getByText("先看今天最值得跟进的项目和运行信号。")).toBeInTheDocument();
+    expect(screen.getByText("增量快讯")).toBeInTheDocument();
     expect(screen.getByText("日报归档")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
     expect(screen.getAllByText("最近抓取成功").length).toBeGreaterThan(0);
@@ -523,6 +528,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "网络" })).toBeInTheDocument();
     expect(screen.getAllByText("虚拟化").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "展开更多" }));
+    expect(screen.getByText(formatZhDateTime("2026-03-12T10:00:00Z"))).toBeInTheDocument();
     expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
     expect(screen.getByText("优先验证。")).toBeInTheDocument();

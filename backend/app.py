@@ -344,6 +344,9 @@ def _infer_project_id(event: dict, projects: list[dict]) -> str:
 
 def _strip_internal_fields(item: dict) -> dict:
     cleaned = dict(item)
+    event = cleaned.get("_event") or {}
+    if event.get("published_at") and not cleaned.get("published_at"):
+        cleaned["published_at"] = event.get("published_at")
     cleaned.pop("_event", None)
     return cleaned
 
@@ -360,21 +363,23 @@ SEMVER_PATTERN = re.compile(r"^v?(?P<major>\d+)\.(?P<minor>\d+)\.(?P<patch>\d+)(
 
 
 def _release_sort_key(item: dict):
+    published_at = item.get("_event", {}).get("published_at") or item.get("published_at") or ""
     version = item.get("version") or item.get("title") or ""
     match = SEMVER_PATTERN.match(version)
-    published_at = item.get("_event", {}).get("published_at") or ""
-    if not match:
-        return (0, 0, 0, 0, published_at)
-
-    prerelease = match.group("prerelease") or ""
-    # Stable releases first, then prerelease builds.
-    stability_rank = 1 if not prerelease else 0
+    stability_rank = 1
+    version_key = (0, 0, 0)
+    if match:
+        prerelease = match.group("prerelease") or ""
+        stability_rank = 1 if not prerelease else 0
+        version_key = (
+            int(match.group("major")),
+            int(match.group("minor")),
+            int(match.group("patch")),
+        )
     return (
         stability_rank,
-        int(match.group("major")),
-        int(match.group("minor")),
-        int(match.group("patch")),
         published_at,
+        *version_key,
     )
 
 
