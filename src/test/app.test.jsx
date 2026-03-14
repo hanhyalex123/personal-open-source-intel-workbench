@@ -449,8 +449,10 @@ describe("App", () => {
     expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
+    expect(screen.getByText("今日头条")).toBeInTheDocument();
     expect(screen.getByText("日报首页")).toBeInTheDocument();
     expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
+    expect(document.querySelector(".intel-info-band")).not.toBeNull();
     expect(screen.getByText("首页看日报，第二页看情报监控")).toBeInTheDocument();
     expect(screen.getByText("今日日报")).toBeInTheDocument();
     expect(screen.getByText("增量提醒")).toBeInTheDocument();

@@ -25,7 +25,7 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
     <div className="intel-page">
       <section className="hero-card">
         <div className="hero-copy">
-          <p className="eyebrow">Daily Brief</p>
+          <p className="eyebrow">今日头条</p>
           <h1>日报首页</h1>
           <p className="hero-text">固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。</p>
         </div>
@@ -42,22 +42,24 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
         </div>
       </section>
 
-      <section className="stat-grid">
-        <StatCard label="结论总数" value={overview?.total_items ?? 0} />
-        <StatCard label="项目数" value={homepageProjects.length} />
-        <StatCard
-          label="最近抓取成功"
-          value={formatDate(overview?.last_incremental_analysis_at || overview?.last_fetch_success_at)}
-        />
-      </section>
+      <section className="intel-info-band">
+        <div className="stat-grid">
+          <StatCard label="结论总数" value={overview?.total_items ?? 0} />
+          <StatCard label="项目数" value={homepageProjects.length} />
+          <StatCard
+            label="最近抓取成功"
+            value={formatDate(overview?.last_incremental_analysis_at || overview?.last_fetch_success_at)}
+          />
+        </div>
 
-      <section className="stat-grid stat-grid--secondary">
-        <StatCard
-          label="调度状态"
-          value={overview?.scheduler?.running ? "已开启" : "未开启"}
-          hint={overview?.scheduler?.interval_minutes ? `${overview.scheduler.interval_minutes} 分钟一次` : ""}
-        />
-        <StatCard label="最近日报生成" value={formatDate(overview?.last_daily_digest_at)} />
+        <div className="stat-grid stat-grid--secondary">
+          <StatCard
+            label="调度状态"
+            value={overview?.scheduler?.running ? "已开启" : "未开启"}
+            hint={overview?.scheduler?.interval_minutes ? `${overview.scheduler.interval_minutes} 分钟一次` : ""}
+          />
+          <StatCard label="最近日报生成" value={formatDate(overview?.last_daily_digest_at)} />
+        </div>
       </section>
 
       <section className="intel-section">
