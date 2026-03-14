@@ -38,7 +38,8 @@ describe("SyncStatusPanel", () => {
     expect(screen.getByRole("button", { name: "已分析" })).toHaveTextContent("7");
     expect(screen.getByRole("button", { name: "失败" })).toHaveTextContent("1");
     expect(screen.getByRole("button", { name: "跳过" })).toHaveTextContent("4");
-    expect(screen.getByText("本次合计（全来源）")).toBeInTheDocument();
+    expect(screen.getByText("Signal Radar")).toBeInTheDocument();
+    expect(screen.getByText("本次合计（最近一次增量）")).toBeInTheDocument();
   });
 
   it("shows stalled state explicitly when backend marks the sync as stalled", () => {

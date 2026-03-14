@@ -1,47 +1,50 @@
-# 中文运维变化面板
+# 中文运维情报面板
 
-这是一个“中文结论优先”的运维监控面板。
+一个面向自部署场景的中文运维情报站。
 
-它不再直接展示英文 commits / releases / issues 列表，而是通过一个轻量 Python 后端：
+它会持续跟踪你关心的开源项目，抓取 GitHub Releases 和官方文档变化，只对新增或发生变化的内容做大模型分析，把中文结论、本地日志和日报都落下来，方便后续继续追踪。
 
-- 支持项目配置后台，新增项目时填写 `GitHub URL + 官方文档 URL`
-- 定时抓取 GitHub releases 和真实文档页面 / feed
-- 只对新增或内容变化的事件调用大模型
-- 把中文分析结果持久化到本地 JSON
-- 保留已经固定的历史结论
-- 前端打开时直接展示中文总结、详细说明、影响范围和建议动作
+## 现在能做什么
+
+- 管理监控项目：新增项目时填写 `GitHub URL` 和可选的 `官方文档 URL`
+- 增量抓取：只处理新增事件和内容有变化的旧事件
+- 中文分析：把 release / 文档变化整理成中文摘要、影响点和建议动作
+- 日报首页：固定展示当天最值得跟进的项目结论
+- 增量提醒：日报之外的新变化单独展示
+- 同步监控：查看同步阶段、来源进度、心跳状态和本次增量汇总
+- 日志下钻：按新增、已分析、失败、跳过查看本次或历史同步
+- 本地持久化：事件、分析结果、日报和同步日志都保存在本地 JSON
+
+## 当前界面
+
+- `日报`
+  - 首页封面
+  - 今日日报
+  - 增量提醒
+  - 日报归档
+- `同步监控`
+  - 同步雷达
+  - 运行状态
+  - 日志抽屉
+- `情报监控`
+  - 按项目查看 release 与文档分析
+- `AI 控制台`
+  - 基于本地证据和检索结果做问答
+- `配置中心`
+  - 项目管理
+  - 抓取配置
+  - Assistant 配置
 
 ## 当前架构
 
-- 前端：React + Vite + Tailwind CSS
+- 前端：React + Vite
 - 后端：Flask + APScheduler
-- 本地持久化：JSON 文件
-- 测试：pytest + Vitest + Testing Library
-
-## 核心流程
-
-1. 后端启动时读取项目注册表。
-2. 后台立即执行一次同步，并按配置间隔持续同步。
-3. 上游事件会被归一化为稳定事件 ID。
-4. 官方文档 / 官方博客类 feed 可以继续展开对应页面正文，再送入分析。
-5. 只有新事件或内容发生变化的旧事件才会重新进入大模型分析。
-6. 单条事件分析失败不会中断整轮同步。
-7. 中文分析结果保存到 `backend/data/*.json`。
-8. 前端通过 `/api/dashboard` 直接读取整理好的中文结论与项目源摘要。
-9. 后台通过 `/api/projects` 和 `/api/projects/<id>/crawl-profile` 管理项目和抓取配置。
-
-## 当前默认项目
-
-- `OpenClaw`
-  - GitHub: `https://github.com/openclaw/openclaw`
-  - 文档区：关闭
-- `Kubernetes`
-  - GitHub: `https://github.com/kubernetes/kubernetes`
-  - 文档: `https://kubernetes.io/zh-cn/docs/home/`
+- 存储：本地 JSON
+- 测试：Vitest + Testing Library + Pytest
 
 ## 环境变量
 
-复制 `.env.example` 到本地 `.env` 后填写：
+复制 `.env.example` 为 `.env`，至少填写：
 
 ```bash
 PACKY_API_KEY=...
@@ -52,10 +55,11 @@ GITHUB_TOKEN=
 
 说明：
 
-- `PACKY_API_KEY` 只用于后端，不会暴露到前端。
-- `GITHUB_TOKEN` 是可选项，用于提高 GitHub API 速率限制额度。
+- `PACKY_API_KEY` 只在后端使用，不会暴露到前端
+- `GITHUB_TOKEN` 可选，用于提高 GitHub API 速率限制
+- 如果你配置了备用模型，也是在后端环境变量里处理
 
-## 启动方式
+## 启动
 
 安装依赖：
 
@@ -64,72 +68,70 @@ npm install
 python3 -m pip install -r requirements.txt
 ```
 
-启动后端：
+开发启动：
 
 ```bash
 npm run dev:backend
-```
-
-启动前端：
-
-```bash
 npm run dev
 ```
 
-前端默认地址：
-
-```text
-http://localhost:5173
-```
-
-后端默认地址：
-
-```text
-http://localhost:8000
-```
-
-桌面快捷开关：
-
-- 已创建桌面文件 `启动 Intel Workbench.command`
-- 已创建桌面文件 `停止 Intel Workbench.command`
-
-也可以在项目目录手动执行：
+推荐直接用项目脚本启动整套服务：
 
 ```bash
-bash scripts/start_intel_workbench.sh
-bash scripts/stop_intel_workbench.sh
+./scripts/start_intel_workbench.sh
+./scripts/stop_intel_workbench.sh
+```
+
+默认地址：
+
+```text
+前端: http://127.0.0.1:5173
+后端: http://127.0.0.1:8000
 ```
 
 启动脚本会：
 
-- 后台启动 Flask 后端
-- 后台启动 Vite 前端
-- 自动打开浏览器到 `http://127.0.0.1:5173`
-- 将日志写到 `logs/backend.log` 和 `logs/frontend.log`
+- 后台启动前端和后端
+- 自动打开浏览器到 `127.0.0.1`
+- 把运行日志写到 `logs/`
 
 ## 测试
 
-后端测试：
-
-```bash
-python3 -m pytest backend/tests -q
-```
-
-前端测试：
+前端：
 
 ```bash
 npm test
 ```
 
-## 数据文件
+后端：
 
-后端运行后会在 `backend/data` 下生成：
+```bash
+.venv/bin/python -m pytest -q
+```
 
-- `config.json`
+## 数据与日志
+
+本地运行后会在 `backend/data/` 下生成或更新：
+
 - `projects.json`
 - `crawl_profiles.json`
 - `events.json`
 - `analyses.json`
+- `daily_project_summaries.json`
+- `sync_runs.json`
 - `state.json`
+- `config.json`
 
-这些文件是本地运行缓存，不需要提交。
+运行日志在：
+
+- `logs/frontend.log`
+- `logs/backend.log`
+
+这些都是本地运行状态，不建议直接提交到仓库。
+
+## 当前限制
+
+- 文档抓取质量依赖目标站点结构，复杂站点仍然需要手动调 crawl profile
+- 没有数据库，当前全部依赖本地 JSON
+- 首页和日志更适合单人或小团队自部署，不是多租户系统
+- 大模型分析质量取决于所接入的网关和模型稳定性

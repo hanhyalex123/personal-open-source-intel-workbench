@@ -461,6 +461,9 @@ describe("App", () => {
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
     expect(screen.getByText("今日头条")).toBeInTheDocument();
     expect(screen.getByText("日报首页")).toBeInTheDocument();
+    expect(screen.getByText("Signal Desk")).toBeInTheDocument();
+    expect(screen.getByText("情报封面")).toBeInTheDocument();
+    expect(screen.getByText("同步信号")).toBeInTheDocument();
     expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
     expect(document.querySelector(".intel-info-band")).not.toBeNull();
     expect(screen.getByText("首页看日报，第二页看情报监控")).toBeInTheDocument();
@@ -477,6 +480,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
     expect(screen.getByRole("heading", { name: "同步监控", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("同步雷达")).toBeInTheDocument();
+    expect(screen.getAllByText("Signal Radar").length).toBeGreaterThan(0);
     expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
     expect(screen.getByText("1 / 8")).toBeInTheDocument();

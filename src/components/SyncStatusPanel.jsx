@@ -45,7 +45,10 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
     <section className={`sync-status-panel sync-status-panel--${status.status} ${status.is_stalled ? "sync-status-panel--stalled" : ""}`}>
       <div className="sync-status-panel__header">
         <div>
-          <p className="section-kicker">Radar</p>
+          <div className="section-kicker section-kicker--icon">
+            <span className="cover-icon" aria-hidden="true">◉</span>
+            <span>Signal Radar</span>
+          </div>
           <h2>同步雷达</h2>
         </div>
         <div className="sync-status-panel__actions">
@@ -110,7 +113,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
         </button>
       </div>
 
-      <p className="sync-status-panel__note">{totalNote}</p>
+      <p className="sync-status-panel__note">{totalNote.replace("本次合计（全来源）", "本次合计（最近一次增量）")}</p>
 
       <div className="sync-status-panel__grid sync-status-panel__grid--compact">
         <div className="sync-status-metric">
