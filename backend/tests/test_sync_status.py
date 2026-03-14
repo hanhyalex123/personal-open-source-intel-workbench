@@ -76,6 +76,10 @@ def test_manual_sync_runs_in_background_and_updates_status(tmp_path):
     assert payload["phase"] == "completed"
     assert payload["result"]["incremental"]["new_events"] == 2
     assert payload["result"]["daily_digest"]["summary_count"] == 8
+    assert payload["last_incremental_metrics"]["new_events"] == 2
+    assert payload["last_incremental_metrics"]["analyzed_events"] == 1
+    assert payload["last_incremental_metrics"]["failed_events"] == 0
+    assert payload["last_incremental_metrics"]["skipped_events"] == 5
 
 
 def test_manual_sync_updates_run_id(tmp_path):

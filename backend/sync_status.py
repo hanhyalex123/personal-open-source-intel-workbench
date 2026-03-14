@@ -27,6 +27,7 @@ def default_sync_status() -> dict:
         "analyzed_events": 0,
         "failed_events": 0,
         "skipped_events": 0,
+        "last_incremental_metrics": None,
         "error": "",
         "result": {},
     }
@@ -81,6 +82,17 @@ class SyncCoordinator:
             kwargs["run_id"] = run_id
         return runner(**kwargs)
 
+    def _build_incremental_metrics(self, result: dict, *, finished_at: str) -> dict:
+        return {
+            "new_events": result.get("new_events", 0),
+            "analyzed_events": result.get("analyzed_events", 0),
+            "failed_events": result.get("failed_events", 0),
+            "skipped_events": result.get("skipped_events", 0),
+            "total_sources": self._status.get("total_sources", 0),
+            "processed_sources": self._status.get("processed_sources", 0),
+            "finished_at": finished_at,
+        }
+
     def get_status(self) -> dict:
         with self._lock:
             status = deepcopy(self._status)
@@ -97,10 +109,12 @@ class SyncCoordinator:
             if self._status["status"] == "running":
                 return False, deepcopy(self._status)
 
+            previous_incremental = self._status.get("last_incremental_metrics")
             started_at = now_iso()
             run_id = self._start_run("manual", started_at=started_at)
             initial_status = {
                 **default_sync_status(),
+                "last_incremental_metrics": previous_incremental,
                 "run_id": run_id,
                 "status": "running",
                 "run_kind": "manual",
@@ -140,11 +154,13 @@ class SyncCoordinator:
                 run_logger=self._ensure_recorder(),
                 run_id=run_id,
             )
+            finished_at = now_iso()
             self._set_status(
                 status="success",
                 phase="completed",
                 message="定时增量同步完成",
-                finished_at=now_iso(),
+                finished_at=finished_at,
+                last_incremental_metrics=self._build_incremental_metrics(result, finished_at=finished_at),
                 result={"incremental": result},
             )
             return result
@@ -210,9 +226,11 @@ class SyncCoordinator:
                 run_logger=run_logger,
                 run_id=run_id,
             )
+            finished_at = now_iso()
             self._set_status(
                 phase="daily_digest",
                 message="正在生成今日日报",
+                last_incremental_metrics=self._build_incremental_metrics(incremental_result, finished_at=finished_at),
                 result={"incremental": incremental_result},
             )
             daily_digest_result = self._invoke_runner(
