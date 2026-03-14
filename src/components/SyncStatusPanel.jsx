@@ -32,8 +32,12 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
     return null;
   }
 
-  const skippedEvents = status.skipped_events ?? 0;
-  const totalNote = `本次合计（全来源）${!status.new_events && !status.analyzed_events && !status.failed_events && skippedEvents ? " · 无新增变化" : ""}`;
+  const summary = status.last_incremental_metrics || null;
+  const summaryNew = summary ? summary.new_events : status.new_events;
+  const summaryAnalyzed = summary ? summary.analyzed_events : status.analyzed_events;
+  const summaryFailed = summary ? summary.failed_events : status.failed_events;
+  const skippedEvents = summary ? summary.skipped_events ?? 0 : status.skipped_events ?? 0;
+  const totalNote = `本次合计（全来源）${!summaryNew && !summaryAnalyzed && !summaryFailed && skippedEvents ? " · 无新增变化" : ""}`;
   const stateText = status.is_stalled ? "可能卡住" : statusLabel(status.status);
   const pillTone = status.is_stalled ? "high" : status.status === "failed" ? "high" : status.status === "success" ? "stable" : "medium";
 
@@ -75,7 +79,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           aria-label="新增"
         >
           <span>新增事件</span>
-          <strong>{metricValue(status.new_events, "0")}</strong>
+          <strong>{metricValue(summaryNew, "0")}</strong>
         </button>
         <button
           className="sync-status-metric sync-status-metric--button"
@@ -84,7 +88,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           aria-label="已分析"
         >
           <span>已分析</span>
-          <strong>{metricValue(status.analyzed_events, "0")}</strong>
+          <strong>{metricValue(summaryAnalyzed, "0")}</strong>
         </button>
         <button
           className="sync-status-metric sync-status-metric--button"
@@ -93,7 +97,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           aria-label="失败"
         >
           <span>失败数</span>
-          <strong>{metricValue(status.failed_events, "0")}</strong>
+          <strong>{metricValue(summaryFailed, "0")}</strong>
         </button>
         <button
           className="sync-status-metric sync-status-metric--button"
