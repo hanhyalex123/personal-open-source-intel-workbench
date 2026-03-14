@@ -18,11 +18,11 @@ import {
 } from "./lib/api";
 
 const NAV_ITEMS = [
-  { id: "intel", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
-  { id: "monitor", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
-  { id: "projects", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
-  { id: "assistant", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
-  { id: "settings", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
+  { id: "intel", icon: "◌", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
+  { id: "monitor", icon: "◎", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
+  { id: "projects", icon: "▣", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
+  { id: "assistant", icon: "◇", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
+  { id: "settings", icon: "◧", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
 ];
 
 export default function App() {
@@ -186,8 +186,16 @@ export default function App() {
     <div className="workbench-shell">
       <aside className="sidebar">
         <div className="sidebar__brand">
-          <p>Intel</p>
-          <strong>Workbench</strong>
+          <div className="sidebar__brand-mark">
+            <span className="sidebar__brand-seal" aria-hidden="true">
+              情
+            </span>
+            <div>
+              <p>架构师</p>
+              <strong>开源情报站</strong>
+            </div>
+          </div>
+          <span className="sidebar__brand-note">开源动态、中文结论、同步日志</span>
         </div>
         <nav className="sidebar__nav">
           {NAV_ITEMS.map((item) => (
@@ -197,7 +205,10 @@ export default function App() {
               type="button"
               onClick={() => setActivePage(item.id)}
             >
-              {item.label}
+              <span className="sidebar__nav-icon" aria-hidden="true">
+                {item.icon}
+              </span>
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>

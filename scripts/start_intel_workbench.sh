@@ -162,7 +162,7 @@ wait_for_process_url "$FRONTEND_PID_FILE" "$FRONTEND_URL" "frontend"
 
 "$OPEN_BROWSER_CMD" "$FRONTEND_URL"
 
-echo "Intel Workbench is running."
+echo "架构师开源情报站 is running."
 echo "frontend: $FRONTEND_URL"
 echo "backend:  http://127.0.0.1:8000"
 echo "logs:     $LOG_DIR"

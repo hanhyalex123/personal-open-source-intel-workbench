@@ -1,0 +1,94 @@
+<svg width="1600" height="960" viewBox="0 0 1600 960" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="960" fill="#f4efe5"/>
+  <defs>
+    <linearGradient id="hero" x1="120" y1="80" x2="1480" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fffaf1"/>
+      <stop offset="1" stop-color="#efe4cf"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fffdf7"/>
+      <stop offset="1" stop-color="#f6ecda"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="200%" height="200%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#5b4b2f" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <rect x="56" y="56" width="1488" height="848" rx="36" fill="url(#hero)" stroke="#d8c8aa" stroke-width="2"/>
+  <text x="110" y="132" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="26" font-weight="700" letter-spacing="4">ARCHITECTURE</text>
+  <text x="110" y="192" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="56" font-weight="800">架构师开源情报站</text>
+  <text x="110" y="236" fill="#54635d" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="24">本地自部署的开源项目情报采集、分析、日报与日志系统</text>
+
+  <g filter="url(#shadow)">
+    <rect x="104" y="290" width="294" height="220" rx="28" fill="url(#panel)" stroke="#d9ccb1" stroke-width="2"/>
+    <text x="136" y="340" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">01 · 界面层</text>
+    <text x="136" y="388" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="34" font-weight="800">React + Vite</text>
+    <text x="136" y="432" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">日报首页</text>
+    <text x="136" y="466" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">同步监控与日志抽屉</text>
+    <text x="136" y="500" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">情报监控 / AI 控制台 / 配置中心</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="468" y="246" width="664" height="308" rx="32" fill="url(#panel)" stroke="#cab998" stroke-width="2.5"/>
+    <text x="508" y="302" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">02 · 应用核心</text>
+    <text x="508" y="354" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="42" font-weight="800">Flask API + APScheduler</text>
+    <text x="508" y="404" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">项目配置、同步编排、日志记录、日报生成、AI 问答</text>
+
+    <rect x="508" y="440" width="180" height="74" rx="20" fill="#f3ead8" stroke="#d0bb95"/>
+    <text x="534" y="485" fill="#17322b" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700">同步状态</text>
+
+    <rect x="710" y="440" width="180" height="74" rx="20" fill="#f3ead8" stroke="#d0bb95"/>
+    <text x="744" y="485" fill="#17322b" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700">增量分析</text>
+
+    <rect x="912" y="440" width="180" height="74" rx="20" fill="#f3ead8" stroke="#d0bb95"/>
+    <text x="946" y="485" fill="#17322b" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="24" font-weight="700">日报生成</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1204" y="290" width="284" height="220" rx="28" fill="url(#panel)" stroke="#d9ccb1" stroke-width="2"/>
+    <text x="1236" y="340" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">03 · 模型与网关</text>
+    <text x="1236" y="388" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="34" font-weight="800">Packy / Higress</text>
+    <text x="1236" y="432" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">主模型与备用模型路由</text>
+    <text x="1236" y="466" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">超时 / 失败自动 fallback</text>
+    <text x="1236" y="500" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">统一入口管理密钥</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="182" y="620" width="330" height="210" rx="28" fill="url(#panel)" stroke="#d9ccb1" stroke-width="2"/>
+    <text x="216" y="668" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">04 · 外部来源</text>
+    <text x="216" y="714" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="32" font-weight="800">GitHub / 文档站点</text>
+    <text x="216" y="758" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">Releases</text>
+    <text x="216" y="792" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">官方文档页面与目录</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="634" y="620" width="330" height="210" rx="28" fill="url(#panel)" stroke="#d9ccb1" stroke-width="2"/>
+    <text x="668" y="668" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">05 · 本地持久化</text>
+    <text x="668" y="714" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="32" font-weight="800">JSON 数据目录</text>
+    <text x="668" y="758" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">events / analyses / state</text>
+    <text x="668" y="792" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">sync_runs / daily summaries</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="1086" y="620" width="330" height="210" rx="28" fill="url(#panel)" stroke="#d9ccb1" stroke-width="2"/>
+    <text x="1120" y="668" fill="#8d6d3c" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="18" font-weight="700">06 · 运行输出</text>
+    <text x="1120" y="714" fill="#132b25" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="32" font-weight="800">日报与日志</text>
+    <text x="1120" y="758" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">首页情报卡 / 增量提醒</text>
+    <text x="1120" y="792" fill="#46544f" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="22">本次同步 / 历史同步日志</text>
+  </g>
+
+  <path d="M398 400H444" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1132 400H1178" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M348 620V556H800V590" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M800 554V590" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M800 556V590" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M800 556V590" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+  <path d="M800 556V590H1252V620" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M800 556V620" stroke="#1c5a4d" stroke-width="6" stroke-linecap="round"/>
+
+  <circle cx="444" cy="400" r="10" fill="#1c5a4d"/>
+  <circle cx="1178" cy="400" r="10" fill="#1c5a4d"/>
+  <circle cx="348" cy="620" r="10" fill="#1c5a4d"/>
+  <circle cx="800" cy="620" r="10" fill="#1c5a4d"/>
+  <circle cx="1252" cy="620" r="10" fill="#1c5a4d"/>
+</svg>

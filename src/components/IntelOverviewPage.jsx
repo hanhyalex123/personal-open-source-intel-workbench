@@ -65,12 +65,21 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
         <div className="hero-copy">
           <div className="hero-masthead">
             <div className="hero-masthead__meta">
-              <p className="eyebrow">今日头条</p>
-              <span className="hero-tag">Signal Desk</span>
+              <p className="eyebrow">情报值班台</p>
+              <span className="hero-tag">Open Source Desk</span>
             </div>
             <div className="hero-badge">
               <CoverIcon>◉</CoverIcon>
               <span>情报封面</span>
+            </div>
+          </div>
+          <div className="hero-brandline">
+            <span className="hero-brandline__seal" aria-hidden="true">
+              情
+            </span>
+            <div>
+              <strong>架构师开源情报站</strong>
+              <p>把开源动态转成可执行的中文结论</p>
             </div>
           </div>
           <h1>日报首页</h1>
@@ -83,6 +92,10 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
             <div className="hero-marker">
               <span>更新节奏</span>
               <strong>增量提醒与固定日报分层展示</strong>
+            </div>
+            <div className="hero-marker hero-marker--wide">
+              <span>产品短宣言</span>
+              <strong>开源动态、中文结论、同步日志</strong>
             </div>
           </div>
         </div>

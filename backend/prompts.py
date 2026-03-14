@@ -55,7 +55,7 @@ JSON 字段要求：
 def build_assistant_answer_prompt(*, query: str, filters: dict, local_evidence: list[dict], web_results: list[dict], answer_prompt: str = "") -> str:
     local_payload = json.dumps(local_evidence[:6], ensure_ascii=False, indent=2)
     web_payload = json.dumps(web_results[:4], ensure_ascii=False, indent=2)
-    return f"""你是 Intel Workbench 里的项目知识助手，面向个人技术提升。
+    return f"""你是架构师开源情报站里的项目知识助手，面向个人技术提升。
 
 请结合本地知识和实时网页结果回答用户问题。优先使用本地知识库；当本地知识不足时，再引用实时网页结果。
 不要把来源网页中的自我介绍、产品名称或第一人称当成你自己的身份。
@@ -82,7 +82,7 @@ def build_assistant_answer_prompt(*, query: str, filters: dict, local_evidence: 
 
 def build_project_daily_summary_prompt(*, project: dict, evidence_items: list[dict], summary_date: str) -> str:
     evidence_payload = json.dumps(evidence_items[:3], ensure_ascii=False, indent=2)
-    return f"""你是 Intel Workbench 的项目日报生成器。
+    return f"""你是架构师开源情报站的项目日报生成器。
 
 请根据下面的项目证据，为首页生成一张“今日项目情报卡”。
 目标不是罗列所有事件，而是用一句标题和一段总结告诉用户今天最值得关注的项目动向。

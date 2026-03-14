@@ -105,6 +105,6 @@ def test_start_script_honors_backend_python_override(tmp_path: Path):
         )
 
         assert result.returncode == 0
-        assert "Intel Workbench is running." in result.stdout
+        assert "架构师开源情报站 is running." in result.stdout
     finally:
         subprocess.run(["bash", str(Path.cwd() / "scripts" / "stop_intel_workbench.sh")], cwd=Path.cwd(), env={**os.environ, "INTEL_WORKBENCH_ROOT": str(root_dir)}, check=False)

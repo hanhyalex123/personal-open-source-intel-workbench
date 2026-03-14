@@ -59,4 +59,4 @@ fi
 stop_pid_file "$FRONTEND_PID_FILE" "frontend"
 stop_pid_file "$BACKEND_PID_FILE" "backend"
 
-echo "Intel Workbench stopped."
+echo "架构师开源情报站 stopped."

@@ -1,8 +1,26 @@
-# 中文运维情报面板
+# 架构师开源情报站
 
-一个面向自部署场景的中文运维情报站。
+一个面向自部署场景的开源项目情报产品。
 
 它会持续跟踪你关心的开源项目，抓取 GitHub Releases 和官方文档变化，只对新增或发生变化的内容做大模型分析，把中文结论、本地日志和日报都落下来，方便后续继续追踪。
+
+## 界面预览
+
+### 日报首页
+
+![日报首页](docs/assets/screenshot-home.png)
+
+### 同步监控
+
+![同步监控](docs/assets/screenshot-sync-monitor.png)
+
+### 情报监控
+
+![情报监控](docs/assets/screenshot-project-monitor.png)
+
+## 系统架构
+
+![架构图](docs/assets/architecture-overview.svg)
 
 ## 现在能做什么
 
@@ -35,7 +53,7 @@
   - 抓取配置
   - Assistant 配置
 
-## 当前架构
+## 现在的系统结构
 
 - 前端：React + Vite
 - 后端：Flask + APScheduler

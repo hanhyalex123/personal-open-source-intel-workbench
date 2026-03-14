@@ -454,14 +454,18 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
+    expect(screen.getByText("架构师")).toBeInTheDocument();
+    expect(screen.getByText("开源情报站")).toBeInTheDocument();
+    expect(screen.getAllByText("开源动态、中文结论、同步日志").length).toBeGreaterThan(0);
+    expect(screen.getByText("情报值班台")).toBeInTheDocument();
     expect(screen.getAllByText("日报").length).toBeGreaterThan(0);
     expect(screen.getAllByText("情报监控").length).toBeGreaterThan(0);
     expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
-    expect(screen.getByText("今日头条")).toBeInTheDocument();
+    expect(screen.getByText("情报值班台")).toBeInTheDocument();
     expect(screen.getByText("日报首页")).toBeInTheDocument();
-    expect(screen.getByText("Signal Desk")).toBeInTheDocument();
+    expect(screen.getByText("Open Source Desk")).toBeInTheDocument();
     expect(screen.getByText("情报封面")).toBeInTheDocument();
     expect(screen.getByText("同步信号")).toBeInTheDocument();
     expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
