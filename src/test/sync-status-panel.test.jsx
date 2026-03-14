@@ -15,6 +15,7 @@ describe("SyncStatusPanel", () => {
           new_events: 2,
           analyzed_events: 1,
           failed_events: 0,
+          skipped_events: 3,
           is_stalled: false,
           last_heartbeat_at: "2026-03-10T04:10:10Z",
         }}
@@ -23,6 +24,8 @@ describe("SyncStatusPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: "查看日志" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "跳过" })).toBeInTheDocument();
+    expect(screen.getByText("本次合计（全来源）")).toBeInTheDocument();
   });
 
   it("shows stalled state explicitly when backend marks the sync as stalled", () => {

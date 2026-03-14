@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../App";
 
@@ -309,6 +309,7 @@ const syncStatusPayload = {
   new_events: 2,
   analyzed_events: 1,
   failed_events: 0,
+  skipped_events: 4,
   heartbeat_age_seconds: 10,
   is_stalled: false,
   error: "",
@@ -325,7 +326,7 @@ const syncRunsPayload = [
     started_at: "2026-03-10T04:10:00Z",
     finished_at: null,
     last_heartbeat_at: "2026-03-10T04:10:10Z",
-    metrics: { total_sources: 8, processed_sources: 1, new_events: 2, analyzed_events: 1, failed_events: 0 },
+    metrics: { total_sources: 8, processed_sources: 1, new_events: 2, analyzed_events: 1, failed_events: 0, skipped_events: 4 },
   },
 ];
 
@@ -470,16 +471,19 @@ describe("App", () => {
     expect(screen.getByText("正在抓取 GitHub releases")).toBeInTheDocument();
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
     expect(screen.getByText("1 / 8")).toBeInTheDocument();
-    expect(screen.getByText("心跳状态")).toBeInTheDocument();
-    expect(screen.getByText("运行中")).toBeInTheDocument();
-    expect(screen.getByText("失败数")).toBeInTheDocument();
+      expect(screen.getByText("心跳状态")).toBeInTheDocument();
+      expect(screen.getByText("运行中")).toBeInTheDocument();
+      expect(screen.getByText("失败数")).toBeInTheDocument();
+      expect(screen.getByText("跳过")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
     });
+    const logDialog = screen.getByRole("dialog", { name: "同步日志" });
     expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
     expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
+    expect(within(logDialog).getByRole("button", { name: "跳过" })).toBeInTheDocument();
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
     expect(screen.getByText("按项目跟踪版本、文档与分析结论")).toBeInTheDocument();

@@ -28,6 +28,7 @@ def run_sync_once(
     new_events = 0
     analyzed_events = 0
     failed_events = 0
+    skipped_events = 0
     total_sources = len(repos) + len(feeds)
     completed_sources = 0
 
@@ -42,6 +43,7 @@ def run_sync_once(
                 new_events=new_events,
                 analyzed_events=analyzed_events,
                 failed_events=failed_events,
+                skipped_events=skipped_events,
             )
 
     def process_repo(repo: str) -> dict:
@@ -51,6 +53,7 @@ def run_sync_once(
         local_new_events = 0
         local_analyzed_events = 0
         local_failed_events = 0
+        local_skipped_events = 0
         repo_label = repo
 
         def on_repo_progress(*, stage=None, processed_items=None, total_items=None, **_kwargs):
@@ -70,6 +73,7 @@ def run_sync_once(
                 new_events=new_events,
                 analyzed_events=analyzed_events,
                 failed_events=failed_events,
+                skipped_events=skipped_events,
             )
 
         fetched_payloads = _call_with_optional_progress(release_fetcher, repo, on_repo_progress)
@@ -123,6 +127,7 @@ def run_sync_once(
                         }
                     )
             else:
+                local_skipped_events += 1
                 event_logs.append(
                     {
                         "event_id": event["id"],
@@ -147,6 +152,7 @@ def run_sync_once(
             "new_events": local_new_events,
             "analyzed_events": local_analyzed_events,
             "failed_events": local_failed_events,
+            "skipped_events": local_skipped_events,
         }
 
     def process_feed(feed: dict) -> dict:
@@ -156,6 +162,7 @@ def run_sync_once(
         local_new_events = 0
         local_analyzed_events = 0
         local_failed_events = 0
+        local_skipped_events = 0
         feed_label = feed.get("name") or feed.get("id", "")
 
         def on_feed_progress(*, current_url=None, processed_pages=None, max_pages=None, **_kwargs):
@@ -173,6 +180,7 @@ def run_sync_once(
                 new_events=new_events,
                 analyzed_events=analyzed_events,
                 failed_events=failed_events,
+                skipped_events=skipped_events,
             )
 
         fetched_payloads = _call_with_optional_progress(feed_fetcher, feed, on_feed_progress)
@@ -226,6 +234,7 @@ def run_sync_once(
                         }
                     )
             else:
+                local_skipped_events += 1
                 event_logs.append(
                     {
                         "event_id": event["id"],
@@ -250,6 +259,7 @@ def run_sync_once(
             "new_events": local_new_events,
             "analyzed_events": local_analyzed_events,
             "failed_events": local_failed_events,
+            "skipped_events": local_skipped_events,
         }
 
     sources = [("repo", repo) for repo in repos] + [("feed", feed) for feed in feeds]
@@ -297,7 +307,7 @@ def run_sync_once(
                                 "label": meta["label"],
                                 "url": meta.get("url", ""),
                                 "status": "timeout",
-                                "metrics": {"new_events": 0, "analyzed_events": 0, "failed_events": 1},
+                                "metrics": {"new_events": 0, "analyzed_events": 0, "failed_events": 1, "skipped_events": 0},
                                 "error": "source timeout",
                                 "events": [],
                             },
@@ -321,7 +331,7 @@ def run_sync_once(
                                 "label": meta["label"],
                                 "url": meta.get("url", ""),
                                 "status": "failed",
-                                "metrics": {"new_events": 0, "analyzed_events": 0, "failed_events": 1},
+                                "metrics": {"new_events": 0, "analyzed_events": 0, "failed_events": 1, "skipped_events": 0},
                                 "error": str(exc),
                                 "events": [],
                             },
@@ -333,6 +343,7 @@ def run_sync_once(
                 new_events += result["new_events"]
                 analyzed_events += result["analyzed_events"]
                 failed_events += result["failed_events"]
+                skipped_events += result["skipped_events"]
                 completed_sources += 1
                 emit_progress(message=result["message"], current_label=result["label"])
                 if run_logger is not None and run_id:
@@ -347,6 +358,7 @@ def run_sync_once(
                                 "new_events": result["new_events"],
                                 "analyzed_events": result["analyzed_events"],
                                 "failed_events": result["failed_events"],
+                                "skipped_events": result["skipped_events"],
                             },
                             "error": None,
                             "events": result.get("event_logs", []),
@@ -370,6 +382,7 @@ def run_sync_once(
         "new_events": new_events,
         "analyzed_events": analyzed_events,
         "failed_events": failed_events,
+        "skipped_events": skipped_events,
         "last_sync_at": now_iso,
     }
 

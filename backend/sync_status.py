@@ -26,6 +26,7 @@ def default_sync_status() -> dict:
         "new_events": 0,
         "analyzed_events": 0,
         "failed_events": 0,
+        "skipped_events": 0,
         "error": "",
         "result": {},
     }

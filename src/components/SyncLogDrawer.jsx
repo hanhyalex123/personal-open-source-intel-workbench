@@ -7,6 +7,7 @@ const FILTERS = [
   { id: "new", label: "新增" },
   { id: "analyzed", label: "已分析" },
   { id: "failed", label: "失败" },
+  { id: "skipped", label: "跳过" },
 ];
 
 function formatDate(value) {
@@ -42,6 +43,7 @@ function eventMatchesFilter(event, filter) {
   if (filter === "new") return event.is_new;
   if (filter === "analyzed") return event.status === "analyzed";
   if (filter === "failed") return event.status === "failed";
+  if (filter === "skipped") return event.status === "skipped";
   return true;
 }
 
@@ -249,6 +251,10 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                 <span>失败</span>
                 <strong>{runDetail.metrics?.failed_events ?? 0}</strong>
               </div>
+              <div>
+                <span>跳过</span>
+                <strong>{runDetail.metrics?.skipped_events ?? 0}</strong>
+              </div>
             </section>
           ) : null}
 
@@ -284,6 +290,7 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                     <span>新增 {source.metrics?.new_events ?? 0}</span>
                     <span>已分析 {source.metrics?.analyzed_events ?? 0}</span>
                     <span>失败 {source.metrics?.failed_events ?? 0}</span>
+                    <span>跳过 {source.metrics?.skipped_events ?? 0}</span>
                   </div>
                   {source.error ? <p className="sync-log-source__error">{source.error}</p> : null}
                   <div className="sync-log-events">

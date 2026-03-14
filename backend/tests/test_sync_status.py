@@ -33,9 +33,10 @@ def test_manual_sync_runs_in_background_and_updates_status(tmp_path):
                 new_events=2,
                 analyzed_events=1,
                 failed_events=0,
+                skipped_events=5,
             )
         unblock.wait(timeout=5)
-        return {"new_events": 2, "analyzed_events": 1, "failed_events": 0}
+        return {"new_events": 2, "analyzed_events": 1, "failed_events": 0, "skipped_events": 5}
 
     def fake_digest_runner(*, progress_callback=None):
         if progress_callback is not None:
@@ -61,6 +62,7 @@ def test_manual_sync_runs_in_background_and_updates_status(tmp_path):
     assert running["phase"] == "incremental"
     assert running["current_label"] == "cilium/cilium"
     assert running["processed_sources"] == 1
+    assert running["skipped_events"] == 5
 
     unblock.set()
     for _ in range(20):
@@ -134,6 +136,7 @@ def test_manual_sync_updates_run_logs(tmp_path):
                 new_events=1,
                 analyzed_events=1,
                 failed_events=0,
+                skipped_events=3,
             )
         run_logger.record_source(
             run_id,
@@ -142,12 +145,12 @@ def test_manual_sync_updates_run_logs(tmp_path):
                 "label": "openclaw/openclaw",
                 "url": "https://github.com/openclaw/openclaw",
                 "status": "success",
-                "metrics": {"new_events": 1, "analyzed_events": 1, "failed_events": 0},
+                "metrics": {"new_events": 1, "analyzed_events": 1, "failed_events": 0, "skipped_events": 3},
                 "error": None,
                 "events": [],
             },
         )
-        return {"new_events": 1, "analyzed_events": 1, "failed_events": 0}
+        return {"new_events": 1, "analyzed_events": 1, "failed_events": 0, "skipped_events": 3}
 
     def fake_digest_runner(*, progress_callback=None, run_logger=None, run_id=None):
         if progress_callback is not None:
@@ -182,6 +185,7 @@ def test_manual_sync_updates_run_logs(tmp_path):
     assert run["phase"] == "completed"
     assert run["metrics"]["total_sources"] == 2
     assert run["metrics"]["new_events"] == 1
+    assert run["metrics"]["skipped_events"] == 3
     assert run["sources"][0]["label"] == "openclaw/openclaw"
 
 

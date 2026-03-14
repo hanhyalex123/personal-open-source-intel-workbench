@@ -38,6 +38,7 @@ class SyncRunRecorder:
                 "new_events": 0,
                 "analyzed_events": 0,
                 "failed_events": 0,
+                "skipped_events": 0,
             },
             "sources": [],
         }
@@ -80,6 +81,9 @@ class SyncRunRecorder:
                     )
                     metrics["failed_events"] = metrics.get("failed_events", 0) + source.get("metrics", {}).get(
                         "failed_events", 0
+                    )
+                    metrics["skipped_events"] = metrics.get("skipped_events", 0) + source.get("metrics", {}).get(
+                        "skipped_events", 0
                     )
                     break
             save_runs(self.store, payload)

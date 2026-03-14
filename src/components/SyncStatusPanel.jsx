@@ -32,6 +32,8 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
     return null;
   }
 
+  const skippedEvents = status.skipped_events ?? 0;
+  const totalNote = `本次合计（全来源）${!status.new_events && !status.analyzed_events && !status.failed_events && skippedEvents ? " · 无新增变化" : ""}`;
   const stateText = status.is_stalled ? "可能卡住" : statusLabel(status.status);
   const pillTone = status.is_stalled ? "high" : status.status === "failed" ? "high" : status.status === "success" ? "stable" : "medium";
 
@@ -93,7 +95,18 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
           <span>失败数</span>
           <strong>{metricValue(status.failed_events, "0")}</strong>
         </button>
+        <button
+          className="sync-status-metric sync-status-metric--button"
+          type="button"
+          onClick={() => onOpenLogs?.("skipped")}
+          aria-label="跳过"
+        >
+          <span>跳过</span>
+          <strong>{metricValue(skippedEvents, "0")}</strong>
+        </button>
       </div>
+
+      <p className="sync-status-panel__note">{totalNote}</p>
 
       <div className="sync-status-panel__grid sync-status-panel__grid--compact">
         <div className="sync-status-metric">
