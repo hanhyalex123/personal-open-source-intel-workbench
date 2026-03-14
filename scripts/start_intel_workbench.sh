@@ -13,6 +13,9 @@ BACKEND_URL="${INTEL_BACKEND_URL:-http://127.0.0.1:8000/api/health}"
 FRONTEND_URL="${INTEL_FRONTEND_URL:-http://127.0.0.1:5173}"
 FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 0.0.0.0 --port 5173}"
 OPEN_BROWSER_CMD="${INTEL_OPEN_CMD:-open}"
+HIGRESS_HEALTH_URL="${INTEL_HIGRESS_HEALTH_URL:-http://127.0.0.1:8001/}"
+HIGRESS_CONTAINER="${INTEL_HIGRESS_CONTAINER:-project-dashboard-higress}"
+HIGRESS_REQUIRED="${INTEL_HIGRESS_REQUIRED:-true}"
 
 detect_backend_python() {
   if [[ -n "${INTEL_BACKEND_PYTHON:-}" ]]; then
@@ -38,8 +41,8 @@ print_help() {
 Usage: bash scripts/start_intel_workbench.sh
 
 Starts:
-- Flask backend on http://0.0.0.0:8000
-- Vite frontend on http://0.0.0.0:5173
+- Flask backend on http://127.0.0.1:8000
+- Vite frontend on http://127.0.0.1:5173
 
 Writes:
 - PID files under .run/
@@ -98,6 +101,20 @@ wait_for_process_url() {
   return 1
 }
 
+check_higress() {
+  if curl --noproxy '*' -fsS "$HIGRESS_HEALTH_URL" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ "$HIGRESS_REQUIRED" == "true" ]]; then
+    echo "Higress is not responding at $HIGRESS_HEALTH_URL" >&2
+    echo "Start it with: docker start $HIGRESS_CONTAINER" >&2
+    exit 1
+  fi
+
+  echo "Warning: Higress not available at $HIGRESS_HEALTH_URL" >&2
+}
+
 start_backend() {
   if is_running "$BACKEND_PID_FILE"; then
     echo "backend already running"
@@ -135,6 +152,8 @@ mkdir -p "$RUN_DIR" "$LOG_DIR"
 cleanup_stale_pid "$BACKEND_PID_FILE"
 cleanup_stale_pid "$FRONTEND_PID_FILE"
 
+check_higress
+
 start_backend
 start_frontend
 
@@ -145,5 +164,5 @@ wait_for_process_url "$FRONTEND_PID_FILE" "$FRONTEND_URL" "frontend"
 
 echo "Intel Workbench is running."
 echo "frontend: $FRONTEND_URL"
-echo "backend:  http://0.0.0.0:8000"
+echo "backend:  http://127.0.0.1:8000"
 echo "logs:     $LOG_DIR"

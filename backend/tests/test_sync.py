@@ -534,3 +534,59 @@ def test_run_sync_once_records_source_fetch_failure(tmp_path: Path):
     assert "fetch boom" in source["error"]
     assert source["metrics"]["failed_events"] == 1
     assert result["failed_events"] == 1
+
+
+def test_run_sync_once_records_llm_failure_context_in_event_logs(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+    from backend.sync_runs import SyncRunRecorder, load_runs
+
+    store = JsonStore(tmp_path)
+    recorder = SyncRunRecorder(store)
+    run_id = recorder.start_run(run_kind="manual", started_at="2026-03-13T00:00:00Z")
+
+    class FakeLLMError(RuntimeError):
+        def __init__(self):
+            super().__init__("LLM gateway request failed")
+            self.error_kind = "llm_gateway"
+            self.provider = "primary-gateway"
+            self.model = "claude-sonnet-4-6"
+            self.used_fallback = True
+            self.fallback_provider = "packy-glm"
+            self.fallback_model = "glm-5"
+
+    def fake_release_fetcher(repo: str, progress_callback=None):
+        return [
+            {
+                "name": "v1",
+                "tag_name": "v1",
+                "html_url": "https://x",
+                "published_at": "2026-03-13T00:00:00Z",
+            }
+        ]
+
+    def fake_analyzer(event: dict):
+        raise FakeLLMError()
+
+    run_sync_once(
+        store=store,
+        repos=["openclaw/openclaw"],
+        feeds=[],
+        release_fetcher=fake_release_fetcher,
+        feed_fetcher=lambda _feed, progress_callback=None: [],
+        analyzer=fake_analyzer,
+        now_iso="2026-03-13T00:00:00Z",
+        run_logger=recorder,
+        run_id=run_id,
+        max_workers=1,
+        source_timeout_seconds=1,
+    )
+
+    runs = load_runs(store)["runs"]
+    event = runs[0]["sources"][0]["events"][0]
+    assert event["status"] == "failed"
+    assert event["error_kind"] == "llm_gateway"
+    assert event["provider"] == "primary-gateway"
+    assert event["model"] == "claude-sonnet-4-6"
+    assert event["used_fallback"] is True
+    assert event["fallback_model"] == "glm-5"

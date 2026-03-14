@@ -13,11 +13,41 @@ DEFAULT_API_URL = "https://www.packyapi.com/v1/messages"
 DEFAULT_MODEL = "claude-sonnet-4-6"
 
 
+class LLMRequestError(RuntimeError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_kind: str = "llm_gateway",
+        provider: str = "",
+        model: str = "",
+        status_code: int | str | None = None,
+        used_fallback: bool = False,
+        fallback_provider: str = "",
+        fallback_model: str = "",
+    ):
+        super().__init__(message)
+        self.error_kind = error_kind
+        self.provider = provider
+        self.model = model
+        self.status_code = status_code
+        self.used_fallback = used_fallback
+        self.fallback_provider = fallback_provider
+        self.fallback_model = fallback_model
+
+
 def get_llm_settings() -> dict:
+    api_url = os.getenv("PACKY_API_URL", DEFAULT_API_URL)
     return {
         "api_key": os.getenv("PACKY_API_KEY", ""),
-        "api_url": os.getenv("PACKY_API_URL", DEFAULT_API_URL),
+        "api_url": api_url,
         "model": os.getenv("PACKY_MODEL", DEFAULT_MODEL),
+        "provider": os.getenv("PACKY_PROVIDER", "primary-gateway"),
+        "protocol": os.getenv("PACKY_PROTOCOL", ""),
+        "fallback_api_key": os.getenv("LLM_FALLBACK_API_KEY", ""),
+        "fallback_api_url": os.getenv("LLM_FALLBACK_API_URL", api_url),
+        "fallback_model": os.getenv("LLM_FALLBACK_MODEL", ""),
+        "fallback_provider": os.getenv("LLM_FALLBACK_PROVIDER", "fallback-provider"),
     }
 
 
@@ -26,7 +56,7 @@ def analyze_event(event: dict) -> dict:
     if not settings["api_key"]:
         raise RuntimeError("PACKY_API_KEY is not configured")
 
-    response = _post_with_retry(
+    response, llm_meta = _request_with_fallback(
         settings=settings,
         payload={
             "model": settings["model"],
@@ -39,8 +69,9 @@ def analyze_event(event: dict) -> dict:
             ],
         },
     )
-    response.raise_for_status()
-    return parse_analysis_response(response.json())
+    analysis = parse_analysis_response(response.json())
+    analysis["_llm"] = llm_meta
+    return analysis
 
 
 def answer_question_with_context(*, query: str, filters: dict, local_evidence: list[dict], web_results: list[dict], answer_prompt: str = "") -> dict:
@@ -48,7 +79,7 @@ def answer_question_with_context(*, query: str, filters: dict, local_evidence: l
     if not settings["api_key"]:
         raise RuntimeError("PACKY_API_KEY is not configured")
 
-    response = _post_with_retry(
+    response, _llm_meta = _request_with_fallback(
         settings=settings,
         payload={
             "model": settings["model"],
@@ -67,7 +98,6 @@ def answer_question_with_context(*, query: str, filters: dict, local_evidence: l
             ],
         },
     )
-    response.raise_for_status()
     return parse_assistant_response(response.json())
 
 
@@ -76,7 +106,7 @@ def summarize_project_daily_intel(*, project: dict, evidence_items: list[dict], 
     if not settings["api_key"]:
         raise RuntimeError("PACKY_API_KEY is not configured")
 
-    response = _post_with_retry(
+    response, _llm_meta = _request_with_fallback(
         settings=settings,
         payload={
             "model": settings["model"],
@@ -93,7 +123,6 @@ def summarize_project_daily_intel(*, project: dict, evidence_items: list[dict], 
             ],
         },
     )
-    response.raise_for_status()
     return parse_project_daily_summary_response(response.json())
 
 
@@ -187,6 +216,15 @@ def _repair_unescaped_quotes(text: str) -> str:
 
 
 def _extract_text(payload: dict[str, Any]) -> str:
+    choices = payload.get("choices")
+    if isinstance(choices, list) and choices:
+        message = choices[0].get("message", {})
+        content = message.get("content")
+        if isinstance(content, str):
+            return content.strip()
+        if isinstance(content, list):
+            return "\n".join(part.get("text", "") for part in content if isinstance(part, dict)).strip()
+
     chunks = payload.get("content", [])
     text = "\n".join(chunk.get("text", "") for chunk in chunks if chunk.get("type") == "text").strip()
     if text.startswith("```json"):
@@ -396,13 +434,15 @@ def _post_with_retry(*, settings: dict, payload: dict, max_attempts: int = 2):
     last_error = None
     for attempt in range(max_attempts):
         try:
+            headers = {"content-type": "application/json"}
+            if _use_openai_protocol(settings):
+                headers["Authorization"] = f"Bearer {settings['api_key']}"
+            else:
+                headers["x-api-key"] = settings["api_key"]
+                headers["anthropic-version"] = "2023-06-01"
             return requests.post(
                 settings["api_url"],
-                headers={
-                    "content-type": "application/json",
-                    "x-api-key": settings["api_key"],
-                    "anthropic-version": "2023-06-01",
-                },
+                headers=headers,
                 json=payload,
                 timeout=60,
             )
@@ -412,6 +452,112 @@ def _post_with_retry(*, settings: dict, payload: dict, max_attempts: int = 2):
                 raise
             time.sleep(0.5)
     raise last_error
+
+
+def _request_with_fallback(*, settings: dict, payload: dict):
+    primary_settings = {
+        "api_key": settings["api_key"],
+        "api_url": settings["api_url"],
+        "model": settings["model"],
+        "provider": settings.get("provider", "primary-gateway"),
+    }
+    try:
+        response = _post_with_retry(settings=primary_settings, payload=payload)
+        _raise_for_status_with_context(response, primary_settings)
+        return response, {
+            "provider": primary_settings["provider"],
+            "model": primary_settings["model"],
+            "used_fallback": False,
+        }
+    except (LLMRequestError, requests.exceptions.RequestException) as primary_exc:
+        if not _should_fallback(primary_exc, settings):
+            raise _normalize_llm_error(primary_exc, primary_settings)
+
+        fallback_settings = {
+            "api_key": settings["fallback_api_key"],
+            "api_url": settings["fallback_api_url"],
+            "model": settings["fallback_model"],
+            "provider": settings.get("fallback_provider", "fallback-provider"),
+        }
+        fallback_payload = dict(payload)
+        fallback_payload["model"] = fallback_settings["model"]
+        try:
+            response = _post_with_retry(settings=fallback_settings, payload=fallback_payload)
+            _raise_for_status_with_context(response, fallback_settings)
+            return response, {
+                "provider": fallback_settings["provider"],
+                "model": fallback_settings["model"],
+                "used_fallback": True,
+                "fallback_from_provider": primary_settings["provider"],
+                "fallback_from_model": primary_settings["model"],
+                "fallback_reason": str(primary_exc),
+            }
+        except (LLMRequestError, requests.exceptions.RequestException) as fallback_exc:
+            raise _combine_llm_errors(primary_exc, fallback_exc, primary_settings, fallback_settings)
+
+
+def _raise_for_status_with_context(response, settings: dict) -> None:
+    try:
+        response.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        status_code = getattr(response, "status_code", "unknown")
+        raise LLMRequestError(
+            f"LLM gateway request failed: url={settings['api_url']} model={settings['model']} status={status_code}",
+            provider=settings.get("provider", ""),
+            model=settings.get("model", ""),
+            status_code=status_code,
+        ) from exc
+
+
+def _use_openai_protocol(settings: dict) -> bool:
+    protocol = (settings.get("protocol") or "").lower()
+    if protocol == "openai":
+        return True
+    api_url = settings.get("api_url", "")
+    return "/v1/chat/completions" in api_url
+
+
+def _should_fallback(error: Exception, settings: dict) -> bool:
+    if not settings.get("fallback_api_key") or not settings.get("fallback_model"):
+        return False
+    if isinstance(error, LLMRequestError):
+        if error.status_code in {429, "429"}:
+            return True
+        try:
+            return int(error.status_code) >= 500
+        except (TypeError, ValueError):
+            return False
+    return isinstance(
+        error,
+        (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ReadTimeout,
+        ),
+    )
+
+
+def _normalize_llm_error(error: Exception, settings: dict) -> LLMRequestError:
+    if isinstance(error, LLMRequestError):
+        return error
+    return LLMRequestError(
+        f"LLM gateway request failed: url={settings['api_url']} model={settings['model']} error={error}",
+        provider=settings.get("provider", ""),
+        model=settings.get("model", ""),
+    )
+
+
+def _combine_llm_errors(primary_error: Exception, fallback_error: Exception, primary_settings: dict, fallback_settings: dict) -> LLMRequestError:
+    fallback = _normalize_llm_error(fallback_error, fallback_settings)
+    return LLMRequestError(
+        f"{primary_error}; fallback failed: {fallback}",
+        provider=primary_settings.get("provider", ""),
+        model=primary_settings.get("model", ""),
+        status_code=getattr(primary_error, "status_code", None),
+        used_fallback=True,
+        fallback_provider=fallback_settings.get("provider", ""),
+        fallback_model=fallback_settings.get("model", ""),
+    )
 
 
 def _clean_markdown_token(text: str) -> str:

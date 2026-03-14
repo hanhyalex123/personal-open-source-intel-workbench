@@ -85,6 +85,7 @@ def run_sync_once(
                     analysis = analyzer(analysis_event)
                     local_analyses[event["id"]] = analysis
                     local_analyzed_events += 1
+                    llm_fields = _llm_log_fields(analysis.get("_llm", {}))
                     event_logs.append(
                         {
                             "event_id": event["id"],
@@ -101,10 +102,12 @@ def run_sync_once(
                                 "action_items": analysis.get("action_items", []),
                             },
                             "error": None,
+                            **llm_fields,
                         }
                     )
                 except Exception as exc:
                     local_failed_events += 1
+                    llm_fields = _llm_log_fields(exc)
                     event_logs.append(
                         {
                             "event_id": event["id"],
@@ -116,6 +119,7 @@ def run_sync_once(
                             "is_new": is_new,
                             "analysis": None,
                             "error": str(exc),
+                            **llm_fields,
                         }
                     )
             else:
@@ -184,6 +188,7 @@ def run_sync_once(
                     analysis = analyzer(analysis_event)
                     local_analyses[event["id"]] = analysis
                     local_analyzed_events += 1
+                    llm_fields = _llm_log_fields(analysis.get("_llm", {}))
                     event_logs.append(
                         {
                             "event_id": event["id"],
@@ -200,10 +205,12 @@ def run_sync_once(
                                 "action_items": analysis.get("action_items", []),
                             },
                             "error": None,
+                            **llm_fields,
                         }
                     )
                 except Exception as exc:
                     local_failed_events += 1
+                    llm_fields = _llm_log_fields(exc)
                     event_logs.append(
                         {
                             "event_id": event["id"],
@@ -215,6 +222,7 @@ def run_sync_once(
                             "is_new": is_new,
                             "analysis": None,
                             "error": str(exc),
+                            **llm_fields,
                         }
                     )
             else:
@@ -370,3 +378,24 @@ def _call_with_optional_progress(fetcher, source, progress_callback):
     if "progress_callback" in inspect.signature(fetcher).parameters:
         return fetcher(source, progress_callback=progress_callback)
     return fetcher(source)
+
+
+def _llm_log_fields(source) -> dict:
+    if isinstance(source, dict):
+        return {
+            "error_kind": source.get("error_kind"),
+            "provider": source.get("provider"),
+            "model": source.get("model"),
+            "used_fallback": source.get("used_fallback", False),
+            "fallback_provider": source.get("fallback_provider") or source.get("fallback_from_provider"),
+            "fallback_model": source.get("fallback_model") or source.get("fallback_from_model"),
+        }
+
+    return {
+        "error_kind": getattr(source, "error_kind", None),
+        "provider": getattr(source, "provider", None),
+        "model": getattr(source, "model", None),
+        "used_fallback": getattr(source, "used_fallback", False),
+        "fallback_provider": getattr(source, "fallback_provider", None),
+        "fallback_model": getattr(source, "fallback_model", None),
+    }
