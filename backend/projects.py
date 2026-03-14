@@ -1,9 +1,31 @@
 from urllib.parse import urlparse
 
+TECH_CATEGORY_OPTIONS = ["升级", "运行时", "架构", "网络", "调度", "存储", "AI工具"]
+FOCUS_TOPIC_OPTIONS = ["大模型推理部署", "大模型训练", "GPU", "虚拟化", "Agent"]
+
+PROJECT_METADATA_DEFAULTS = {
+    "openclaw": {"tech_categories": ["AI工具"], "focus_topics": ["Agent", "大模型推理部署"]},
+    "kubernetes": {"tech_categories": ["架构", "调度", "网络", "升级"], "focus_topics": ["虚拟化"]},
+    "nvidia-gpu-operator": {"tech_categories": ["架构", "运行时"], "focus_topics": ["GPU", "大模型训练"]},
+    "cilium": {"tech_categories": ["网络"], "focus_topics": ["虚拟化"]},
+    "iperf3": {"tech_categories": ["网络"], "focus_topics": []},
+    "vllm": {"tech_categories": ["AI工具", "运行时"], "focus_topics": ["大模型推理部署", "GPU"]},
+    "sglang": {"tech_categories": ["AI工具", "运行时"], "focus_topics": ["大模型推理部署", "GPU"]},
+    "ktransformers": {"tech_categories": ["AI工具", "运行时"], "focus_topics": ["大模型推理部署", "GPU"]},
+    "containerd": {"tech_categories": ["运行时"], "focus_topics": ["虚拟化"]},
+    "cri-o": {"tech_categories": ["运行时"], "focus_topics": ["虚拟化"]},
+    "podman": {"tech_categories": ["运行时"], "focus_topics": ["虚拟化"]},
+    "cuda-toolkit": {"tech_categories": ["运行时"], "focus_topics": ["GPU", "大模型训练"]},
+    "ascend-cann": {"tech_categories": ["运行时", "升级"], "focus_topics": ["GPU", "大模型训练"]},
+    "mindspore": {"tech_categories": ["架构", "运行时"], "focus_topics": ["大模型训练", "GPU"]},
+    "kind": {"tech_categories": ["架构", "调度"], "focus_topics": ["虚拟化"]},
+    "vrag": {"tech_categories": ["AI工具"], "focus_topics": ["Agent", "大模型推理部署"]},
+}
+
 
 def build_project_record(*, name: str, github_url: str, docs_url: str, now_iso: str) -> dict:
     repo = extract_repo_from_github_url(github_url)
-    return {
+    base = {
         "id": _slugify(name or repo.split("/")[-1]),
         "name": name or repo,
         "github_url": github_url,
@@ -16,6 +38,7 @@ def build_project_record(*, name: str, github_url: str, docs_url: str, now_iso: 
         "created_at": now_iso,
         "updated_at": now_iso,
     }
+    return {**base, **infer_project_metadata(base)}
 
 
 def build_default_crawl_profile(project: dict) -> dict:
@@ -151,3 +174,46 @@ def extract_repo_from_github_url(url: str) -> str:
 
 def _slugify(value: str) -> str:
     return "".join(char.lower() if char.isalnum() else "-" for char in value).strip("-")
+
+
+def infer_project_metadata(project: dict) -> dict:
+    project_id = project.get("id", "")
+    repo = project.get("repo", "")
+    defaults = PROJECT_METADATA_DEFAULTS.get(project_id)
+    if not defaults and repo:
+        defaults = PROJECT_METADATA_DEFAULTS.get(_slugify(repo.split("/")[-1]))
+    defaults = defaults or {"tech_categories": [], "focus_topics": []}
+    return {
+        "tech_categories": _normalize_labels(defaults.get("tech_categories", []), TECH_CATEGORY_OPTIONS),
+        "focus_topics": _normalize_labels(defaults.get("focus_topics", []), FOCUS_TOPIC_OPTIONS),
+    }
+
+
+def normalize_project_record(project: dict) -> dict:
+    normalized = dict(project)
+    defaults = infer_project_metadata(normalized)
+    if "tech_categories" not in normalized:
+        normalized["tech_categories"] = defaults["tech_categories"]
+    else:
+        normalized["tech_categories"] = _normalize_labels(normalized.get("tech_categories", []), TECH_CATEGORY_OPTIONS)
+    if "focus_topics" not in normalized:
+        normalized["focus_topics"] = defaults["focus_topics"]
+    else:
+        normalized["focus_topics"] = _normalize_labels(normalized.get("focus_topics", []), FOCUS_TOPIC_OPTIONS)
+    return normalized
+
+
+def _normalize_labels(values: list[str], allowed: list[str]) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    deduped = []
+    seen = set()
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        item = value.strip()
+        if not item or item not in allowed or item in seen:
+            continue
+        deduped.append(item)
+        seen.add(item)
+    return deduped

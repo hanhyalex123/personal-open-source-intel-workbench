@@ -145,6 +145,8 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
                 "enabled": True,
                 "release_area_enabled": True,
                 "docs_area_enabled": True,
+                "tech_categories": ["架构", "调度", "网络", "升级"],
+                "focus_topics": ["虚拟化"],
                 "sync_interval_minutes": 60,
                 "created_at": "2026-03-09T12:00:00Z",
                 "updated_at": "2026-03-09T12:00:00Z",
@@ -185,6 +187,8 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     assert payload["recent_project_updates"] == []
     assert payload["daily_digest_history"] == []
     assert payload["projects"][0]["name"] == "Kubernetes"
+    assert payload["projects"][0]["tech_categories"] == ["架构", "调度", "网络", "升级"]
+    assert payload["projects"][0]["focus_topics"] == ["虚拟化"]
     assert payload["projects"][0]["release_area"]["items"][0]["version"] == "v1.31.1"
     assert payload["projects"][0]["release_area"]["items"][0]["summary_zh"] == "Kubernetes 1.31.1 比 1.31.0 更新。"
     assert [item["category"] for item in payload["projects"][0]["docs_area"]["categories"]] == ["网络"]

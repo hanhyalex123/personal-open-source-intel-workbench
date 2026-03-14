@@ -18,7 +18,7 @@ from .daily_summary import (
 from .discovery import generate_crawl_profile
 from .docs_classify import group_docs_records
 from .llm import normalize_analysis_record
-from .projects import build_default_crawl_profile, build_project_record
+from .projects import build_default_crawl_profile, build_project_record, normalize_project_record
 from .storage import JsonStore, normalize_config
 
 
@@ -105,6 +105,18 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
             profile = build_default_crawl_profile(project)
         store.save_crawl_profile(project["id"], profile)
         return project, 201
+
+    @app.put("/api/projects/<project_id>")
+    def update_project(project_id: str):
+        payload = request.get_json(force=True)
+        store = app.config["STORE"]
+        projects = store.load_all()["projects"]
+        existing = next((item for item in projects if item["id"] == project_id), None)
+        if existing is None:
+            return {"error": "project not found"}, 404
+        updated = normalize_project_record(_merge_dicts(existing, payload))
+        store.save_project(updated)
+        return updated
 
     @app.get("/api/projects/<project_id>/crawl-profile")
     def get_crawl_profile(project_id: str):
@@ -276,6 +288,8 @@ def _build_project_sections(projects: list[dict], events: dict, items: list[dict
                 "name": project["name"],
                 "github_url": project["github_url"],
                 "docs_url": project.get("docs_url", ""),
+                "tech_categories": project.get("tech_categories", []),
+                "focus_topics": project.get("focus_topics", []),
                 "release_area": {
                     "enabled": project.get("release_area_enabled", True),
                     "items": [_strip_internal_fields(item) for item in release_items],

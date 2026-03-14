@@ -52,7 +52,50 @@ def test_projects_endpoint_creates_project_and_default_crawl_profile(tmp_path: P
 
     assert response.status_code == 201
     assert snapshot["projects"][0]["repo"] == "openclaw/openclaw"
+    assert snapshot["projects"][0]["tech_categories"] == ["AI工具"]
+    assert snapshot["projects"][0]["focus_topics"] == ["Agent", "大模型推理部署"]
     assert snapshot["crawl_profiles"]["openclaw"]["entry_urls"] == ["https://openclaw.dev/docs"]
+
+
+def test_projects_endpoint_updates_project_categories_and_topics(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_project(
+        {
+            "id": "openclaw",
+            "name": "OpenClaw",
+            "github_url": "https://github.com/openclaw/openclaw",
+            "repo": "openclaw/openclaw",
+            "docs_url": "https://openclaw.dev/docs",
+            "enabled": True,
+            "release_area_enabled": True,
+            "docs_area_enabled": True,
+            "tech_categories": ["AI工具"],
+            "focus_topics": ["Agent"],
+            "sync_interval_minutes": 60,
+            "created_at": "2026-03-09T12:40:00Z",
+            "updated_at": "2026-03-09T12:40:00Z",
+        }
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.put(
+        "/api/projects/openclaw",
+        json={
+            "tech_categories": ["AI工具", "运行时"],
+            "focus_topics": ["Agent", "大模型推理部署"],
+        },
+    )
+
+    snapshot = store.load_all()
+
+    assert response.status_code == 200
+    assert snapshot["projects"][0]["tech_categories"] == ["AI工具", "运行时"]
+    assert snapshot["projects"][0]["focus_topics"] == ["Agent", "大模型推理部署"]
 
 
 def test_projects_endpoint_builds_crawl_profile_from_docs_homepage(tmp_path: Path, monkeypatch):

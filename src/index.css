@@ -1380,6 +1380,30 @@ a {
   line-height: 1.5;
 }
 
+.project-chip__taxonomy {
+  display: grid;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.project-chip__taxonomy label {
+  display: grid;
+  gap: 8px;
+}
+
+.project-chip__taxonomy label > span {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-chip__pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .source-overview {
   margin-top: 18px;
   padding: 22px 24px;

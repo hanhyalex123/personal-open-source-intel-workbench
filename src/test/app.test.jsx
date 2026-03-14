@@ -124,6 +124,8 @@ const dashboardPayload = {
       name: "Kubernetes",
       github_url: "https://github.com/kubernetes/kubernetes",
       docs_url: "https://kubernetes.io/zh-cn/docs/home/",
+      tech_categories: ["架构", "调度", "网络", "升级"],
+      focus_topics: ["虚拟化"],
       release_area: {
         enabled: true,
         items: [
@@ -227,6 +229,8 @@ const projectsPayload = [
     name: "OpenClaw",
     github_url: "https://github.com/openclaw/openclaw",
     docs_url: "https://openclaw.dev/docs",
+    tech_categories: ["AI工具"],
+    focus_topics: ["Agent", "大模型推理部署"],
   },
 ];
 
@@ -504,7 +508,9 @@ describe("App", () => {
     expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
     expect(screen.getByText("按项目跟踪版本、文档与分析结论")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "GPU" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "架构" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "虚拟化" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "GPU" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "网络" })).toBeInTheDocument();
     expect(screen.getAllByText("ReleaseNote 区").length).toBeGreaterThan(0);
     expect(screen.getByText("文档区")).toBeInTheDocument();
@@ -520,14 +526,16 @@ describe("App", () => {
     expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
     expect(screen.getByText("优先验证。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "GPU" }));
-    expect(screen.getAllByText("大模型训练").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "网络" }));
+    fireEvent.click(screen.getByRole("button", { name: "架构" }));
+    expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "AI工具" }));
     expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.getAllByText("OpenClaw").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("AI工具").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("大模型推理部署").length).toBeGreaterThan(0);
     expect(screen.getByText("新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。")).toBeInTheDocument();
     expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();

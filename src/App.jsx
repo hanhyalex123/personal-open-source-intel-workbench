@@ -15,6 +15,7 @@ import {
   queryAssistant,
   triggerSync,
   updateConfig,
+  updateProject,
 } from "./lib/api";
 
 const NAV_ITEMS = [
@@ -34,6 +35,7 @@ export default function App() {
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
   const [submittingProject, setSubmittingProject] = useState(false);
+  const [savingProjectMetadataId, setSavingProjectMetadataId] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
   const [activePage, setActivePage] = useState("intel");
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
@@ -170,6 +172,29 @@ export default function App() {
     }
   }
 
+  async function handleProjectMetadataSave(projectId, payload) {
+    setSavingProjectMetadataId(projectId);
+    try {
+      const updated = await updateProject(projectId, payload);
+      startTransition(() => {
+        setProjects((current) => current.map((project) => (project.id === projectId ? updated : project)));
+        setDashboard((current) =>
+          current
+            ? {
+                ...current,
+                projects: (current.projects || []).map((project) => (project.id === projectId ? { ...project, ...updated } : project)),
+              }
+            : current,
+        );
+        setError("");
+      });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存项目分类失败");
+    } finally {
+      setSavingProjectMetadataId("");
+    }
+  }
+
   const overview = dashboard?.overview;
   const homepageProjects = dashboard?.homepage_projects ?? [];
   const recentProjectUpdates = dashboard?.recent_project_updates ?? [];
@@ -258,8 +283,10 @@ export default function App() {
             projectForm={projectForm}
             setProjectForm={setProjectForm}
             submittingProject={submittingProject}
+            savingProjectMetadataId={savingProjectMetadataId}
             savingConfig={savingConfig}
             onProjectSubmit={handleProjectSubmit}
+            onProjectMetadataSave={handleProjectMetadataSave}
             onConfigSave={handleConfigSave}
           />
         ) : null}

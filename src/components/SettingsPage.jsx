@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 
-const CATEGORY_OPTIONS = ["", "网络", "存储", "调度", "架构", "安全", "升级", "运行时", "可观测性"];
+import { FOCUS_CATEGORIES, FOCUS_TOPIC_OPTIONS } from "../lib/focusTags";
+
+const CATEGORY_OPTIONS = ["", ...FOCUS_CATEGORIES];
 
 export default function SettingsPage({
   config,
@@ -8,8 +10,10 @@ export default function SettingsPage({
   projectForm,
   setProjectForm,
   submittingProject,
+  savingProjectMetadataId,
   savingConfig,
   onProjectSubmit,
+  onProjectMetadataSave,
   onConfigSave,
 }) {
   const [assistantForm, setAssistantForm] = useState({
@@ -272,6 +276,58 @@ export default function SettingsPage({
               <strong>{project.name}</strong>
               <span>{project.github_url}</span>
               {project.docs_url ? <span>{project.docs_url}</span> : <span>无文档区</span>}
+              <div className="project-chip__taxonomy">
+                <label>
+                  <span>技术分类</span>
+                  <div className="project-chip__pill-row">
+                    {FOCUS_CATEGORIES.map((category) => {
+                      const selected = (project.tech_categories || []).includes(category);
+                      return (
+                        <button
+                          key={category}
+                          type="button"
+                          className={`monitor-filter-pill ${selected ? "monitor-filter-pill--active" : ""}`}
+                          onClick={() =>
+                            onProjectMetadataSave(project.id, {
+                              tech_categories: selected
+                                ? (project.tech_categories || []).filter((item) => item !== category)
+                                : [...(project.tech_categories || []), category],
+                            })
+                          }
+                          disabled={savingProjectMetadataId === project.id}
+                        >
+                          {category}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </label>
+                <label>
+                  <span>关注主题</span>
+                  <div className="project-chip__pill-row">
+                    {FOCUS_TOPIC_OPTIONS.map((topic) => {
+                      const selected = (project.focus_topics || []).includes(topic);
+                      return (
+                        <button
+                          key={topic}
+                          type="button"
+                          className={`monitor-filter-pill ${selected ? "monitor-filter-pill--active" : ""}`}
+                          onClick={() =>
+                            onProjectMetadataSave(project.id, {
+                              focus_topics: selected
+                                ? (project.focus_topics || []).filter((item) => item !== topic)
+                                : [...(project.focus_topics || []), topic],
+                            })
+                          }
+                          disabled={savingProjectMetadataId === project.id}
+                        >
+                          {topic}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </label>
+              </div>
             </article>
           ))}
         </div>

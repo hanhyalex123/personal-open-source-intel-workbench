@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import InsightCard from "./InsightCard";
 import { projectThemeStyle } from "../lib/projectTheme";
-import { deriveFocusTopics, FOCUS_CATEGORIES } from "../lib/focusTags";
+import { FOCUS_CATEGORIES, FOCUS_TOPIC_OPTIONS } from "../lib/focusTags";
 
 function sectionId(...parts) {
   return parts
@@ -247,33 +247,31 @@ export default function ProjectMonitorPage({ projectSections }) {
   const topicOptions = useMemo(() => {
     const labels = new Set();
     for (const project of projectSections) {
-      for (const item of project.release_area?.items || []) {
-        for (const topic of deriveFocusTopics(item)) labels.add(topic);
-      }
-      for (const category of project.docs_area?.categories || []) {
-        for (const item of category.items || []) {
-          for (const topic of deriveFocusTopics(item)) labels.add(topic);
-        }
+      for (const topic of project.focus_topics || []) {
+        labels.add(topic);
       }
     }
-    return Array.from(labels);
+    return FOCUS_TOPIC_OPTIONS.filter((topic) => labels.has(topic));
   }, [projectSections]);
 
   const filteredProjectSections = useMemo(() => {
     return projectSections
       .map((project) => {
+        if (selectedCategory && !(project.tech_categories || []).includes(selectedCategory)) {
+          return null;
+        }
+        if (selectedTopic && !(project.focus_topics || []).includes(selectedTopic)) {
+          return null;
+        }
+
         const releaseItems = (project.release_area?.items || []).filter((item) => {
-          if (selectedCategory) return false;
-          if (selectedTopic && !deriveFocusTopics(item).includes(selectedTopic)) return false;
           return true;
         });
 
         const docsCategories = (project.docs_area?.categories || [])
-          .filter((category) => !selectedCategory || category.category === selectedCategory)
           .map((category) => ({
             ...category,
             items: (category.items || []).filter((item) => {
-              if (selectedTopic && !deriveFocusTopics(item).includes(selectedTopic)) return false;
               return true;
             }),
           }))
@@ -291,6 +289,7 @@ export default function ProjectMonitorPage({ projectSections }) {
           },
         };
       })
+      .filter(Boolean)
       .filter((project) => (project.release_area?.items || []).length > 0 || (project.docs_area?.categories || []).length > 0);
   }, [projectSections, selectedCategory, selectedTopic]);
 

@@ -2,6 +2,8 @@ import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
+from .projects import normalize_project_record
+
 DEFAULT_ASSISTANT_CONFIG = {
     "enabled": True,
     "default_mode": "hybrid",
@@ -96,7 +98,7 @@ class JsonStore:
             "config": normalize_config(self._load_json(self.config_path, DEFAULT_CONFIG)),
             "events": self._load_json(self.events_path, {}),
             "analyses": self._load_json(self.analyses_path, {}),
-            "projects": self._load_json(self.projects_path, []),
+            "projects": [normalize_project_record(item) for item in self._load_json(self.projects_path, [])],
             "crawl_profiles": self._load_json(self.crawl_profiles_path, {}),
             "daily_project_summaries": self._load_json(self.daily_project_summaries_path, {}),
             "state": self._load_json(self.state_path, DEFAULT_STATE),
@@ -126,15 +128,16 @@ class JsonStore:
 
     def save_project(self, project: dict) -> None:
         projects = self._load_json(self.projects_path, [])
+        normalized = normalize_project_record(project)
         existing_index = next((index for index, item in enumerate(projects) if item["id"] == project["id"]), None)
         if existing_index is None:
-            projects.append(project)
+            projects.append(normalized)
         else:
-            projects[existing_index] = project
+            projects[existing_index] = normalized
         self._write_json(self.projects_path, projects)
 
     def save_projects(self, projects: list[dict]) -> None:
-        self._write_json(self.projects_path, projects)
+        self._write_json(self.projects_path, [normalize_project_record(project) for project in projects])
 
     def save_crawl_profile(self, project_id: str, profile: dict) -> None:
         profiles = self._load_json(self.crawl_profiles_path, {})

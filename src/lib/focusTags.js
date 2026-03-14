@@ -28,9 +28,14 @@ const FOCUS_TOPICS = [
     label: "大模型训练",
     keywords: ["训练", "training", "finetune", "fine-tune", "微调", "pretrain", "预训练", "distributed"],
   },
+  {
+    label: "Agent",
+    keywords: ["agent", "workflow", "tool calling", "multi-agent", "助手", "智能体"],
+  },
 ];
 
-export const FOCUS_CATEGORIES = ["升级", "运行时", "架构", "网络", "调度", "存储"];
+export const FOCUS_CATEGORIES = ["升级", "运行时", "架构", "网络", "调度", "存储", "AI工具"];
+export const FOCUS_TOPIC_OPTIONS = FOCUS_TOPICS.map((topic) => topic.label);
 
 function buildSearchText(item) {
   return [

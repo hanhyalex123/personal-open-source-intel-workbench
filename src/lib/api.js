@@ -80,6 +80,20 @@ export async function createProject(payload) {
   return response.json();
 }
 
+export async function updateProject(projectId, payload) {
+  const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`update project failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function updateConfig(payload) {
   const response = await fetch("/api/config", {
     method: "PUT",
