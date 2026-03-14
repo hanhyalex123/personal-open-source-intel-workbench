@@ -472,7 +472,7 @@ describe("App", () => {
     expect(screen.getByText("运行中")).toBeInTheDocument();
     expect(screen.getByText("失败数")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "日志" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
     });

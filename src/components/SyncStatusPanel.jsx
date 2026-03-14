@@ -44,7 +44,7 @@ export default function SyncStatusPanel({ status, onOpenLogs }) {
         </div>
         <div className="sync-status-panel__actions">
           <button className="secondary-button" type="button" onClick={() => onOpenLogs?.("all")}>
-            日志
+            查看日志
           </button>
           <div className={`pill pill--${pillTone}`}>{stateText}</div>
         </div>
