@@ -766,7 +766,7 @@ def _raise_for_status_with_context(response, settings: dict) -> None:
 
 def _use_openai_protocol(settings: dict) -> bool:
     protocol = (settings.get("protocol") or "").lower()
-    if protocol in {"openai", "openai-chat", "responses", "openai-responses"}:
+    if protocol in {"openai", "openai-chat", "responses", "openai-responses", "codex"}:
         return True
     api_url = settings.get("api_url", "")
     return "/v1/chat/completions" in api_url or "/v1/responses" in api_url
@@ -774,7 +774,7 @@ def _use_openai_protocol(settings: dict) -> bool:
 
 def _use_openai_responses_protocol(settings: dict) -> bool:
     protocol = (settings.get("protocol") or "").lower()
-    if protocol in {"responses", "openai-responses"}:
+    if protocol in {"responses", "openai-responses", "codex"}:
         return True
     api_url = settings.get("api_url", "")
     return "/v1/responses" in api_url
