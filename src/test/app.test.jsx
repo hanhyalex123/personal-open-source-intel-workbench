@@ -1062,10 +1062,11 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
 
-    expect(screen.getByText("观测详情")).toBeInTheDocument();
-    expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
-    expect(screen.getByText("v1.20.0-pre.0")).toBeInTheDocument();
-    expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
+    const detailPanel = screen.getByTestId("sync-log-detail");
+    expect(within(detailPanel).getByText("观测详情")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("Cilium 1.20 预发布")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("v1.20.0-pre.0")).toBeInTheDocument();
+    expect(within(detailPanel).getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
   });
 
   it("submits AI provider enable toggles", async () => {

@@ -57,12 +57,19 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
   const [runDetail, setRunDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedSourceLabel, setSelectedSourceLabel] = useState("");
 
   useEffect(() => {
     if (!open) return;
     setActiveTab("current");
     setFilter(initialFilter || "all");
   }, [open, initialFilter]);
+
+  useEffect(() => {
+    setSelectedEvent(null);
+    setSelectedSourceLabel("");
+  }, [runDetail?.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -132,6 +139,14 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
       return { ...source, filteredEvents };
     });
   }, [runDetail, filter]);
+
+  function handleSelectEvent(event, sourceLabel) {
+    setSelectedEvent(event);
+    setSelectedSourceLabel(sourceLabel);
+  }
+
+  const selectedSummary = selectedEvent?.analysis?.summary_zh || selectedEvent?.analysis?.summary || "";
+  const selectedActions = selectedEvent?.analysis?.action_items || [];
 
   async function handleClear() {
     try {
@@ -274,6 +289,93 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
           ) : null}
 
           {runDetail ? (
+            <section className="sync-log-detail" data-testid="sync-log-detail">
+              <div className="sync-log-detail__header">
+                <h3>观测详情</h3>
+                {selectedEvent ? (
+                  <button className="sync-log-detail__clear" type="button" onClick={() => setSelectedEvent(null)}>
+                    清除
+                  </button>
+                ) : null}
+              </div>
+              {!selectedEvent ? (
+                <p className="sync-log-panel__hint">点击任意事件的“查看详情”进行观测。</p>
+              ) : (
+                <div className="sync-log-detail__body">
+                  <div className="sync-log-detail__row">
+                    <span>标题</span>
+                    <strong>{selectedEvent.title || selectedEvent.event_id}</strong>
+                  </div>
+                  <div className="sync-log-detail__row">
+                    <span>状态</span>
+                    <strong>{eventStatusLabel(selectedEvent)}</strong>
+                  </div>
+                  <div className="sync-log-detail__row">
+                    <span>版本</span>
+                    <strong>{selectedEvent.version || "暂无"}</strong>
+                  </div>
+                  <div className="sync-log-detail__row">
+                    <span>时间</span>
+                    <strong>{selectedEvent.published_at ? formatDate(selectedEvent.published_at) : "暂无"}</strong>
+                  </div>
+                  <div className="sync-log-detail__row">
+                    <span>来源</span>
+                    <strong>{selectedSourceLabel || "未知"}</strong>
+                  </div>
+                  {selectedEvent.url ? (
+                    <div className="sync-log-detail__row">
+                      <span>链接</span>
+                      <a href={selectedEvent.url} target="_blank" rel="noreferrer">
+                        查看原文
+                      </a>
+                    </div>
+                  ) : null}
+                  <div className="sync-log-detail__row">
+                    <span>模型</span>
+                    <strong>{selectedEvent.model || "未知"}</strong>
+                  </div>
+                  <div className="sync-log-detail__row">
+                    <span>提供商</span>
+                    <strong>{selectedEvent.provider || "未知"}</strong>
+                  </div>
+                  {selectedEvent.used_fallback ? (
+                    <div className="sync-log-detail__row">
+                      <span>备用模型</span>
+                      <strong>{selectedEvent.fallback_model || "未知"}</strong>
+                    </div>
+                  ) : null}
+                  {selectedSummary ? (
+                    <div className="sync-log-detail__row sync-log-detail__row--stack">
+                      <span>结论摘要</span>
+                      <p>{selectedSummary}</p>
+                    </div>
+                  ) : null}
+                  {selectedActions.length ? (
+                    <div className="sync-log-detail__row sync-log-detail__row--stack">
+                      <span>建议动作</span>
+                      <ul>
+                        {selectedActions.map((action, index) => (
+                          <li key={`${action}-${index}`}>{action}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {selectedEvent.error ? (
+                    <div className="sync-log-detail__row sync-log-detail__row--stack">
+                      <span>错误</span>
+                      <p className="sync-log-detail__error">{selectedEvent.error}</p>
+                    </div>
+                  ) : null}
+                  <details className="sync-log-detail__raw">
+                    <summary>原始 JSON</summary>
+                    <pre>{JSON.stringify(selectedEvent, null, 2)}</pre>
+                  </details>
+                </div>
+              )}
+            </section>
+          ) : null}
+
+          {runDetail ? (
             <section className="sync-log-sources">
               {filteredSources.map((source) => (
                 <div key={`${source.kind}-${source.label}`} className="sync-log-source">
@@ -302,6 +404,13 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                           </span>
                           {event.version ? <span>{event.version}</span> : null}
                           {event.published_at ? <span>{formatDate(event.published_at)}</span> : null}
+                          <button
+                            className="sync-log-event__detail"
+                            type="button"
+                            onClick={() => handleSelectEvent(event, source.label)}
+                          >
+                            查看详情
+                          </button>
                         </div>
                         <div className="sync-log-event__copy">
                           <strong>{event.title}</strong>
