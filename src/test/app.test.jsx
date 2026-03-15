@@ -1046,6 +1046,28 @@ describe("App", () => {
     expect(screen.getByText("来源：配置")).toBeInTheDocument();
   });
 
+  it("shows sync log event detail panel", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报首页")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
+
+    expect(screen.getByText("观测详情")).toBeInTheDocument();
+    expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
+    expect(screen.getByText("v1.20.0-pre.0")).toBeInTheDocument();
+    expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
+  });
+
   it("submits AI provider enable toggles", async () => {
     render(<App />);
 
