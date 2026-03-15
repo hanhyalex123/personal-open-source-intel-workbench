@@ -33,6 +33,7 @@ DEFAULT_LLM_CONFIG = {
     "reasoning_effort": "",
     "disable_response_storage": None,
     "packy": {
+        "enabled": True,
         "api_key": "",
         "provider": "",
         "api_url": "",
@@ -40,6 +41,7 @@ DEFAULT_LLM_CONFIG = {
         "protocol": "",
     },
     "openai": {
+        "enabled": True,
         "api_key": "",
         "provider": "OpenAI",
         "api_url": "",
@@ -226,6 +228,10 @@ def normalize_config(config: dict | None) -> dict:
                 DEFAULT_LLM_CONFIG["disable_response_storage"],
             ),
             "packy": {
+                "enabled": _normalize_bool(
+                    (llm.get("packy") or {}).get("enabled"),
+                    DEFAULT_LLM_CONFIG["packy"]["enabled"],
+                ),
                 "api_key": (llm.get("packy") or {}).get("api_key", DEFAULT_LLM_CONFIG["packy"]["api_key"]),
                 "provider": (llm.get("packy") or {}).get("provider", DEFAULT_LLM_CONFIG["packy"]["provider"]),
                 "api_url": (llm.get("packy") or {}).get("api_url", DEFAULT_LLM_CONFIG["packy"]["api_url"]),
@@ -233,6 +239,10 @@ def normalize_config(config: dict | None) -> dict:
                 "protocol": (llm.get("packy") or {}).get("protocol", DEFAULT_LLM_CONFIG["packy"]["protocol"]),
             },
             "openai": {
+                "enabled": _normalize_bool(
+                    (llm.get("openai") or {}).get("enabled"),
+                    DEFAULT_LLM_CONFIG["openai"]["enabled"],
+                ),
                 "api_key": (llm.get("openai") or {}).get("api_key", DEFAULT_LLM_CONFIG["openai"]["api_key"]),
                 "provider": (llm.get("openai") or {}).get("provider", DEFAULT_LLM_CONFIG["openai"]["provider"]),
                 "api_url": (llm.get("openai") or {}).get("api_url", DEFAULT_LLM_CONFIG["openai"]["api_url"]),

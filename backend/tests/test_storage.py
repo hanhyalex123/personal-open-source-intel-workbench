@@ -87,15 +87,15 @@ def test_normalize_config_preserves_provider_enabled_flags_and_forces_live_mode(
     from backend.storage import normalize_config
 
     cfg = {
+        "assistant": {"default_mode": "local"},
         "llm": {
-            "mode": "local",
             "packy": {"enabled": False, "model": "claude-opus-4-6"},
             "openai": {"enabled": True, "model": "gpt-5.3-codex"},
-        }
+        },
     }
     normalized = normalize_config(cfg)
 
-    assert normalized["llm"]["mode"] == "live"
+    assert normalized["assistant"]["default_mode"] == "live"
     assert normalized["llm"]["packy"]["enabled"] is False
     assert normalized["llm"]["openai"]["enabled"] is True
 
