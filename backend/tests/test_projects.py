@@ -13,6 +13,9 @@ def test_build_project_record_extracts_repo_and_defaults():
     assert project["enabled"] is True
     assert project["release_area_enabled"] is True
     assert project["docs_area_enabled"] is True
+    assert project["doc_system"] == "auto"
+    assert project["initial_read_enabled"] is True
+    assert project["diff_mode"] == "page"
 
 
 def test_build_default_crawl_profile_uses_docs_url():
@@ -29,6 +32,8 @@ def test_build_default_crawl_profile_uses_docs_url():
     assert profile["allowed_path_prefixes"] == ["/docs"]
     assert profile["max_depth"] == 3
     assert profile["max_pages"] == 40
+    assert profile["link_strategy"] == "auto"
+    assert profile["canonicalize_fragments"] is True
 
 
 def test_build_default_crawl_profile_special_cases_kubernetes_docs_home():
@@ -138,6 +143,13 @@ def test_collect_project_sources_returns_enabled_release_and_docs_inputs():
             "blocked_path_prefixes": [],
             "max_depth": 3,
             "max_pages": 40,
+            "max_pages_per_section": 0,
+            "doc_system": "auto",
+            "initial_read_enabled": True,
+            "diff_mode": "page",
+            "link_strategy": "auto",
+            "canonicalize_fragments": True,
+            "follow_pagination": True,
             "category_hints": [],
             "discovery_prompt": "",
             "classification_prompt": "",
@@ -183,6 +195,13 @@ def test_collect_project_sources_docs_only_project_returns_docs_feed_only():
             "blocked_path_prefixes": [],
             "max_depth": 3,
             "max_pages": 40,
+            "max_pages_per_section": 0,
+            "doc_system": "auto",
+            "initial_read_enabled": True,
+            "diff_mode": "page",
+            "link_strategy": "auto",
+            "canonicalize_fragments": True,
+            "follow_pagination": True,
             "category_hints": [],
             "discovery_prompt": "",
             "classification_prompt": "",

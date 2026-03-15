@@ -5,6 +5,11 @@ MAX_EVENT_BODY_CHARS = 3600
 
 def build_analysis_prompt(event: dict) -> str:
     payload = json.dumps(_compact_event(event), ensure_ascii=False, indent=2)
+    event_kind = event.get("event_kind") or ""
+    if event_kind == "docs_initial_read":
+        return _build_docs_initial_prompt(payload)
+    if event_kind == "docs_diff_update":
+        return _build_docs_diff_prompt(payload)
     return f"""你是一个面向平台运维和基础设施团队的中文分析助手。
 
 系统已经提前帮你做了一轮研究，事件里可能带有 `research_bundle`，里面会包含 changelog、官方文档、页面摘录和相关线索。你必须优先使用这些证据，不要只盯着 release body 或首页摘要。
@@ -46,6 +51,104 @@ JSON 字段要求：
 - urgency: high / medium / low
 - tags: 字符串数组
 - is_stable: 布尔值，表示这是不是固定结论
+
+事件数据：
+{payload}
+"""
+
+
+def _build_docs_initial_prompt(payload: str) -> str:
+    return f"""你是一个中文技术文档阅读助手，正在为一个新接入跟踪的文档站点做首次完整解读。
+
+系统已经提前抓取并整理了文档页面，事件里的 `research_bundle` 会包含页面列表、章节线索、摘要和结构化页面信息。
+
+请基于这些证据输出 JSON，只做中文分析，不要输出额外说明。重点写清：
+1. 这套文档主要覆盖哪些主题和能力
+2. 当前最值得优先阅读的 3 个方向
+3. 涉及哪些关键配置、接口、命令或使用前提
+4. 对平台/运维/基础设施团队最有价值的阅读入口
+5. 当前文档里最重要的风险、限制或注意事项
+
+如果证据不足，要明确写“证据不足”，不要编造。
+
+JSON 字段要求：
+- title_zh
+- summary_zh
+- details_zh
+- detail_sections
+- what_changed
+- new_technology
+- behavior_changes
+- config_changes
+- code_change_focus
+- docs_updates
+- upgrade_risks
+- future_direction
+- evidence
+- impact_scope
+- impact_points
+- suggested_action
+- action_items
+- urgency
+- tags
+- is_stable
+- analysis_mode: 固定写 `initial_read`
+- doc_summary: 字符串，说明文档整体覆盖面
+- doc_key_points: 数组，列出首读最重要的知识点
+- changed_pages: 数组，列出首读重点页面，字段包含 page_id、title、url、change_type
+- diff_highlights: 数组，列出首次阅读时最值得注意的页面/主题变化点
+- reading_guide: 数组，给出推荐阅读顺序或阅读建议
+
+事件数据：
+{payload}
+"""
+
+
+def _build_docs_diff_prompt(payload: str) -> str:
+    return f"""你是一个中文技术文档更新解读助手，正在分析文档站点的一次增量变更。
+
+系统已经提前准备好 `research_bundle`，其中会包含：
+- 变更页面列表
+- 变更前后快照
+- 新增/删除/改写段落摘要
+- 页面标题与结构变化
+
+请根据这些证据输出 JSON，只做中文分析，不要输出额外说明。重点写清：
+1. 本次文档到底新增、删除或改写了什么
+2. 哪些变化只是文案调整，哪些变化代表行为、配置、接口或推荐路径变化
+3. 对平台/运维/基础设施团队意味着什么
+4. 需要优先验证、同步或转化为行动项的内容
+5. 证据是否足以得出稳定结论
+
+如果证据不足，要明确写“证据不足”，不要编造。
+
+JSON 字段要求：
+- title_zh
+- summary_zh
+- details_zh
+- detail_sections
+- what_changed
+- new_technology
+- behavior_changes
+- config_changes
+- code_change_focus
+- docs_updates
+- upgrade_risks
+- future_direction
+- evidence
+- impact_scope
+- impact_points
+- suggested_action
+- action_items
+- urgency
+- tags
+- is_stable
+- analysis_mode: 固定写 `diff_update`
+- doc_summary: 字符串，说明本次文档更新主题
+- doc_key_points: 数组，提炼本次更新的关键点
+- changed_pages: 数组，字段包含 page_id、title、url、change_type、after_summary
+- diff_highlights: 数组，提炼新增/删除/改写的重点
+- reading_guide: 数组，说明应该先看哪些变更页面
 
 事件数据：
 {payload}

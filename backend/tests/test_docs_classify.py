@@ -147,3 +147,38 @@ def test_classify_gpu_operator_dra_page_as_scheduling():
     )
 
     assert category == "调度"
+
+
+def test_classify_doc_page_prefers_navigation_metadata_for_furo_docs():
+    from backend.docs_classify import classify_doc_page
+
+    category = classify_doc_page(
+        {
+            "url": "https://linuxcontainers.org/incus/docs/main/reference/network_bridge/",
+            "title": "Bridge network",
+            "body": "generic body without many keywords",
+            "nav_title": "Bridge network",
+            "parent_section": "Networks",
+            "section_key": "Networks",
+            "headings": ["Bridge network"],
+        }
+    )
+
+    assert category == "网络"
+
+
+def test_classify_doc_page_maps_api_navigation_to_api_category():
+    from backend.docs_classify import classify_doc_page
+
+    category = classify_doc_page(
+        {
+            "url": "https://linuxcontainers.org/incus/docs/main/rest-api/",
+            "title": "Main API documentation",
+            "body": "rest endpoints and schema",
+            "nav_title": "Main API documentation",
+            "parent_section": "API",
+            "section_key": "API",
+        }
+    )
+
+    assert category == "API"

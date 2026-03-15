@@ -25,7 +25,14 @@ def test_parse_discovery_response_reads_profile_json():
   "blocked_path_prefixes": ["/zh-cn/docs/home/_print"],
   "max_depth": 3,
   "max_pages": 60,
+  "max_pages_per_section": 12,
   "expand_mode": "auto",
+  "doc_system": "furo",
+  "initial_read_enabled": true,
+  "diff_mode": "page",
+  "link_strategy": "furo_nav_first",
+  "canonicalize_fragments": true,
+  "follow_pagination": true,
   "category_hints": ["网络", "存储", "调度"],
   "discovery_prompt": "discover prompt",
   "classification_prompt": "classification prompt"
@@ -35,6 +42,9 @@ def test_parse_discovery_response_reads_profile_json():
     assert profile["max_pages"] == 60
     assert profile["allowed_path_prefixes"] == ["/zh-cn/docs/concepts", "/zh-cn/docs/tasks"]
     assert profile["category_hints"] == ["网络", "存储", "调度"]
+    assert profile["doc_system"] == "furo"
+    assert profile["max_pages_per_section"] == 12
+    assert profile["link_strategy"] == "furo_nav_first"
 
 
 def test_build_profile_from_homepage_falls_back_to_local_rules():
@@ -47,4 +57,30 @@ def test_build_profile_from_homepage_falls_back_to_local_rules():
 
     assert profile["entry_urls"] == ["https://kubernetes.io/zh-cn/docs/home/"]
     assert "/zh-cn/docs" in profile["allowed_path_prefixes"]
+    assert "/zh-cn/docs/search" in profile["blocked_path_prefixes"]
     assert "网络" in profile["category_hints"]
+
+
+def test_build_profile_from_homepage_expands_furo_entry_urls():
+    from backend.discovery import build_profile_from_homepage
+
+    profile = build_profile_from_homepage(
+        docs_url="https://example.com/docs/main/",
+        homepage_excerpt="""
+          <html class="furo">
+            <link rel="next" href="tutorial/first_steps/">
+            <div class="sidebar-tree">
+              <a class="reference internal" href="guide/">Guide</a>
+              <a class="reference internal" href="reference/">Reference</a>
+            </div>
+          </html>
+        """,
+    )
+
+    assert profile["doc_system"] == "furo"
+    assert profile["link_strategy"] == "furo_nav_first"
+    assert profile["entry_urls"][:3] == [
+        "https://example.com/docs/main/",
+        "https://example.com/docs/main/tutorial/first_steps/",
+        "https://example.com/docs/main/guide/",
+    ]

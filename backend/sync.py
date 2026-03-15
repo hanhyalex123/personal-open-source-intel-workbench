@@ -76,7 +76,7 @@ def run_sync_once(
                 skipped_events=skipped_events,
             )
 
-        fetched_payloads = _call_with_optional_progress(release_fetcher, repo, on_repo_progress)
+        fetched_payloads = _call_with_optional_kwargs(release_fetcher, repo, progress_callback=on_repo_progress)
 
         for payload in fetched_payloads:
             event = normalize_release_event(repo, payload)
@@ -163,6 +163,7 @@ def run_sync_once(
         local_analyzed_events = 0
         local_failed_events = 0
         local_skipped_events = 0
+        snapshot_payload = None
         feed_label = feed.get("name") or feed.get("id", "")
 
         def on_feed_progress(*, current_url=None, processed_pages=None, max_pages=None, **_kwargs):
@@ -183,9 +184,12 @@ def run_sync_once(
                 skipped_events=skipped_events,
             )
 
-        fetched_payloads = _call_with_optional_progress(feed_fetcher, feed, on_feed_progress)
+        fetched_payloads = _call_with_optional_kwargs(feed_fetcher, feed, progress_callback=on_feed_progress, store=store)
+        snapshot_payload = getattr(fetched_payloads, "docs_snapshot_payload", None)
 
         for payload in fetched_payloads:
+            if snapshot_payload is None and payload.get("_docs_snapshot_payload"):
+                snapshot_payload = payload.get("_docs_snapshot_payload")
             event = normalize_feed_entry(feed["id"], payload)
             is_new = event["id"] not in events and event["id"] not in local_events
             if is_new:
@@ -200,18 +204,14 @@ def run_sync_once(
                     event_logs.append(
                         {
                             "event_id": event["id"],
+                            "event_kind": event.get("event_kind"),
                             "title": event.get("title", ""),
                             "version": event.get("version", ""),
                             "url": event.get("url", ""),
                             "published_at": event.get("published_at"),
                             "status": "analyzed",
                             "is_new": is_new,
-                            "analysis": {
-                                "title_zh": analysis.get("title_zh", ""),
-                                "summary_zh": analysis.get("summary_zh", ""),
-                                "urgency": analysis.get("urgency", "low"),
-                                "action_items": analysis.get("action_items", []),
-                            },
+                            "analysis": {key: value for key, value in analysis.items() if key != "_llm"},
                             "error": None,
                             **llm_fields,
                         }
@@ -222,6 +222,7 @@ def run_sync_once(
                     event_logs.append(
                         {
                             "event_id": event["id"],
+                            "event_kind": event.get("event_kind"),
                             "title": event.get("title", ""),
                             "version": event.get("version", ""),
                             "url": event.get("url", ""),
@@ -238,6 +239,7 @@ def run_sync_once(
                 event_logs.append(
                     {
                         "event_id": event["id"],
+                        "event_kind": event.get("event_kind"),
                         "title": event.get("title", ""),
                         "version": event.get("version", ""),
                         "url": event.get("url", ""),
@@ -249,6 +251,11 @@ def run_sync_once(
                     }
                 )
             local_events[event["id"]] = event
+
+        if snapshot_payload is not None and snapshot_payload.get("crawl_complete", True) and local_failed_events == 0:
+            docs_snapshots = store.load_docs_snapshots()
+            docs_snapshots[snapshot_payload["project_id"]] = snapshot_payload
+            store.save_docs_snapshots(docs_snapshots)
 
         return {
             "message": "正在抓取文档来源",
@@ -387,10 +394,14 @@ def run_sync_once(
     }
 
 
-def _call_with_optional_progress(fetcher, source, progress_callback):
-    if "progress_callback" in inspect.signature(fetcher).parameters:
-        return fetcher(source, progress_callback=progress_callback)
-    return fetcher(source)
+def _call_with_optional_kwargs(fetcher, source, **kwargs):
+    params = inspect.signature(fetcher).parameters
+    accepted = {}
+    supports_kwargs = any(param.kind == param.VAR_KEYWORD for param in params.values())
+    for key, value in kwargs.items():
+        if supports_kwargs or key in params:
+            accepted[key] = value
+    return fetcher(source, **accepted)
 
 
 def _llm_log_fields(source) -> dict:

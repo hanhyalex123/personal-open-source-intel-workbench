@@ -124,6 +124,38 @@ def test_parse_analysis_response_handles_markdown_json_fence():
     assert analysis["summary_zh"] == "文档侧补充了新建议。"
 
 
+def test_parse_analysis_response_reads_openai_responses_output():
+    from backend.llm import parse_analysis_response
+
+    analysis = parse_analysis_response(
+        {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": """{
+  "title_zh": "Incus 文档首读",
+  "summary_zh": "读取了 Furo 文档输出。",
+  "details_zh": "这是可直接展示的中文分析。",
+  "impact_scope": "Incus 文档",
+  "suggested_action": "继续阅读。",
+  "urgency": "low",
+  "tags": ["incus"],
+  "is_stable": true
+}""",
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert analysis["title_zh"] == "Incus 文档首读"
+    assert analysis["summary_zh"] == "读取了 Furo 文档输出。"
+
+
 def test_parse_analysis_response_repairs_unescaped_quotes_inside_strings():
     from backend.llm import parse_analysis_response
 

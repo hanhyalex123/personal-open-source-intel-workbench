@@ -13,6 +13,25 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
             "sync_interval_minutes": 60,
             "sync_concurrency": 4,
             "sync_source_timeout_seconds": 240,
+            "llm": {
+                "active_provider": "",
+                "reasoning_effort": "",
+                "disable_response_storage": None,
+                "packy": {
+                    "api_key": "",
+                    "provider": "",
+                    "api_url": "",
+                    "model": "",
+                    "protocol": "",
+                },
+                "openai": {
+                    "api_key": "",
+                    "provider": "OpenAI",
+                    "api_url": "",
+                    "model": "",
+                    "protocol": "",
+                },
+            },
             "assistant": {
                 "enabled": True,
                 "default_mode": "hybrid",
@@ -42,6 +61,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
         "projects": [],
         "crawl_profiles": {},
         "daily_project_summaries": {},
+        "docs_snapshots": {},
         "state": {
             "last_sync_at": None,
             "last_analysis_at": None,
@@ -90,6 +110,34 @@ def test_storage_round_trips_event_and_analysis_records(tmp_path: Path):
 
     assert snapshot["events"]["github-release:kubernetes/kubernetes:v1.31.0"]["version"] == "v1.31.0"
     assert snapshot["analyses"]["github-release:kubernetes/kubernetes:v1.31.0"]["is_stable"] is True
+
+
+def test_storage_round_trips_docs_snapshots(tmp_path: Path):
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_docs_snapshots(
+        {
+            "openclaw": {
+                "project_id": "openclaw",
+                "source_key": "openclaw:docs",
+                "updated_at": "2026-03-15T06:00:00Z",
+                "pages": {
+                    "https://openclaw.dev/docs/network": {
+                        "id": "page-1",
+                        "url": "https://openclaw.dev/docs/network",
+                        "title": "Network",
+                        "category": "网络",
+                        "summary": "network summary",
+                    }
+                },
+            }
+        }
+    )
+
+    snapshot = store.load_all()
+
+    assert snapshot["docs_snapshots"]["openclaw"]["pages"]["https://openclaw.dev/docs/network"]["title"] == "Network"
 
 
 def test_storage_round_trips_projects_and_crawl_profiles(tmp_path: Path):
