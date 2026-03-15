@@ -79,6 +79,8 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
     llm_config = llm_config or {}
     packy_enabled = _is_provider_enabled(llm_config, "packy")
     openai_enabled = _is_provider_enabled(llm_config, "openai")
+    packy_effective = _resolve_provider_settings("packy", llm_config)
+    openai_effective = _resolve_provider_settings("openai", llm_config)
     packy_settings = (
         _resolve_provider_settings("packy", llm_config, use_env_api_key=False, allow_openai_url_fallback=False)
         if packy_enabled
@@ -93,6 +95,12 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
     openai_api_key_configured = openai_enabled and bool(_resolve_provider_settings("openai", llm_config)["api_key"])
     raw_packy = (llm_config.get("packy") or {})
     raw_openai = (llm_config.get("openai") or {})
+    packy_env_key = os.getenv("PACKY_API_KEY", "")
+    openai_env_key = os.getenv("OPENAI_API_KEY", "")
+    packy_key_source = _resolve_api_key_source(raw_packy.get("api_key", ""), packy_env_key)
+    openai_key_source = _resolve_api_key_source(raw_openai.get("api_key", ""), openai_env_key)
+    packy_key_masked = _mask_api_key(raw_packy.get("api_key") or packy_env_key)
+    openai_key_masked = _mask_api_key(raw_openai.get("api_key") or openai_env_key)
     return {
         "active_provider": _resolve_active_provider(llm_config),
         "reasoning_effort": _resolve_shared_reasoning_effort(llm_config),
@@ -105,6 +113,12 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
             "model": packy_settings["model"],
             "protocol": packy_settings["protocol"],
             "api_key_configured": packy_api_key_configured,
+            "api_key_masked": packy_key_masked,
+            "api_key_source": packy_key_source,
+            "effective_api_url": packy_effective["api_url"],
+            "effective_model": packy_effective["model"],
+            "effective_protocol": packy_effective["protocol"],
+            "effective_provider": packy_effective["provider"],
         },
         "openai": {
             "enabled": openai_enabled,
@@ -114,6 +128,12 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
             "model": openai_settings["model"],
             "protocol": openai_settings["protocol"],
             "api_key_configured": openai_api_key_configured,
+            "api_key_masked": openai_key_masked,
+            "api_key_source": openai_key_source,
+            "effective_api_url": openai_effective["api_url"],
+            "effective_model": openai_effective["model"],
+            "effective_protocol": openai_effective["protocol"],
+            "effective_provider": openai_effective["provider"],
         },
     }
 
@@ -243,6 +263,23 @@ def _empty_provider_settings() -> dict:
         "provider": "",
         "protocol": "",
     }
+
+
+def _resolve_api_key_source(config_key: str, env_key: str) -> str:
+    if config_key:
+        return "config"
+    if env_key:
+        return "env"
+    return "missing"
+
+
+def _mask_api_key(value: str) -> str:
+    if not value:
+        return ""
+    trimmed = value.strip()
+    if len(trimmed) <= 8:
+        return f"{trimmed[:2]}****{trimmed[-2:]}"
+    return f"{trimmed[:4]}****{trimmed[-4:]}"
 
 
 def _resolve_provider_settings(
