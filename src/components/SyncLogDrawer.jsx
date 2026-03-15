@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { clearSyncRuns, fetchSyncRun, fetchSyncRuns } from "../lib/api";
 
@@ -59,6 +59,7 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
   const [detailError, setDetailError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [selectedSourceLabel, setSelectedSourceLabel] = useState("");
+  const detailRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -143,10 +144,14 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
   function handleSelectEvent(event, sourceLabel) {
     setSelectedEvent(event);
     setSelectedSourceLabel(sourceLabel);
+    if (detailRef.current?.scrollIntoView) {
+      detailRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }
 
   const selectedSummary = selectedEvent?.analysis?.summary_zh || selectedEvent?.analysis?.summary || "";
   const selectedActions = selectedEvent?.analysis?.action_items || [];
+  const selectedEventId = selectedEvent?.event_id;
 
   async function handleClear() {
     try {
@@ -289,7 +294,11 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
           ) : null}
 
           {runDetail ? (
-            <section className="sync-log-detail card-tier--focus" data-testid="sync-log-detail">
+            <section
+              ref={detailRef}
+              className="sync-log-detail card-tier--focus"
+              data-testid="sync-log-detail"
+            >
               <div className="sync-log-detail__header">
                 <h3>观测详情</h3>
                 {selectedEvent ? (
@@ -396,8 +405,10 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                   </div>
                   {source.error ? <p className="sync-log-source__error">{source.error}</p> : null}
                   <div className="sync-log-events">
-                    {(source.filteredEvents || []).map((event) => (
-                      <div key={event.event_id} className="sync-log-event">
+                    {(source.filteredEvents || []).map((event) => {
+                      const isSelected = selectedEventId && selectedEventId === event.event_id;
+                      return (
+                        <div key={event.event_id} className={`sync-log-event ${isSelected ? "is-active" : ""}`}>
                         <div className="sync-log-event__meta">
                           <span className={`pill pill--${event.status === "failed" ? "high" : "low"}`}>
                             {eventStatusLabel(event)}
@@ -422,7 +433,8 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
                           {event.error ? <p>{event.error}</p> : null}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               ))}

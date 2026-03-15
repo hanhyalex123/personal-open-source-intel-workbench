@@ -1069,6 +1069,37 @@ describe("App", () => {
     expect(within(detailPanel).getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
   });
 
+  it("highlights selected sync log event and scrolls detail into view", async () => {
+    const scrollSpy = vi.fn();
+    const originalScroll = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollSpy;
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报首页")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
+    });
+
+    const detailButton = screen.getAllByRole("button", { name: "查看详情" })[0];
+    const eventRow = detailButton.closest(".sync-log-event");
+
+    expect(eventRow).not.toHaveClass("is-active");
+
+    fireEvent.click(detailButton);
+
+    expect(eventRow).toHaveClass("is-active");
+    expect(scrollSpy).toHaveBeenCalled();
+
+    window.HTMLElement.prototype.scrollIntoView = originalScroll;
+  });
+
   it("applies card tier classes to LLM config and sync log detail", async () => {
     render(<App />);
 
