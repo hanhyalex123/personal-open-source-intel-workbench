@@ -27,6 +27,30 @@ class ErrorResponse:
         raise requests.exceptions.HTTPError(f"{self.status_code} Server Error")
 
 
+def _sample_config():
+    return {
+        "active_provider": "packy",
+        "reasoning_effort": "",
+        "disable_response_storage": None,
+        "packy": {
+            "api_key": "primary-key",
+            "api_url": "https://primary.example.com/v1/messages",
+            "model": "claude-sonnet-4-6",
+            "provider": "Packy",
+            "protocol": "",
+            "enabled": True,
+        },
+        "openai": {
+            "api_key": "backup-key",
+            "api_url": "https://backup.example.com/v1/responses",
+            "model": "gpt-5.4",
+            "provider": "OpenAI",
+            "protocol": "openai-responses",
+            "enabled": True,
+        },
+    }
+
+
 def test_get_llm_settings_reads_local_gateway(monkeypatch):
     from backend.llm import get_llm_settings
 
@@ -95,6 +119,42 @@ def test_get_llm_settings_switches_primary_provider_with_llm_config(monkeypatch)
     assert settings["fallback_model"] == "claude-sonnet-4-6"
     assert settings["reasoning_effort"] == "xhigh"
     assert settings["disable_response_storage"] is True
+
+
+def test_get_llm_settings_skips_disabled_fallback_provider(monkeypatch):
+    from backend.llm import get_llm_settings
+
+    monkeypatch.delenv("PACKY_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = _sample_config()
+    cfg["active_provider"] = "packy"
+    cfg["openai"]["enabled"] = False
+
+    settings = get_llm_settings(cfg)
+
+    assert settings["fallback_api_key"] == ""
+    assert settings["fallback_api_url"] == ""
+    assert settings["fallback_model"] == ""
+    assert settings["fallback_provider"] == ""
+    assert settings["fallback_protocol"] == ""
+
+
+def test_get_llm_settings_uses_enabled_openai_when_packy_disabled(monkeypatch):
+    from backend.llm import get_llm_settings
+
+    monkeypatch.delenv("PACKY_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = _sample_config()
+    cfg["active_provider"] = "packy"
+    cfg["packy"]["enabled"] = False
+    cfg["openai"]["enabled"] = True
+
+    settings = get_llm_settings(cfg)
+
+    assert settings["provider"] == "OpenAI"
+    assert settings["api_key"] == "backup-key"
 
 
 def test_analyze_event_raises_gateway_error_with_context(monkeypatch):
