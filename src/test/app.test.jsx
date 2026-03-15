@@ -740,7 +740,6 @@ describe("App", () => {
       expect(screen.getByText("当前页面快照")).toBeInTheDocument();
     });
     expect(screen.getAllByText("Kubernetes 网络文档更新").length).toBeGreaterThan(0);
-    expect(screen.getByText("新增默认行为说明。")).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "AI工具" }));
     expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();

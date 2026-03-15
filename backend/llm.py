@@ -160,6 +160,33 @@ def summarize_project_daily_intel(
     return parse_project_daily_summary_response(response.json())
 
 
+def generate_live_research_report(
+    *,
+    query: str,
+    filters: dict,
+    plan: dict,
+    evidence: list[dict],
+    answer_prompt: str = "",
+    llm_config: dict | None = None,
+) -> dict:
+    settings = get_llm_settings(llm_config)
+    if not settings["api_key"]:
+        raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
+
+    response, _llm_meta = _request_with_fallback(
+        settings=settings,
+        prompt=build_live_research_report_prompt(
+            query=query,
+            filters=filters,
+            plan=plan,
+            evidence=evidence,
+            answer_prompt=answer_prompt,
+        ),
+        max_tokens=1800,
+    )
+    return parse_live_research_report_response(response.json())
+
+
 def _resolve_active_provider(llm_config: dict | None) -> str:
     provider = ((llm_config or {}).get("active_provider") or "").lower()
     if provider in {"packy", "openai"}:

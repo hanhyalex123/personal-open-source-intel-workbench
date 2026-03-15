@@ -209,6 +209,9 @@ def normalize_config(config: dict | None) -> dict:
     config = config or {}
     assistant = config.get("assistant") or {}
     llm = config.get("llm") or {}
+    default_mode = assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"])
+    if default_mode != "live":
+        default_mode = "live"
     return {
         "sync_interval_minutes": config.get("sync_interval_minutes", DEFAULT_CONFIG["sync_interval_minutes"]),
         "sync_concurrency": config.get("sync_concurrency", DEFAULT_CONFIG["sync_concurrency"]),
