@@ -248,6 +248,7 @@ const configPayload = {
     reasoning_effort: "xhigh",
     disable_response_storage: true,
     packy: {
+      enabled: true,
       provider: "primary-gateway",
       api_url: "https://gateway.example.com/v1/messages",
       model: "claude-opus-4-6",
@@ -255,6 +256,7 @@ const configPayload = {
       api_key_configured: true,
     },
     openai: {
+      enabled: true,
       provider: "OpenAI",
       api_url: "https://code.swpumc.cn/v1/responses",
       model: "gpt-5.4",
@@ -1010,6 +1012,46 @@ describe("App", () => {
     expect(payload.llm.openai.model).toBe("gpt-5.4");
     expect(payload.llm.openai.protocol).toBe("openai-responses");
     expect(payload.llm.disable_response_storage).toBe(true);
+  });
+
+  it("submits AI provider enable toggles", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+    });
+
+    const packyToggle = screen.getByLabelText("启用 Packy 通道");
+    const openaiToggle = screen.getByLabelText("启用 OpenAI 通道");
+
+    expect(packyToggle).toBeChecked();
+    expect(openaiToggle).toBeChecked();
+
+    fireEvent.click(openaiToggle);
+    fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/config",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
+    });
+
+    const updateCall = global.fetch.mock.calls.find(
+      ([url, options]) => url === "/api/config" && options?.method === "PUT",
+    );
+    const payload = JSON.parse(updateCall[1].body);
+
+    expect(payload.llm.packy.enabled).toBe(true);
+    expect(payload.llm.openai.enabled).toBe(false);
   });
 
   it("submits AI console query with local filters and renders answer evidence and sources", async () => {
