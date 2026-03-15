@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import UTC, datetime
 import re
+from urllib.parse import unquote
 
 from flask import Flask, request
 
@@ -17,7 +18,7 @@ from .daily_summary import (
 )
 from .discovery import generate_crawl_profile
 from .docs_classify import group_docs_records
-from .llm import normalize_analysis_record
+from .llm import build_llm_config_view, normalize_analysis_record
 from .projects import build_default_crawl_profile, build_project_record, normalize_project_record
 from .storage import JsonStore, normalize_config
 
@@ -75,7 +76,7 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
     @app.get("/api/config")
     def get_config():
         snapshot = app.config["STORE"].load_all()
-        return normalize_config(snapshot["config"])
+        return _build_config_response(snapshot["config"])
 
     @app.put("/api/config")
     def update_config():
@@ -85,7 +86,7 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
         merged = _merge_dicts(current, payload)
         normalized = normalize_config(merged)
         store.save_config(normalized)
-        return normalized
+        return _build_config_response(normalized)
 
     @app.post("/api/projects")
     def create_project():
@@ -169,6 +170,44 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
         payload = request.get_json(force=True)
         return answer_query(snapshot=snapshot, payload=payload)
 
+    @app.get("/api/docs/projects")
+    def docs_projects():
+        snapshot = app.config["STORE"].load_all()
+        return _build_docs_project_index(snapshot)
+
+    @app.get("/api/docs/projects/<project_id>")
+    def docs_project_detail(project_id: str):
+        snapshot = app.config["STORE"].load_all()
+        detail = _build_docs_project_detail(snapshot, project_id)
+        if detail is None:
+            return {"error": "project not found"}, 404
+        return detail
+
+    @app.get("/api/docs/projects/<project_id>/events")
+    def docs_project_events(project_id: str):
+        snapshot = app.config["STORE"].load_all()
+        if not _get_project_by_id(snapshot.get("projects") or [], project_id):
+            return {"error": "project not found"}, 404
+        mode = request.args.get("mode", "")
+        return _collect_docs_events(snapshot, project_id, mode=mode)
+
+    @app.get("/api/docs/projects/<project_id>/pages")
+    def docs_project_pages(project_id: str):
+        snapshot = app.config["STORE"].load_all()
+        if not _get_project_by_id(snapshot.get("projects") or [], project_id):
+            return {"error": "project not found"}, 404
+        return _build_docs_pages(snapshot, project_id)
+
+    @app.get("/api/docs/projects/<project_id>/pages/<page_id>/diff")
+    def docs_project_page_diff(project_id: str, page_id: str):
+        snapshot = app.config["STORE"].load_all()
+        if not _get_project_by_id(snapshot.get("projects") or [], project_id):
+            return {"error": "project not found"}, 404
+        detail = _build_docs_page_diff(snapshot, project_id, unquote(page_id))
+        if detail is None:
+            return {"error": "page not found"}, 404
+        return detail
+
     return app
 
 
@@ -186,6 +225,7 @@ def _build_dashboard_items(events: dict, analyses: dict, projects: list[dict]) -
                 "project_id": project_id,
                 "group_key": event.get("repo") or event.get("source_key") or "other",
                 "source": event.get("source"),
+                "event_kind": event.get("event_kind", ""),
                 "title": event.get("title"),
                 "version": event.get("version"),
                 "url": event.get("url"),
@@ -391,3 +431,321 @@ def _merge_dicts(base: dict, update: dict) -> dict:
         else:
             merged[key] = value
     return merged
+
+
+def _build_config_response(config: dict) -> dict:
+    normalized = normalize_config(config)
+    return {
+        **normalized,
+        "llm": build_llm_config_view(normalized.get("llm")),
+    }
+
+
+def _build_docs_project_index(snapshot: dict) -> list[dict]:
+    projects = [project for project in snapshot.get("projects") or [] if project.get("docs_url")]
+    docs_snapshots = snapshot.get("docs_snapshots") or {}
+    items = []
+    for project in projects:
+        project_id = project["id"]
+        docs_events = _collect_docs_events(snapshot, project_id)
+        latest_initial = next((event for event in docs_events if event.get("event_kind") == "docs_initial_read"), None)
+        latest_diff = next((event for event in docs_events if event.get("event_kind") == "docs_diff_update"), None)
+        snapshot_pages = list((docs_snapshots.get(project_id) or {}).get("pages", {}).values())
+        items.append(
+            {
+                "project_id": project_id,
+                "project_name": project.get("name", project_id),
+                "docs_url": project.get("docs_url", ""),
+                "page_count": len(snapshot_pages),
+                "last_synced_at": (docs_snapshots.get(project_id) or {}).get("updated_at"),
+                "categories": _build_docs_category_counts(snapshot_pages),
+                "latest_initial_read": _summarize_docs_event(latest_initial),
+                "latest_diff_update": _summarize_docs_event(latest_diff),
+            }
+        )
+    return sorted(items, key=lambda item: -_timestamp_for_sort(item.get("last_synced_at")))
+
+
+def _build_docs_project_detail(snapshot: dict, project_id: str) -> dict | None:
+    project = _get_project_by_id(snapshot.get("projects") or [], project_id)
+    if project is None:
+        return None
+    docs_events = _collect_docs_events(snapshot, project_id)
+    docs_snapshots = snapshot.get("docs_snapshots") or {}
+    snapshot_payload = docs_snapshots.get(project_id) or {}
+    pages = list(snapshot_payload.get("pages", {}).values())
+    latest_initial = next((event for event in docs_events if event.get("event_kind") == "docs_initial_read"), None)
+    latest_diff = next((event for event in docs_events if event.get("event_kind") == "docs_diff_update"), None)
+    return {
+        "project_id": project_id,
+        "project_name": project.get("name", project_id),
+        "docs_url": project.get("docs_url", ""),
+        "page_count": len(pages),
+        "last_synced_at": snapshot_payload.get("updated_at"),
+        "categories": _build_docs_category_counts(pages),
+        "initial_read": latest_initial,
+        "latest_update": latest_diff,
+        "recent_events": docs_events[:8],
+        "page_stats": {
+            "total_pages": len(pages),
+            "changed_pages": len((latest_diff or {}).get("changed_pages") or []),
+            "last_synced_at": snapshot_payload.get("updated_at"),
+        },
+    }
+
+
+def _merge_docs_changed_pages(normalized_pages: list[dict], source_pages: list[dict]) -> list[dict]:
+    analysis_pages = [page for page in (normalized_pages or []) if isinstance(page, dict)]
+    bundle_pages = [page for page in (source_pages or []) if isinstance(page, dict)]
+
+    if not analysis_pages:
+        return bundle_pages
+    if not bundle_pages:
+        return analysis_pages
+
+    source_by_page_id: dict[str, list[int]] = defaultdict(list)
+    source_by_url: dict[str, list[int]] = defaultdict(list)
+    for index, page in enumerate(bundle_pages):
+        page_id = page.get("page_id")
+        url = page.get("url")
+        if page_id:
+            source_by_page_id[page_id].append(index)
+        if url:
+            source_by_url[url].append(index)
+
+    used_indices: set[int] = set()
+    merged_pages = []
+    for index, page in enumerate(analysis_pages):
+        source_index = _match_docs_changed_page(
+            page=page,
+            source_pages=bundle_pages,
+            source_by_page_id=source_by_page_id,
+            source_by_url=source_by_url,
+            used_indices=used_indices,
+            fallback_index=index,
+        )
+        source_page = {}
+        if source_index is not None:
+            used_indices.add(source_index)
+            source_page = bundle_pages[source_index]
+        merged_page = dict(source_page)
+        merged_page.update(page)
+        merged_pages.append(merged_page)
+
+    return merged_pages
+
+
+def _match_docs_changed_page(
+    *,
+    page: dict,
+    source_pages: list[dict],
+    source_by_page_id: dict[str, list[int]],
+    source_by_url: dict[str, list[int]],
+    used_indices: set[int],
+    fallback_index: int,
+) -> int | None:
+    page_id = page.get("page_id")
+    if page_id:
+        for index in source_by_page_id.get(page_id, []):
+            if index not in used_indices:
+                return index
+
+    url = page.get("url")
+    if url:
+        for index in source_by_url.get(url, []):
+            if index not in used_indices:
+                return index
+
+    if fallback_index < len(source_pages) and fallback_index not in used_indices:
+        return fallback_index
+
+    return None
+
+
+def _collect_docs_events(snapshot: dict, project_id: str, mode: str = "") -> list[dict]:
+    analyses = snapshot.get("analyses") or {}
+    events = snapshot.get("events") or {}
+    projects = snapshot.get("projects") or []
+    docs_events = []
+
+    for event_id, analysis in analyses.items():
+        event = events.get(event_id, {})
+        if event.get("source") != "docs_feed":
+            continue
+        candidate_project_id = event.get("project_id") or _infer_project_id(event, projects)
+        if candidate_project_id != project_id:
+            continue
+        event_kind = event.get("event_kind") or "docs_update"
+        if mode and event_kind != mode:
+            continue
+        normalized = normalize_analysis_record(analysis)
+        research_bundle = event.get("research_bundle") or {}
+        docs_events.append(
+            {
+                "id": event_id,
+                "project_id": project_id,
+                "event_kind": event_kind,
+                "title": event.get("title", ""),
+                "title_zh": normalized.get("title_zh", event.get("title", "")),
+                "summary_zh": normalized.get("summary_zh", ""),
+                "details_zh": normalized.get("details_zh", ""),
+                "analysis_mode": normalized.get("analysis_mode") or (
+                    "initial_read" if event_kind == "docs_initial_read" else "diff_update"
+                ),
+                "category": event.get("category", ""),
+                "url": event.get("url", ""),
+                "published_at": event.get("published_at"),
+                "urgency": normalized.get("urgency", "low"),
+                "detail_sections": normalized.get("detail_sections", []),
+                "impact_points": normalized.get("impact_points", []),
+                "action_items": normalized.get("action_items", []),
+                "doc_summary": normalized.get("doc_summary", ""),
+                "doc_key_points": normalized.get("doc_key_points", []),
+                "changed_pages": _merge_docs_changed_pages(
+                    normalized.get("changed_pages"),
+                    research_bundle.get("changed_pages", []),
+                ),
+                "diff_highlights": normalized.get("diff_highlights", []),
+                "reading_guide": normalized.get("reading_guide", []),
+                "research_bundle": research_bundle,
+            }
+        )
+
+    docs_events.sort(
+        key=lambda item: (
+            -_timestamp_for_sort(item.get("published_at")),
+            _urgency_rank(item.get("urgency")),
+            item.get("title_zh", ""),
+        )
+    )
+    return docs_events
+
+
+def _build_docs_pages(snapshot: dict, project_id: str) -> list[dict]:
+    docs_snapshots = snapshot.get("docs_snapshots") or {}
+    snapshot_payload = docs_snapshots.get(project_id) or {}
+    pages = list(snapshot_payload.get("pages", {}).values())
+    latest_change_by_page = _latest_docs_change_by_page(_collect_docs_events(snapshot, project_id))
+
+    result = []
+    for page in pages:
+        latest_change = latest_change_by_page.get(page.get("id"))
+        result.append(
+            {
+                "id": page.get("id"),
+                "url": page.get("url", ""),
+                "path": page.get("path", ""),
+                "title": page.get("title", ""),
+                "section": page.get("section", ""),
+                "category": page.get("category", ""),
+                "extractor_hint": page.get("extractor_hint", "html-main"),
+                "headings": page.get("headings", []),
+                "breadcrumbs": page.get("breadcrumbs", []),
+                "summary": page.get("summary", ""),
+                "last_seen_at": page.get("last_seen_at"),
+                "latest_change": latest_change,
+                "is_recently_changed": latest_change is not None,
+            }
+        )
+
+    return sorted(
+        result,
+        key=lambda item: (
+            0 if item.get("is_recently_changed") else 1,
+            item.get("category", ""),
+            item.get("title", ""),
+        )
+    )
+
+
+def _build_docs_page_diff(snapshot: dict, project_id: str, page_id: str) -> dict | None:
+    pages = _build_docs_pages(snapshot, project_id)
+    page = next((item for item in pages if item.get("id") == page_id), None)
+    if page is None:
+        return None
+
+    events = _collect_docs_events(snapshot, project_id)
+    relevant = []
+    latest_page_diff = None
+    for event in events:
+        for changed_page in (event.get("research_bundle") or {}).get("changed_pages", []):
+            if changed_page.get("page_id") == page_id:
+                item = {
+                    "event_id": event.get("id"),
+                    "event_kind": event.get("event_kind"),
+                    "title_zh": event.get("title_zh"),
+                    "published_at": event.get("published_at"),
+                    "change_type": changed_page.get("change_type"),
+                    "before_summary": changed_page.get("before_summary", ""),
+                    "after_summary": changed_page.get("after_summary", ""),
+                    "added_blocks": changed_page.get("added_blocks", []),
+                    "removed_blocks": changed_page.get("removed_blocks", []),
+                    "headings_before": changed_page.get("headings_before", []),
+                    "headings_after": changed_page.get("headings_after", []),
+                    "url": changed_page.get("url", page.get("url")),
+                }
+                relevant.append(item)
+                if latest_page_diff is None:
+                    latest_page_diff = item
+                break
+
+    return {
+        "page": page,
+        "latest_diff": latest_page_diff,
+        "history": relevant[:6],
+    }
+
+
+def _latest_docs_change_by_page(events: list[dict]) -> dict[str, dict]:
+    latest = {}
+    for event in events:
+        if event.get("event_kind") != "docs_diff_update":
+            continue
+        for page in (event.get("research_bundle") or {}).get("changed_pages", []):
+            page_id = page.get("page_id")
+            if not page_id or page_id in latest:
+                continue
+            latest[page_id] = {
+                "event_id": event.get("id"),
+                "event_kind": event.get("event_kind"),
+                "title_zh": event.get("title_zh"),
+                "published_at": event.get("published_at"),
+                "change_type": page.get("change_type"),
+            }
+    return latest
+
+
+def _build_docs_category_counts(pages: list[dict]) -> list[dict]:
+    grouped: dict[str, int] = defaultdict(int)
+    for page in pages:
+        grouped[page.get("category") or "其他"] += 1
+    return [
+        {"category": category, "page_count": count}
+        for category, count in sorted(grouped.items(), key=lambda item: (-item[1], item[0]))
+    ]
+
+
+def _summarize_docs_event(event: dict | None) -> dict | None:
+    if event is None:
+        return None
+    return {
+        "id": event.get("id"),
+        "event_kind": event.get("event_kind"),
+        "title_zh": event.get("title_zh"),
+        "summary_zh": event.get("summary_zh"),
+        "published_at": event.get("published_at"),
+        "changed_page_count": len(event.get("changed_pages") or []),
+    }
+
+
+def _get_project_by_id(projects: list[dict], project_id: str) -> dict | None:
+    return next((project for project in projects if project.get("id") == project_id), None)
+
+
+def _timestamp_for_sort(value: str | None) -> int:
+    if not value:
+        return 0
+    try:
+        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return 0

@@ -2,6 +2,7 @@ import { startTransition, useEffect, useMemo, useState } from "react";
 
 import brandAvatar from "./assets/brand-avatar-anime.png";
 import AIConsolePage from "./components/AIConsolePage";
+import DocsWorkbenchPage from "./components/DocsWorkbenchPage";
 import IntelOverviewPage from "./components/IntelOverviewPage";
 import ProjectMonitorPage from "./components/ProjectMonitorPage";
 import SettingsPage from "./components/SettingsPage";
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { id: "intel", icon: "◌", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
   { id: "monitor", icon: "◎", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
   { id: "projects", icon: "▣", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
+  { id: "docs", icon: "◫", label: "文档解读", title: "文档解读", subtitle: "首读、diff 解读与单页变化脉络" },
   { id: "assistant", icon: "◇", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
   { id: "settings", icon: "◧", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
 ];
@@ -41,6 +43,8 @@ export default function App() {
   const [activePage, setActivePage] = useState("intel");
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [logFilter, setLogFilter] = useState("all");
+  const [selectedDocsProjectId, setSelectedDocsProjectId] = useState("");
+  const [highlightedDocsEventId, setHighlightedDocsEventId] = useState("");
   const [projectForm, setProjectForm] = useState({
     name: "",
     githubUrl: "",
@@ -208,6 +212,12 @@ export default function App() {
     setLogDrawerOpen(true);
   }
 
+  function handleOpenDocs(projectId = "", eventId = "") {
+    setSelectedDocsProjectId(projectId);
+    setHighlightedDocsEventId(eventId);
+    setActivePage("docs");
+  }
+
   return (
     <div className="workbench-shell">
       <aside className="sidebar">
@@ -269,7 +279,17 @@ export default function App() {
           <SyncMonitorPage status={syncStatus} onOpenLogs={handleOpenLogs} />
         ) : null}
 
-        {!loading && activePage === "projects" ? <ProjectMonitorPage projectSections={projectSections} /> : null}
+        {!loading && activePage === "projects" ? (
+          <ProjectMonitorPage projectSections={projectSections} onOpenDocs={handleOpenDocs} />
+        ) : null}
+
+        {!loading && activePage === "docs" ? (
+          <DocsWorkbenchPage
+            initialProjectId={selectedDocsProjectId}
+            highlightedEventId={highlightedDocsEventId}
+            onSelectProject={setSelectedDocsProjectId}
+          />
+        ) : null}
 
         {!loading && activePage === "assistant" ? (
           <AIConsolePage projects={projects} assistantConfig={config?.assistant} onQuery={queryAssistant} />

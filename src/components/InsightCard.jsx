@@ -15,7 +15,7 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-export default function InsightCard({ item, compact = false }) {
+export default function InsightCard({ item, compact = false, workbenchAction = null }) {
   const [expanded, setExpanded] = useState(false);
   const showExpanded = !compact || expanded;
   const previewTitle = item.detail_sections?.[0]?.title || "核心变化点";
@@ -100,6 +100,11 @@ export default function InsightCard({ item, compact = false }) {
           {hiddenTagCount > 0 ? <span className="insight-tag insight-tag--more">+{hiddenTagCount}</span> : null}
         </div>
         <div className="insight-card__actions">
+          {workbenchAction ? (
+            <button className="inline-link" type="button" onClick={workbenchAction.onClick}>
+              {workbenchAction.label}
+            </button>
+          ) : null}
           {compact ? (
             <button className="inline-link" type="button" onClick={() => setExpanded((current) => !current)}>
               {expanded ? "收起详情" : "查看详情"}
