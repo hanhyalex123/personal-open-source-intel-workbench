@@ -18,6 +18,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
                 "reasoning_effort": "",
                 "disable_response_storage": None,
                 "packy": {
+                    "enabled": True,
                     "api_key": "",
                     "provider": "",
                     "api_url": "",
@@ -25,6 +26,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
                     "protocol": "",
                 },
                 "openai": {
+                    "enabled": True,
                     "api_key": "",
                     "provider": "OpenAI",
                     "api_url": "",
