@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { id: "intel", icon: "◌", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
   { id: "monitor", icon: "◎", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
   { id: "projects", icon: "▣", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
-  { id: "assistant", icon: "◇", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
+  { id: "assistant", icon: "◇", label: "AI 控制台", title: "AI 控制台", subtitle: "公网检索、证据重排与研究报告" },
   { id: "settings", icon: "◧", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
 ];
 

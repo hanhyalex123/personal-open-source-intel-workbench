@@ -6,7 +6,12 @@ from typing import Any
 
 import requests
 
-from .prompts import build_analysis_prompt, build_assistant_answer_prompt, build_project_daily_summary_prompt
+from .prompts import (
+    build_analysis_prompt,
+    build_assistant_answer_prompt,
+    build_live_research_report_prompt,
+    build_project_daily_summary_prompt,
+)
 
 
 DEFAULT_API_URL = "https://www.packyapi.com/v1/messages"
@@ -126,6 +131,33 @@ def summarize_project_daily_intel(*, project: dict, evidence_items: list[dict], 
     return parse_project_daily_summary_response(response.json())
 
 
+def generate_live_research_report(*, query: str, filters: dict, plan: dict, evidence: list[dict], answer_prompt: str = "") -> dict:
+    settings = get_llm_settings()
+    if not settings["api_key"]:
+        raise RuntimeError("PACKY_API_KEY is not configured")
+
+    response, _llm_meta = _request_with_fallback(
+        settings=settings,
+        payload={
+            "model": settings["model"],
+            "max_tokens": 1800,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": build_live_research_report_prompt(
+                        query=query,
+                        filters=filters,
+                        plan=plan,
+                        evidence=evidence,
+                        answer_prompt=answer_prompt,
+                    ),
+                }
+            ],
+        },
+    )
+    return parse_live_research_report_response(response.json())
+
+
 def parse_analysis_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
     parsed = _parse_json_with_repair(text)
@@ -184,6 +216,16 @@ def parse_project_daily_summary_response(payload: dict[str, Any]) -> dict:
         "summary_zh": parsed["summary_zh"],
         "reason": parsed.get("reason", ""),
         "importance": parsed.get("importance", "medium"),
+    }
+
+
+def parse_live_research_report_response(payload: dict[str, Any]) -> dict:
+    text = _extract_text(payload)
+    parsed = _parse_json_with_repair(text)
+    return {
+        "report_markdown": parsed["report_markdown"],
+        "report_outline": parsed.get("report_outline", []),
+        "next_steps": parsed.get("next_steps", []),
     }
 
 
