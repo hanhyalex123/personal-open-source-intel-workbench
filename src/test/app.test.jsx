@@ -254,6 +254,12 @@ const configPayload = {
       model: "claude-opus-4-6",
       protocol: "",
       api_key_configured: true,
+      api_key_masked: "sk-p****7890",
+      api_key_source: "env",
+      effective_api_url: "https://gateway.example.com/v1/messages",
+      effective_model: "claude-opus-4-6",
+      effective_protocol: "",
+      effective_provider: "primary-gateway",
     },
     openai: {
       enabled: true,
@@ -262,6 +268,12 @@ const configPayload = {
       model: "gpt-5.4",
       protocol: "openai-responses",
       api_key_configured: true,
+      api_key_masked: "sk-o****1234",
+      api_key_source: "config",
+      effective_api_url: "https://code.swpumc.cn/v1/responses",
+      effective_model: "gpt-5.4",
+      effective_protocol: "openai-responses",
+      effective_provider: "OpenAI",
     },
   },
   assistant: {
@@ -1012,6 +1024,26 @@ describe("App", () => {
     expect(payload.llm.openai.model).toBe("gpt-5.4");
     expect(payload.llm.openai.protocol).toBe("openai-responses");
     expect(payload.llm.disable_response_storage).toBe(true);
+  });
+
+  it("shows effective config values with masked keys", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+    });
+
+    expect(screen.getAllByText("生效值").length).toBeGreaterThan(0);
+    expect(screen.getByText("sk-p****7890")).toBeInTheDocument();
+    expect(screen.getByText("来源：环境变量")).toBeInTheDocument();
+    expect(screen.getByText("sk-o****1234")).toBeInTheDocument();
+    expect(screen.getByText("来源：配置")).toBeInTheDocument();
   });
 
   it("submits AI provider enable toggles", async () => {
