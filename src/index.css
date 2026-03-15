@@ -1979,6 +1979,51 @@ a {
   line-height: 1.6;
 }
 
+.llm-effective {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px dashed rgba(16, 34, 29, 0.16);
+  background: rgba(16, 34, 29, 0.04);
+}
+
+.llm-effective__title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(16, 34, 29, 0.6);
+}
+
+.llm-effective__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.llm-effective__label {
+  min-width: 72px;
+  font-size: 12px;
+  color: rgba(16, 34, 29, 0.58);
+}
+
+.llm-effective__value {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(16, 34, 29, 0.8);
+}
+
+.llm-effective__source {
+  font-size: 11px;
+  color: rgba(16, 34, 29, 0.7);
+  background: rgba(16, 34, 29, 0.08);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
 .llm-provider-card__form {
   grid-template-columns: 1fr;
 }

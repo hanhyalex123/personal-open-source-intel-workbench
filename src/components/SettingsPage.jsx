@@ -4,6 +4,43 @@ import { FOCUS_CATEGORIES, FOCUS_TOPIC_OPTIONS } from "../lib/focusTags";
 
 const CATEGORY_OPTIONS = ["", ...FOCUS_CATEGORIES];
 
+function sourceLabel(source) {
+  if (source === "config") return "配置";
+  if (source === "env") return "环境变量";
+  return "未配置";
+}
+
+function EffectiveConfig({ data }) {
+  const maskedKey = data?.api_key_masked || "";
+  const keySource = sourceLabel(data?.api_key_source);
+  return (
+    <div className="llm-effective">
+      <p className="llm-effective__title">生效值</p>
+      <div className="llm-effective__row">
+        <span className="llm-effective__label">API Key</span>
+        <strong className="llm-effective__value">{maskedKey || "未配置"}</strong>
+        <span className="llm-effective__source">{`来源：${keySource}`}</span>
+      </div>
+      <div className="llm-effective__row">
+        <span className="llm-effective__label">API URL</span>
+        <strong className="llm-effective__value">{data?.effective_api_url || "未配置"}</strong>
+      </div>
+      <div className="llm-effective__row">
+        <span className="llm-effective__label">模型</span>
+        <strong className="llm-effective__value">{data?.effective_model || "未配置"}</strong>
+      </div>
+      <div className="llm-effective__row">
+        <span className="llm-effective__label">协议</span>
+        <strong className="llm-effective__value">{data?.effective_protocol || "未配置"}</strong>
+      </div>
+      <div className="llm-effective__row">
+        <span className="llm-effective__label">供应商</span>
+        <strong className="llm-effective__value">{data?.effective_provider || "未配置"}</strong>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage({
   config,
   projects,
@@ -93,6 +130,8 @@ export default function SettingsPage({
       answerPrompt: config?.assistant?.prompts?.answer || "",
     });
   }, [config]);
+  const packyEffective = config?.llm?.packy;
+  const openaiEffective = config?.llm?.openai;
 
   async function handleLlmSubmit(event) {
     event.preventDefault();
@@ -233,6 +272,7 @@ export default function SettingsPage({
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "packy" ? "主通道" : "备用"}</span>
               </div>
               <p className="llm-provider-card__copy">{llmForm.packy.apiKeyConfigured ? "Packy API key 已就绪，可直接作为主通道或备用通道。" : "Packy API key 尚未配置；留空时会继续尝试读取服务端环境变量。"}</p>
+              <EffectiveConfig data={packyEffective} />
               <div className="assistant-config-form llm-provider-card__form">
                 <label className="assistant-config-form__full">
                   <span>Packy API Key</span>
@@ -314,6 +354,7 @@ export default function SettingsPage({
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "openai" ? "主通道" : "备用"}</span>
               </div>
               <p className="llm-provider-card__copy">{llmForm.openai.apiKeyConfigured ? "OpenAI API key 已就绪，可直接切换为主通道。" : "OpenAI API key 尚未配置；留空时会继续尝试读取服务端 OPENAI_API_KEY。"}</p>
+              <EffectiveConfig data={openaiEffective} />
               <div className="assistant-config-form llm-provider-card__form">
                 <label className="assistant-config-form__full">
                   <span>OpenAI API Key</span>
