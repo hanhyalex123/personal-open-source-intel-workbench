@@ -289,7 +289,7 @@ export default function SyncLogDrawer({ open, onClose, currentRunId, initialFilt
           ) : null}
 
           {runDetail ? (
-            <section className="sync-log-detail" data-testid="sync-log-detail">
+            <section className="sync-log-detail card-tier--focus" data-testid="sync-log-detail">
               <div className="sync-log-detail__header">
                 <h3>观测详情</h3>
                 {selectedEvent ? (
