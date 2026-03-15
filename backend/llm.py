@@ -6,7 +6,12 @@ from typing import Any
 
 import requests
 
-from .prompts import build_analysis_prompt, build_assistant_answer_prompt, build_project_daily_summary_prompt
+from .prompts import (
+    build_analysis_prompt,
+    build_assistant_answer_prompt,
+    build_live_research_report_prompt,
+    build_project_daily_summary_prompt,
+)
 
 
 DEFAULT_API_URL = "https://www.packyapi.com/v1/messages"
@@ -312,6 +317,16 @@ def parse_project_daily_summary_response(payload: dict[str, Any]) -> dict:
         "summary_zh": parsed["summary_zh"],
         "reason": parsed.get("reason", ""),
         "importance": parsed.get("importance", "medium"),
+    }
+
+
+def parse_live_research_report_response(payload: dict[str, Any]) -> dict:
+    text = _extract_text(payload)
+    parsed = _parse_json_with_repair(text)
+    return {
+        "report_markdown": parsed["report_markdown"],
+        "report_outline": parsed.get("report_outline", []),
+        "next_steps": parsed.get("next_steps", []),
     }
 
 

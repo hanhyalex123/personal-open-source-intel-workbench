@@ -264,7 +264,7 @@ const configPayload = {
   },
   assistant: {
     enabled: true,
-    default_mode: "hybrid",
+    default_mode: "live",
     default_project_ids: ["openclaw"],
     default_categories: ["网络"],
     default_timeframe: "14d",
@@ -288,7 +288,9 @@ const configPayload = {
 };
 
 const assistantPayload = {
-  answer: "OpenClaw 在 30d 内围绕 网络 主要变化包括：OpenClaw 网络文档更新；OpenClaw v2026.3.8 发布。",
+  report_markdown:
+    "## 结论摘要\n\nOpenClaw 近 30 天保持高频更新，重点集中在安全修复、会话稳定性和多模态能力演进。\n\n## 主要方向\n\n- 修复 Telegram SSRF 与 WebSocket 相关风险\n- 补强会话与状态一致性\n- 强化多模态记忆索引与模型接入\n",
+  report_outline: ["结论摘要", "主要方向", "关键证据", "建议下一步"],
   evidence: [
     {
       id: "docs-feed:openclaw:docs:https://example.com/network",
@@ -300,6 +302,8 @@ const assistantPayload = {
       category: "网络",
       urgency: "medium",
       url: "https://example.com/network",
+      published_at: "2026-03-10T08:00:00Z",
+      relation_to_query: "primary_project",
     },
   ],
   next_steps: ["检查网络策略默认值。", "验证现有备份脚本。"],
@@ -317,8 +321,23 @@ const assistantPayload = {
       project_name: "web",
     },
   ],
+  search_trace: [
+    {
+      query: "openclaw recent release notes",
+      url: "https://example.com/blog/openclaw",
+      fetch_mode: "http",
+      matched_entity: "openclaw",
+    },
+  ],
+  applied_plan: {
+    intent: "project_update_summary",
+    primary_entities: ["openclaw"],
+    related_entities: [],
+    timeframe: "30d",
+    search_queries: ["openclaw recent release notes"],
+  },
   applied_filters: {
-    mode: "hybrid",
+    mode: "live",
     project_ids: ["openclaw"],
     categories: ["网络"],
     timeframe: "30d",
@@ -735,6 +754,7 @@ describe("App", () => {
     expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
     expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
+    expect(screen.queryByLabelText("默认模式")).not.toBeInTheDocument();
   });
 
   it("shows sync monitor page in navigation", async () => {
@@ -1003,17 +1023,13 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "AI 控制台" })[0]);
 
     expect(screen.getByLabelText("问题输入")).toBeInTheDocument();
-    expect(screen.getByLabelText("问答模式")).toBeInTheDocument();
     expect(screen.getByLabelText("项目筛选")).toBeInTheDocument();
     expect(screen.getByLabelText("技术分类")).toBeInTheDocument();
     expect(screen.getByLabelText("时间范围")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("hybrid")).toBeInTheDocument();
+    expect(screen.queryByLabelText("问答模式")).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("问题输入"), {
       target: { value: "OpenClaw 最近网络相关有什么变化？" },
-    });
-    fireEvent.change(screen.getByLabelText("问答模式"), {
-      target: { value: "live" },
     });
     fireEvent.change(screen.getByLabelText("时间范围"), {
       target: { value: "30d" },
@@ -1021,16 +1037,18 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "发起查询" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/OpenClaw 在 30d 内围绕 网络 主要变化包括/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "结论摘要" })).toBeInTheDocument();
     });
 
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
     expect(screen.getAllByText("OpenClaw 网络文档更新").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("来源").length).toBeGreaterThan(0);
-    expect(screen.getByText("建议下一步")).toBeInTheDocument();
-    expect(screen.getByText("检索模式")).toBeInTheDocument();
-    expect(screen.getAllByText("hybrid").length).toBeGreaterThan(0);
+    expect(screen.getByText("研究计划")).toBeInTheDocument();
+    expect(screen.getByText("检索链路")).toBeInTheDocument();
+    expect(screen.getByText("OpenClaw 近 30 天保持高频更新，重点集中在安全修复、会话稳定性和多模态能力演进。")).toBeInTheDocument();
+    expect(screen.getByText(`发布时间 ${formatZhDateTime("2026-03-10T08:00:00Z")}`)).toBeInTheDocument();
+    expect(screen.getByText("关联: 直接命中目标项目")).toBeInTheDocument();
     expect(screen.getByText("实时来源")).toBeInTheDocument();
     expect(screen.getByText("OpenClaw blog post")).toBeInTheDocument();
+    expect(screen.getByText("openclaw recent release notes")).toBeInTheDocument();
   });
 });

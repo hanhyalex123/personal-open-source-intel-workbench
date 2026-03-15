@@ -6,7 +6,7 @@ from .projects import normalize_project_record
 
 DEFAULT_ASSISTANT_CONFIG = {
     "enabled": True,
-    "default_mode": "hybrid",
+    "default_mode": "live",
     "default_project_ids": [],
     "default_categories": [],
     "default_timeframe": "14d",
@@ -239,7 +239,7 @@ def normalize_config(config: dict | None) -> dict:
         },
         "assistant": {
             "enabled": assistant.get("enabled", DEFAULT_ASSISTANT_CONFIG["enabled"]),
-            "default_mode": assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"]),
+            "default_mode": default_mode,
             "default_project_ids": assistant.get("default_project_ids", DEFAULT_ASSISTANT_CONFIG["default_project_ids"]),
             "default_categories": assistant.get("default_categories", DEFAULT_ASSISTANT_CONFIG["default_categories"]),
             "default_timeframe": assistant.get("default_timeframe", DEFAULT_ASSISTANT_CONFIG["default_timeframe"]),

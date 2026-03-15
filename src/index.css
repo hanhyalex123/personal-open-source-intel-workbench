@@ -2007,6 +2007,15 @@ a {
   gap: 12px;
 }
 
+.assistant-plan-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.assistant-plan-grid p {
+  margin: 0;
+}
+
 .assistant-evidence-list {
   display: grid;
   gap: 12px;
@@ -2030,6 +2039,45 @@ a {
 }
 
 .assistant-source-list a {
+  color: #1f6a52;
+  font-weight: 700;
+}
+
+.assistant-markdown {
+  display: grid;
+  gap: 14px;
+}
+
+.assistant-markdown h2,
+.assistant-markdown h3,
+.assistant-markdown h4 {
+  margin: 0;
+  font-family: "Space Grotesk", "IBM Plex Sans SC", sans-serif;
+  line-height: 1.05;
+}
+
+.assistant-markdown p,
+.assistant-markdown ul,
+.assistant-markdown ol,
+.assistant-markdown blockquote {
+  margin: 0;
+}
+
+.assistant-markdown ul,
+.assistant-markdown ol {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.assistant-markdown blockquote {
+  padding: 12px 14px;
+  border-left: 3px solid rgba(29, 63, 94, 0.34);
+  background: rgba(29, 63, 94, 0.05);
+  border-radius: 0 14px 14px 0;
+}
+
+.assistant-markdown a {
   color: #1f6a52;
   font-weight: 700;
 }

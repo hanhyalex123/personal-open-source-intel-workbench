@@ -15,7 +15,7 @@ FRONTEND_CMD="${INTEL_FRONTEND_CMD:-./node_modules/.bin/vite --host 0.0.0.0 --po
 OPEN_BROWSER_CMD="${INTEL_OPEN_CMD:-open}"
 HIGRESS_HEALTH_URL="${INTEL_HIGRESS_HEALTH_URL:-http://127.0.0.1:8001/}"
 HIGRESS_CONTAINER="${INTEL_HIGRESS_CONTAINER:-project-dashboard-higress}"
-HIGRESS_REQUIRED="${INTEL_HIGRESS_REQUIRED:-true}"
+HIGRESS_REQUIRED="${INTEL_HIGRESS_REQUIRED:-false}"
 
 detect_backend_python() {
   if [[ -n "${INTEL_BACKEND_PYTHON:-}" ]]; then
@@ -112,7 +112,7 @@ check_higress() {
     exit 1
   fi
 
-  echo "Warning: Higress not available at $HIGRESS_HEALTH_URL" >&2
+  echo "Warning: Higress not available at $HIGRESS_HEALTH_URL; starting local frontend/backend without it." >&2
 }
 
 start_backend() {

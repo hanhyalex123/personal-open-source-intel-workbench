@@ -34,7 +34,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
             },
             "assistant": {
                 "enabled": True,
-                "default_mode": "hybrid",
+                "default_mode": "live",
                 "default_project_ids": [],
                 "default_categories": [],
                 "default_timeframe": "14d",

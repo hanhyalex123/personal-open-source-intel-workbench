@@ -5,6 +5,12 @@
 它会跟踪 GitHub Releases 和官方文档更新，只分析新增或变化内容，沉淀成中文结论、同步日志和日报首页。
 对于 Furo / Sphinx 风格文档，现已支持首次完整解读、页面级 diff 更新解读和单页变更查看。
 
+当前版本重点是三件事：
+
+- 增量同步开源项目的 release 和文档变化
+- 把新增变化整理成中文结论、日报和日志
+- 提供一个 `live-only` 的 AI 研究助手，围绕公网信息和已同步证据输出 Markdown 研究报告
+
 ## 现在能做什么
 
 - 监控项目的 release 和文档变化
@@ -15,7 +21,9 @@
 - 按项目下钻查看结论
 - 在“文档解读”页查看项目首读、文档事件流和单页 diff
 
-## 界面
+![系统架构](docs/assets/architecture-overview.svg)
+
+## 截图
 
 ![日报首页](docs/assets/screenshot-home.png)
 

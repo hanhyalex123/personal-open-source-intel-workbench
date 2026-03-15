@@ -183,6 +183,52 @@ def build_assistant_answer_prompt(*, query: str, filters: dict, local_evidence: 
 """
 
 
+def build_live_research_report_prompt(*, query: str, filters: dict, plan: dict, evidence: list[dict], answer_prompt: str = "") -> str:
+    evidence_payload = json.dumps(evidence[:6], ensure_ascii=False, indent=2)
+    return f"""你是架构师开源情报站中的研究型情报助手。
+
+你的任务不是罗列网页，而是根据下面的检索计划和证据，写一份中文 Markdown 研究报告。
+
+要求：
+1. 必须先给出结论，再展开分析
+2. 只保留与问题直接相关的证据
+3. 如果引用跨项目证据，必须说明它和主项目的关系
+4. 不要写空话，不要把来源标题简单拼接成答案
+5. 如果证据不足，要明确说证据不足
+6. 如果问题询问“最近更新了几次/最新动向/后续方向”，必须明确回答：
+   - 观察窗口内大约有几次更新或几类关键变化
+   - 最新一次变化是什么
+   - 主要方向 2 到 4 条
+   - 后续发展方向或风险判断
+7. 不要给泛泛的“建议查知乎/媒体报道”，下一步建议必须基于证据和项目本身
+8. Markdown 报告优先使用这些章节：
+   - `## 结论摘要`
+   - `## 更新节奏`
+   - `## 主要方向`
+   - `## 后续方向`
+   - `## 关键依据`
+
+输出 JSON，字段如下：
+- report_markdown: 字符串，Markdown 研究报告，至少包含 `## 结论摘要`、`## 主要方向`，并尽量包含 `## 更新节奏`、`## 后续方向`
+- report_outline: 字符串数组，列出报告章节
+- next_steps: 字符串数组
+
+{answer_prompt}
+
+用户问题：
+{query}
+
+筛选条件：
+{json.dumps(filters, ensure_ascii=False, indent=2)}
+
+检索计划：
+{json.dumps(plan, ensure_ascii=False, indent=2)}
+
+证据：
+{evidence_payload}
+"""
+
+
 def build_project_daily_summary_prompt(*, project: dict, evidence_items: list[dict], summary_date: str) -> str:
     evidence_payload = json.dumps(evidence_items[:3], ensure_ascii=False, indent=2)
     return f"""你是架构师开源情报站的项目日报生成器。
