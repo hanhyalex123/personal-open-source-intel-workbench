@@ -248,6 +248,7 @@ const configPayload = {
     reasoning_effort: "xhigh",
     disable_response_storage: true,
     packy: {
+      enabled: true,
       provider: "primary-gateway",
       api_url: "https://gateway.example.com/v1/messages",
       model: "claude-opus-4-6",
@@ -255,6 +256,7 @@ const configPayload = {
       api_key_configured: true,
     },
     openai: {
+      enabled: true,
       provider: "OpenAI",
       api_url: "https://code.swpumc.cn/v1/responses",
       model: "gpt-5.4",

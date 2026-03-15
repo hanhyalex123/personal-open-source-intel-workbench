@@ -21,6 +21,7 @@ export default function SettingsPage({
     reasoningEffort: "",
     disableResponseStorage: false,
     packy: {
+      enabled: true,
       apiKey: "",
       provider: "",
       apiUrl: "",
@@ -29,6 +30,7 @@ export default function SettingsPage({
       apiKeyConfigured: false,
     },
     openai: {
+      enabled: true,
       apiKey: "",
       provider: "OpenAI",
       apiUrl: "",
@@ -58,6 +60,7 @@ export default function SettingsPage({
       reasoningEffort: config?.llm?.reasoning_effort || "",
       disableResponseStorage: config?.llm?.disable_response_storage ?? false,
       packy: {
+        enabled: config?.llm?.packy?.enabled ?? true,
         apiKey: config?.llm?.packy?.api_key || "",
         provider: config?.llm?.packy?.provider || "",
         apiUrl: config?.llm?.packy?.api_url || "",
@@ -66,6 +69,7 @@ export default function SettingsPage({
         apiKeyConfigured: config?.llm?.packy?.api_key_configured ?? false,
       },
       openai: {
+        enabled: config?.llm?.openai?.enabled ?? true,
         apiKey: config?.llm?.openai?.api_key || "",
         provider: config?.llm?.openai?.provider || "OpenAI",
         apiUrl: config?.llm?.openai?.api_url || "",
@@ -98,6 +102,7 @@ export default function SettingsPage({
         reasoning_effort: llmForm.reasoningEffort,
         disable_response_storage: llmForm.disableResponseStorage,
         packy: {
+          enabled: llmForm.packy.enabled,
           api_key: llmForm.packy.apiKey,
           provider: llmForm.packy.provider,
           api_url: llmForm.packy.apiUrl,
@@ -105,6 +110,7 @@ export default function SettingsPage({
           protocol: llmForm.packy.protocol,
         },
         openai: {
+          enabled: llmForm.openai.enabled,
           api_key: llmForm.openai.apiKey,
           provider: llmForm.openai.provider,
           api_url: llmForm.openai.apiUrl,
@@ -182,6 +188,35 @@ export default function SettingsPage({
             />
             <span>禁用响应存档</span>
           </label>
+
+          <div className="assistant-config-form__full assistant-config-form__toggle-row">
+            <label className="assistant-config-form__toggle">
+              <input
+                type="checkbox"
+                checked={llmForm.packy.enabled}
+                onChange={(event) =>
+                  setLlmForm((current) => ({
+                    ...current,
+                    packy: { ...current.packy, enabled: event.target.checked },
+                  }))
+                }
+              />
+              <span>启用 Packy 通道</span>
+            </label>
+            <label className="assistant-config-form__toggle">
+              <input
+                type="checkbox"
+                checked={llmForm.openai.enabled}
+                onChange={(event) =>
+                  setLlmForm((current) => ({
+                    ...current,
+                    openai: { ...current.openai, enabled: event.target.checked },
+                  }))
+                }
+              />
+              <span>启用 OpenAI 通道</span>
+            </label>
+          </div>
 
           <div className="settings-inline-note assistant-config-form__full">
             <strong>{llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"} 当前作为主通道。</strong>
