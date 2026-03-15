@@ -485,6 +485,68 @@ def test_analyze_event_uses_openai_responses_protocol(monkeypatch):
     assert analysis["summary_zh"] == "Responses API 格式返回"
 
 
+def test_analyze_event_uses_codex_protocol_with_responses_wire_format(monkeypatch):
+    from backend.llm import analyze_event
+
+    captured = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["payload"] = json
+        return DummyResponse(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json_module.dumps(
+                                    {
+                                        "title_zh": "Codex 通道返回",
+                                        "summary_zh": "Codex 使用 Responses 格式返回",
+                                        "details_zh": "这是一条具体结论。",
+                                        "impact_scope": "Codex",
+                                        "suggested_action": "保持观测。",
+                                        "urgency": "low",
+                                        "tags": ["codex"],
+                                        "is_stable": True,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+    json_module = json
+    monkeypatch.setenv("PACKY_API_KEY", "codex-key")
+    monkeypatch.setenv("PACKY_API_URL", "https://codex-api-slb.packycode.com/v1")
+    monkeypatch.setenv("PACKY_PROTOCOL", "codex")
+    monkeypatch.setenv("PACKY_MODEL", "gpt-5.3-codex")
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    analysis = analyze_event(
+        {
+            "id": "github-release:kubernetes/kubernetes:v1.35.2",
+            "source": "github_release",
+            "repo": "kubernetes/kubernetes",
+            "title": "v1.35.2",
+            "version": "v1.35.2",
+            "body": "See CHANGELOG",
+            "url": "https://github.com/kubernetes/kubernetes/releases/tag/v1.35.2",
+        }
+    )
+
+    assert captured["url"] == "https://codex-api-slb.packycode.com/v1"
+    assert "input" in captured["payload"]
+    assert "messages" not in captured["payload"]
+    assert analysis["summary_zh"] == "Codex 使用 Responses 格式返回"
+
+
 def test_analyze_event_rebuilds_fallback_payload_for_different_protocol(monkeypatch):
     from backend.llm import analyze_event
 
