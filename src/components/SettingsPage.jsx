@@ -14,7 +14,7 @@ function EffectiveConfig({ data }) {
   const maskedKey = data?.api_key_masked || "";
   const keySource = sourceLabel(data?.api_key_source);
   return (
-    <div className="llm-effective">
+    <div className="llm-effective card-tier--hero">
       <p className="llm-effective__title">生效值</p>
       <div className="llm-effective__row">
         <span className="llm-effective__label">API Key</span>
@@ -263,7 +263,9 @@ export default function SettingsPage({
           </div>
 
           <div className="llm-provider-grid assistant-config-form__full">
-            <section className={`llm-provider-card ${llmForm.activeProvider === "packy" ? "llm-provider-card--active" : ""}`}>
+            <section
+              className={`llm-provider-card card-tier--focus ${llmForm.activeProvider === "packy" ? "llm-provider-card--active" : ""}`}
+            >
               <div className="llm-provider-card__header">
                 <div>
                   <p className="section-kicker">Provider A</p>
@@ -345,7 +347,9 @@ export default function SettingsPage({
               </div>
             </section>
 
-            <section className={`llm-provider-card ${llmForm.activeProvider === "openai" ? "llm-provider-card--active" : ""}`}>
+            <section
+              className={`llm-provider-card card-tier--focus ${llmForm.activeProvider === "openai" ? "llm-provider-card--active" : ""}`}
+            >
               <div className="llm-provider-card__header">
                 <div>
                   <p className="section-kicker">Provider B</p>

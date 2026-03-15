@@ -1069,6 +1069,37 @@ describe("App", () => {
     expect(within(detailPanel).getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
   });
 
+  it("applies card tier classes to LLM config and sync log detail", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报首页")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    await waitFor(() => {
+      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+    });
+
+    const effectivePanel = document.querySelector(".llm-effective");
+    expect(effectivePanel).toHaveClass("card-tier--hero");
+
+    document
+      .querySelectorAll(".llm-provider-card")
+      .forEach((card) => expect(card).toHaveClass("card-tier--focus"));
+
+    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
+    const detailPanel = screen.getByTestId("sync-log-detail");
+    expect(detailPanel).toHaveClass("card-tier--focus");
+  });
+
   it("submits AI provider enable toggles", async () => {
     render(<App />);
 
