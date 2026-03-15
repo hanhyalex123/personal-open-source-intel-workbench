@@ -83,6 +83,23 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
     }
 
 
+def test_normalize_config_preserves_provider_enabled_flags_and_forces_live_mode():
+    from backend.storage import normalize_config
+
+    cfg = {
+        "llm": {
+            "mode": "local",
+            "packy": {"enabled": False, "model": "claude-opus-4-6"},
+            "openai": {"enabled": True, "model": "gpt-5.3-codex"},
+        }
+    }
+    normalized = normalize_config(cfg)
+
+    assert normalized["llm"]["mode"] == "live"
+    assert normalized["llm"]["packy"]["enabled"] is False
+    assert normalized["llm"]["openai"]["enabled"] is True
+
+
 def test_storage_round_trips_event_and_analysis_records(tmp_path: Path):
     from backend.storage import JsonStore
 
