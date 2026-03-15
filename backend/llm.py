@@ -144,7 +144,8 @@ def analyze_event(event: dict, llm_config: dict | None = None) -> dict:
         raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
 
     response, llm_meta = _request_with_fallback(settings=settings, prompt=build_analysis_prompt(event), max_tokens=1200)
-    analysis = parse_analysis_response(response.json())
+    payload = _safe_response_payload(response, settings=llm_meta)
+    analysis = parse_analysis_response(payload)
     analysis["_llm"] = llm_meta
     return analysis
 
@@ -173,7 +174,8 @@ def answer_question_with_context(
         ),
         max_tokens=1400,
     )
-    return parse_assistant_response(response.json())
+    payload = _safe_response_payload(response, settings=_llm_meta)
+    return parse_assistant_response(payload)
 
 
 def summarize_project_daily_intel(
@@ -196,7 +198,8 @@ def summarize_project_daily_intel(
         ),
         max_tokens=700,
     )
-    return parse_project_daily_summary_response(response.json())
+    payload = _safe_response_payload(response, settings=_llm_meta)
+    return parse_project_daily_summary_response(payload)
 
 
 def generate_live_research_report(
@@ -223,7 +226,8 @@ def generate_live_research_report(
         ),
         max_tokens=1800,
     )
-    return parse_live_research_report_response(response.json())
+    payload = _safe_response_payload(response, settings=_llm_meta)
+    return parse_live_research_report_response(payload)
 
 
 def _resolve_active_provider(llm_config: dict | None) -> str:
@@ -355,9 +359,73 @@ def _first_non_empty(*values):
     return ""
 
 
+def _safe_response_payload(response, *, settings: dict) -> dict:
+    try:
+        return response.json()
+    except ValueError as exc:
+        text = getattr(response, "text", "") or ""
+        status_code = getattr(response, "status_code", None)
+        if not text.strip():
+            raise LLMRequestError(
+                f"LLM gateway returned empty response body: url={settings.get('api_url', '')} model={settings.get('model', '')} status={status_code}",
+                error_kind="llm_empty_response",
+                provider=settings.get("provider", ""),
+                model=settings.get("model", ""),
+                status_code=status_code,
+            ) from exc
+        try:
+            return _parse_json_with_repair(text)
+        except ValueError:
+            return {"output_text": text}
+
+
+def _fallback_text(text: str, fallback_message: str, *, limit: int = 600) -> str:
+    cleaned = (text or "").strip()
+    if not cleaned:
+        cleaned = fallback_message
+    if len(cleaned) > limit:
+        cleaned = f"{cleaned[:limit]}..."
+    return cleaned
+
+
+def _fallback_analysis_from_text(text: str) -> dict:
+    summary = _fallback_text(text, "模型返回空响应，未能生成结构化分析。")
+    return {
+        "title_zh": "",
+        "summary_zh": summary,
+        "details_zh": "",
+        "detail_sections": [],
+        "what_changed": [],
+        "new_technology": [],
+        "behavior_changes": [],
+        "config_changes": [],
+        "code_change_focus": [],
+        "docs_updates": [],
+        "upgrade_risks": [],
+        "future_direction": [],
+        "evidence": [],
+        "impact_scope": "",
+        "impact_points": [],
+        "suggested_action": "",
+        "action_items": [],
+        "urgency": "low",
+        "tags": [],
+        "is_stable": False,
+        "analysis_mode": "fallback",
+        "doc_summary": "",
+        "doc_key_points": [],
+        "changed_pages": [],
+        "diff_highlights": [],
+        "reading_guide": [],
+    }
+
+
 def parse_analysis_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    parsed = _parse_json_with_repair(text)
+    try:
+        parsed = _parse_json_with_repair(text)
+    except ValueError:
+        return _fallback_analysis_from_text(text)
     title_zh = parsed.get("title_zh") or parsed.get("title") or ""
     summary_zh = parsed.get("summary_zh") or parsed.get("summary") or ""
     impact_scope = parsed.get("impact_scope") or ""
@@ -413,32 +481,53 @@ def parse_analysis_response(payload: dict[str, Any]) -> dict:
 
 def parse_assistant_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    parsed = _parse_json_with_repair(text)
-    return {
-        "answer": parsed["answer"],
-        "next_steps": parsed.get("next_steps", []),
-    }
+    try:
+        parsed = _parse_json_with_repair(text)
+        return {
+            "answer": parsed["answer"],
+            "next_steps": parsed.get("next_steps", []),
+        }
+    except ValueError:
+        return {
+            "answer": _fallback_text(text, "模型返回空响应，无法生成回答。"),
+            "next_steps": [],
+        }
 
 
 def parse_project_daily_summary_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    parsed = _parse_json_with_repair(text)
-    return {
-        "headline": parsed["headline"],
-        "summary_zh": parsed["summary_zh"],
-        "reason": parsed.get("reason", ""),
-        "importance": parsed.get("importance", "medium"),
-    }
+    try:
+        parsed = _parse_json_with_repair(text)
+        return {
+            "headline": parsed["headline"],
+            "summary_zh": parsed["summary_zh"],
+            "reason": parsed.get("reason", ""),
+            "importance": parsed.get("importance", "medium"),
+        }
+    except ValueError:
+        return {
+            "headline": "",
+            "summary_zh": _fallback_text(text, "模型返回空响应，无法生成日报摘要。"),
+            "reason": "",
+            "importance": "low",
+        }
 
 
 def parse_live_research_report_response(payload: dict[str, Any]) -> dict:
     text = _extract_text(payload)
-    parsed = _parse_json_with_repair(text)
-    return {
-        "report_markdown": parsed["report_markdown"],
-        "report_outline": parsed.get("report_outline", []),
-        "next_steps": parsed.get("next_steps", []),
-    }
+    try:
+        parsed = _parse_json_with_repair(text)
+        return {
+            "report_markdown": parsed["report_markdown"],
+            "report_outline": parsed.get("report_outline", []),
+            "next_steps": parsed.get("next_steps", []),
+        }
+    except ValueError:
+        return {
+            "report_markdown": _fallback_text(text, "模型返回空响应，无法生成研究报告。"),
+            "report_outline": [],
+            "next_steps": [],
+        }
 
 
 def _repair_unescaped_quotes(text: str) -> str:
@@ -742,6 +831,7 @@ def _request_with_fallback(*, settings: dict, prompt: str, max_tokens: int):
         return response, {
             "provider": primary_settings["provider"],
             "model": primary_settings["model"],
+            "api_url": primary_settings["api_url"],
             "used_fallback": False,
         }
     except (LLMRequestError, requests.exceptions.RequestException) as primary_exc:
@@ -756,6 +846,7 @@ def _request_with_fallback(*, settings: dict, prompt: str, max_tokens: int):
             return response, {
                 "provider": fallback_settings["provider"],
                 "model": fallback_settings["model"],
+                "api_url": fallback_settings["api_url"],
                 "used_fallback": True,
                 "fallback_from_provider": primary_settings["provider"],
                 "fallback_from_model": primary_settings["model"],

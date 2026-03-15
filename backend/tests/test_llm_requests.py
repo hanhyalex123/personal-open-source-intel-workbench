@@ -15,6 +15,18 @@ class DummyResponse:
         return None
 
 
+class InvalidJsonResponse:
+    def __init__(self, text, status_code=200):
+        self.text = text
+        self.status_code = status_code
+
+    def json(self):
+        raise json.JSONDecodeError("Expecting value", self.text, 0)
+
+    def raise_for_status(self):
+        return None
+
+
 class ErrorResponse:
     def __init__(self, status_code=503, text="upstream unavailable"):
         self.status_code = status_code
@@ -416,6 +428,56 @@ def test_analyze_event_uses_explicit_openai_protocol_on_nonstandard_url(monkeypa
     assert "x-api-key" not in captured["headers"]
     assert "messages" in captured["payload"]
     assert analysis["summary_zh"] == "显式 protocol 生效"
+
+
+def test_analyze_event_falls_back_to_text_response(monkeypatch):
+    from backend.llm import analyze_event
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return InvalidJsonResponse("纯文本回复")
+
+    monkeypatch.setenv("PACKY_API_KEY", "test-key")
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    analysis = analyze_event(
+        {
+            "id": "github-release:kubernetes/kubernetes:v1.35.3",
+            "source": "github_release",
+            "repo": "kubernetes/kubernetes",
+            "title": "v1.35.3",
+            "version": "v1.35.3",
+            "body": "See CHANGELOG",
+            "url": "https://github.com/kubernetes/kubernetes/releases/tag/v1.35.3",
+        }
+    )
+
+    assert analysis["summary_zh"] == "纯文本回复"
+    assert analysis["analysis_mode"] == "fallback"
+
+
+def test_analyze_event_reports_empty_body(monkeypatch):
+    from backend.llm import analyze_event
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return InvalidJsonResponse("")
+
+    monkeypatch.setenv("PACKY_API_KEY", "test-key")
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        analyze_event(
+            {
+                "id": "github-release:kubernetes/kubernetes:v1.35.4",
+                "source": "github_release",
+                "repo": "kubernetes/kubernetes",
+                "title": "v1.35.4",
+                "version": "v1.35.4",
+                "body": "See CHANGELOG",
+                "url": "https://github.com/kubernetes/kubernetes/releases/tag/v1.35.4",
+            }
+        )
+
+    assert "empty response body" in str(exc_info.value)
 
 
 def test_analyze_event_uses_openai_responses_protocol(monkeypatch):
