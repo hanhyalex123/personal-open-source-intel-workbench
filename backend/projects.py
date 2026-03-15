@@ -34,6 +34,9 @@ def build_project_record(*, name: str, github_url: str, docs_url: str, now_iso: 
         "enabled": True,
         "release_area_enabled": True,
         "docs_area_enabled": True,
+        "doc_system": "auto",
+        "initial_read_enabled": True,
+        "diff_mode": "page",
         "sync_interval_minutes": 60,
         "created_at": now_iso,
         "updated_at": now_iso,
@@ -64,8 +67,15 @@ def build_default_crawl_profile(project: dict) -> dict:
             "blocked_path_prefixes": [],
             "max_depth": 3,
             "max_pages": 40,
+            "max_pages_per_section": 0,
             "expand_mode": "auto",
             "category_hints": ["存储", "网络", "工作负载", "容器", "架构", "调度"],
+            "doc_system": "auto",
+            "initial_read_enabled": True,
+            "diff_mode": "page",
+            "link_strategy": "auto",
+            "canonicalize_fragments": True,
+            "follow_pagination": True,
             "discovery_prompt": "",
             "classification_prompt": "",
         }
@@ -91,8 +101,15 @@ def build_default_crawl_profile(project: dict) -> dict:
             ],
             "max_depth": 1,
             "max_pages": 24,
+            "max_pages_per_section": 8,
             "expand_mode": "auto",
             "category_hints": ["运行时", "架构", "网络", "存储", "调度"],
+            "doc_system": "auto",
+            "initial_read_enabled": True,
+            "diff_mode": "page",
+            "link_strategy": "furo_nav_first",
+            "canonicalize_fragments": True,
+            "follow_pagination": True,
             "discovery_prompt": "",
             "classification_prompt": "",
         }
@@ -107,8 +124,15 @@ def build_default_crawl_profile(project: dict) -> dict:
             "blocked_path_prefixes": [],
             "max_depth": 0,
             "max_pages": 12,
+            "max_pages_per_section": 0,
             "expand_mode": "auto",
             "category_hints": ["升级", "运行时", "架构"],
+            "doc_system": "auto",
+            "initial_read_enabled": True,
+            "diff_mode": "page",
+            "link_strategy": "auto",
+            "canonicalize_fragments": True,
+            "follow_pagination": True,
             "discovery_prompt": "",
             "classification_prompt": "",
         }
@@ -121,8 +145,15 @@ def build_default_crawl_profile(project: dict) -> dict:
         "blocked_path_prefixes": [],
         "max_depth": 3,
         "max_pages": 40,
+        "max_pages_per_section": 0,
         "expand_mode": "auto",
         "category_hints": [],
+        "doc_system": "auto",
+        "initial_read_enabled": True,
+        "diff_mode": "page",
+        "link_strategy": "auto",
+        "canonicalize_fragments": True,
+        "follow_pagination": True,
         "discovery_prompt": "",
         "classification_prompt": "",
     }
@@ -153,6 +184,16 @@ def collect_project_sources(projects: list[dict], crawl_profiles: dict) -> tuple
                     "blocked_path_prefixes": profile.get("blocked_path_prefixes", []),
                     "max_depth": profile.get("max_depth", 3),
                     "max_pages": profile.get("max_pages", 40),
+                    "max_pages_per_section": profile.get("max_pages_per_section", 0),
+                    "doc_system": profile.get("doc_system", project.get("doc_system", "auto")),
+                    "initial_read_enabled": profile.get(
+                        "initial_read_enabled",
+                        project.get("initial_read_enabled", True),
+                    ),
+                    "diff_mode": profile.get("diff_mode", project.get("diff_mode", "page")),
+                    "link_strategy": profile.get("link_strategy", "auto"),
+                    "canonicalize_fragments": profile.get("canonicalize_fragments", True),
+                    "follow_pagination": profile.get("follow_pagination", True),
                     "category_hints": profile.get("category_hints", []),
                     "discovery_prompt": profile.get("discovery_prompt", ""),
                     "classification_prompt": profile.get("classification_prompt", ""),
@@ -192,6 +233,9 @@ def infer_project_metadata(project: dict) -> dict:
 def normalize_project_record(project: dict) -> dict:
     normalized = dict(project)
     defaults = infer_project_metadata(normalized)
+    normalized["doc_system"] = normalized.get("doc_system", "auto")
+    normalized["initial_read_enabled"] = normalized.get("initial_read_enabled", True)
+    normalized["diff_mode"] = normalized.get("diff_mode", "page")
     if "tech_categories" not in normalized:
         normalized["tech_categories"] = defaults["tech_categories"]
     else:

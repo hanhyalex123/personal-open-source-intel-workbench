@@ -13,7 +13,7 @@ function sectionId(...parts) {
     .toLowerCase();
 }
 
-function CollapsibleItemGrid({ title, items, sectionAnchorId }) {
+function CollapsibleItemGrid({ title, items, sectionAnchorId, itemActionBuilder = null }) {
   const [expanded, setExpanded] = useState(false);
   const visibleItems = expanded ? items : items.slice(0, 3);
   const hasMore = items.length > 3;
@@ -30,14 +30,19 @@ function CollapsibleItemGrid({ title, items, sectionAnchorId }) {
       </div>
       <div className="project-card-grid">
         {visibleItems.map((item) => (
-          <InsightCard key={item.id} item={item} compact />
+          <InsightCard
+            key={item.id}
+            item={item}
+            compact
+            workbenchAction={itemActionBuilder ? itemActionBuilder(item) : null}
+          />
         ))}
       </div>
     </section>
   );
 }
 
-function ProjectPanel({ project }) {
+function ProjectPanel({ project, onOpenDocs }) {
   const releaseId = sectionId("project", project.id, "release");
   const docsId = sectionId("project", project.id, "docs");
 
@@ -58,6 +63,11 @@ function ProjectPanel({ project }) {
           <a href={project.github_url} target="_blank" rel="noreferrer">
             GitHub
           </a>
+          {project.docs_area?.enabled ? (
+            <button className="inline-link" type="button" onClick={() => onOpenDocs?.(project.id)}>
+              打开文档解读
+            </button>
+          ) : null}
           {project.docs_url ? (
             <a href={project.docs_url} target="_blank" rel="noreferrer">
               Docs
@@ -82,7 +92,14 @@ function ProjectPanel({ project }) {
                 className="docs-category"
                 id={sectionId("project", project.id, "docs", category.category)}
               >
-                <CollapsibleItemGrid title={category.category} items={category.items} />
+                <CollapsibleItemGrid
+                  title={category.category}
+                  items={category.items}
+                  itemActionBuilder={(item) => ({
+                    label: "打开文档视图",
+                    onClick: () => onOpenDocs?.(project.id, item.id),
+                  })}
+                />
               </section>
             ))}
           </div>
@@ -240,7 +257,7 @@ function useActiveProjectSection(projectSections) {
   return activeSectionId;
 }
 
-export default function ProjectMonitorPage({ projectSections }) {
+export default function ProjectMonitorPage({ projectSections, onOpenDocs }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("");
 
@@ -317,7 +334,7 @@ export default function ProjectMonitorPage({ projectSections }) {
       <div className="project-monitor-layout">
         <div className="project-sections">
           {filteredProjectSections.map((project) => (
-            <ProjectPanel key={project.id} project={project} />
+            <ProjectPanel key={project.id} project={project} onOpenDocs={onOpenDocs} />
           ))}
         </div>
         <ProjectOutline projectSections={filteredProjectSections} activeSectionId={activeSectionId} />

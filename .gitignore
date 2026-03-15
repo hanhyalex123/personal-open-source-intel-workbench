@@ -8,10 +8,13 @@ dist
 .env.*.local
 .venv
 .npm-cache
+.venv/
 backend/data/
 .run/
 logs/
+output/playwright/
 .pytest_cache/
 __pycache__
 backend/__pycache__
 backend/tests/__pycache__
+AGENTS.md

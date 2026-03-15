@@ -159,22 +159,26 @@ def test_fetch_feed_entries_supports_page_sources(monkeypatch):
 
     monkeypatch.setattr(
         "backend.sources.crawl_docs_pages",
-        lambda **kwargs: [
-            {
-                "url": "https://kubernetes.io/zh-cn/docs/home/",
-                "title": "Kubernetes 中文文档首页",
-                "body": "Kubernetes 文档 这里介绍 Kubernetes 文档首页。",
-                "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
-                "category": "架构",
-            },
-            {
-                "url": "https://kubernetes.io/zh-cn/docs/concepts/services-networking/",
-                "title": "服务与网络",
-                "body": "CNI kube-proxy nftables",
-                "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
-                "category": "网络",
-            },
-        ],
+        lambda **kwargs: {
+            "records": [
+                {
+                    "url": "https://kubernetes.io/zh-cn/docs/home/",
+                    "title": "Kubernetes 中文文档首页",
+                    "body": "Kubernetes 文档 这里介绍 Kubernetes 文档首页。",
+                    "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
+                    "category": "架构",
+                },
+                {
+                    "url": "https://kubernetes.io/zh-cn/docs/concepts/services-networking/",
+                    "title": "服务与网络",
+                    "body": "CNI kube-proxy nftables",
+                    "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
+                    "category": "网络",
+                },
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
     )
 
     entries = fetch_feed_entries(
@@ -191,9 +195,10 @@ def test_fetch_feed_entries_supports_page_sources(monkeypatch):
     )
 
     assert len(entries) == 2
-    assert entries[0]["id"] == "https://kubernetes.io/zh-cn/docs/home/#架构"
+    assert all(entry["event_kind"] == "docs_initial_read" for entry in entries)
     assert entries[1]["category"] == "网络"
     assert entries[1]["research_bundle"]["category"] == "网络"
+    assert entries[1]["research_bundle"]["analysis_mode"] == "initial_read"
 
 
 def test_fetch_feed_entries_for_page_sources_reports_crawl_progress(monkeypatch):
@@ -204,15 +209,19 @@ def test_fetch_feed_entries_for_page_sources_reports_crawl_progress(monkeypatch)
     def fake_crawl_docs_pages(**kwargs):
         kwargs["progress_callback"](current_url="https://example.com/docs", processed_pages=1, max_pages=40)
         kwargs["progress_callback"](current_url="https://example.com/docs/network", processed_pages=2, max_pages=40)
-        return [
-            {
-                "url": "https://example.com/docs/network",
-                "title": "服务与网络",
-                "body": "CNI kube-proxy nftables",
-                "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
-                "category": "网络",
-            }
-        ]
+        return {
+            "records": [
+                {
+                    "url": "https://example.com/docs/network",
+                    "title": "服务与网络",
+                    "body": "CNI kube-proxy nftables",
+                    "last_seen_at": "Mon, 09 Mar 2026 10:00:00 GMT",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        }
 
     monkeypatch.setattr("backend.sources.crawl_docs_pages", fake_crawl_docs_pages)
 
@@ -231,3 +240,189 @@ def test_fetch_feed_entries_for_page_sources_reports_crawl_progress(monkeypatch)
         {"current_url": "https://example.com/docs", "processed_pages": 1, "max_pages": 40},
         {"current_url": "https://example.com/docs/network", "processed_pages": 2, "max_pages": 40},
     ]
+
+
+def test_fetch_feed_entries_builds_diff_updates_when_snapshot_exists(tmp_path, monkeypatch):
+    from backend.sources import fetch_feed_entries
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_docs_snapshots(
+        {
+            "kubernetes": {
+                "project_id": "kubernetes",
+                "source_key": "k8s-zh-docs-home",
+                "updated_at": "2026-03-09T10:00:00Z",
+                "pages": {
+                    "https://example.com/docs/network": {
+                        "id": "network-page",
+                        "url": "https://example.com/docs/network",
+                        "path": "/docs/network",
+                        "title": "网络",
+                        "category": "网络",
+                        "text_content": "旧内容",
+                        "summary": "旧内容",
+                        "headings": ["网络"],
+                        "breadcrumbs": ["文档", "网络"],
+                        "content_hash": "old-content",
+                        "page_hash": "old-page",
+                        "last_seen_at": "2026-03-09T10:00:00Z",
+                    }
+                },
+            }
+        }
+    )
+
+    monkeypatch.setattr(
+        "backend.sources.crawl_docs_pages",
+        lambda **kwargs: {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "新内容\n\n加入 nftables 推荐。",
+                    "text_content": "新内容\n\n加入 nftables 推荐。",
+                    "headings": ["网络", "代理模式"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-10T10:00:00Z",
+                    "content_hash": "new-content",
+                    "page_hash": "new-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
+    )
+
+    entries = fetch_feed_entries(
+        {
+            "id": "k8s-zh-docs-home",
+            "project_id": "kubernetes",
+            "name": "Kubernetes 中文文档首页",
+            "url": "https://example.com/docs",
+            "type": "page",
+        },
+        store=store,
+    )
+
+    assert len(entries) == 1
+    assert entries[0]["event_kind"] == "docs_diff_update"
+    assert entries[0]["research_bundle"]["analysis_mode"] == "diff_update"
+    assert entries[0]["research_bundle"]["changed_pages"][0]["change_type"] == "changed"
+
+
+def test_fetch_feed_entries_skips_partial_page_snapshots(tmp_path, monkeypatch):
+    from backend.sources import fetch_feed_entries
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_docs_snapshots(
+        {
+            "kubernetes": {
+                "project_id": "kubernetes",
+                "source_key": "k8s-zh-docs-home",
+                "updated_at": "2026-03-09T10:00:00Z",
+                "pages": {
+                    "https://example.com/docs/network": {
+                        "id": "network-page",
+                        "url": "https://example.com/docs/network",
+                        "path": "/docs/network",
+                        "title": "网络",
+                        "category": "网络",
+                        "text_content": "旧内容",
+                        "summary": "旧内容",
+                        "content_hash": "old-content",
+                        "page_hash": "old-page",
+                        "last_seen_at": "2026-03-09T10:00:00Z",
+                    }
+                },
+            }
+        }
+    )
+
+    monkeypatch.setattr(
+        "backend.sources.crawl_docs_pages",
+        lambda **kwargs: {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "只抓到一部分内容",
+                    "text_content": "只抓到一部分内容",
+                    "headings": ["网络"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-10T10:00:00Z",
+                    "content_hash": "new-content",
+                    "page_hash": "new-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": False,
+            "incomplete_reasons": ["request_failed:https://example.com/docs/storage"],
+        },
+    )
+
+    entries = fetch_feed_entries(
+        {
+            "id": "k8s-zh-docs-home",
+            "project_id": "kubernetes",
+            "name": "Kubernetes 中文文档首页",
+            "url": "https://example.com/docs",
+            "type": "page",
+        },
+        store=store,
+    )
+
+    assert entries == []
+
+
+def test_fetch_feed_entries_without_initial_read_builds_baseline_without_diff_events(tmp_path, monkeypatch):
+    from backend.sources import fetch_feed_entries
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+
+    monkeypatch.setattr(
+        "backend.sources.crawl_docs_pages",
+        lambda **kwargs: {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "首次抓取内容",
+                    "text_content": "首次抓取内容",
+                    "headings": ["网络"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-10T10:00:00Z",
+                    "content_hash": "baseline-content",
+                    "page_hash": "baseline-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
+    )
+
+    entries = fetch_feed_entries(
+        {
+            "id": "k8s-zh-docs-home",
+            "project_id": "kubernetes",
+            "name": "Kubernetes 中文文档首页",
+            "url": "https://example.com/docs",
+            "type": "page",
+            "initial_read_enabled": False,
+        },
+        store=store,
+    )
+
+    assert entries == []
+    assert entries.docs_snapshot_payload["project_id"] == "kubernetes"
+    assert entries.docs_snapshot_payload["pages"]["https://example.com/docs/network"]["id"] == "network-page"

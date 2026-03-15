@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 import requests
 
 from .docs_crawl import _extract_primary_text, _extract_title
+from .docs_diff import summarize_text
 
 RAW_GITHUB_HOST = "raw.githubusercontent.com"
 GITHUB_HOST = "github.com"
@@ -65,20 +66,136 @@ def build_release_research_bundle(repo: str, release: dict) -> dict:
 
 
 def build_docs_group_research_bundle(*, category: str, items: list[dict]) -> dict:
-    ordered_items = sorted(items, key=lambda item: item.get("last_seen_at") or "", reverse=True)
+    ordered_items = _sort_docs_pages(items)
+    selected_items = _select_summary_pages(ordered_items, limit=8)
     pages = [
         {
+            "page_id": item.get("id"),
             "title": item.get("title") or item.get("url"),
             "url": item.get("url", ""),
-            "snippet": _clip_text(item.get("body", ""), 600),
+            "snippet": _clip_text(item.get("body", ""), 320),
             "last_seen_at": item.get("last_seen_at"),
+            "headings": item.get("headings", [])[:6],
+            "breadcrumbs": item.get("breadcrumbs", [])[:6],
+            "extractor_hint": item.get("extractor_hint", "html-main"),
+            "nav_depth": item.get("nav_depth", 0),
+            "parent_section": item.get("parent_section", ""),
         }
-        for item in ordered_items[:8]
+        for item in selected_items[:6]
     ]
     return {
         "category": category,
         "page_count": len(items),
+        "section_stats": _build_section_stats(items),
         "pages": pages,
+    }
+
+
+def build_docs_initial_research_bundle(*, category: str, items: list[dict], current_snapshot: dict) -> dict:
+    base = build_docs_group_research_bundle(category=category, items=items)
+    selected_items = _select_summary_pages(_sort_docs_pages(items), limit=10)
+    return {
+        **base,
+        "analysis_mode": "initial_read",
+        "snapshot_before": None,
+        "snapshot_after": {
+            "page_count": len(items),
+            "section_stats": _build_section_stats(items),
+            "pages": [
+                {
+                    "page_id": item.get("id"),
+                    "title": item.get("title") or item.get("url"),
+                    "url": item.get("url", ""),
+                    "section": item.get("section", ""),
+                    "parent_section": item.get("parent_section", ""),
+                    "nav_depth": item.get("nav_depth", 0),
+                    "summary": summarize_text(item.get("text_content") or item.get("body", ""), limit=180),
+                }
+                for item in selected_items[:8]
+            ],
+        },
+        "changed_pages": [
+            {
+                "page_id": item.get("id"),
+                "url": item.get("url", ""),
+                "path": item.get("path", ""),
+                "title_after": item.get("title") or item.get("url"),
+                "change_type": "added",
+                "parent_section": item.get("parent_section", ""),
+                "nav_depth": item.get("nav_depth", 0),
+                "after_summary": summarize_text(item.get("text_content") or item.get("body", ""), limit=180),
+                "headings_after": item.get("headings", [])[:8],
+            }
+            for item in selected_items[:8]
+        ],
+        "diff_summary": {
+            "changed_pages": len(items),
+            "added_pages": len(items),
+            "removed_pages": 0,
+            "unchanged_page_count": max(len(current_snapshot.get("pages", {})) - len(items), 0),
+        },
+    }
+
+
+def build_docs_diff_research_bundle(*, category: str, changed_pages: list[dict], current_pages: list[dict], previous_pages: list[dict]) -> dict:
+    sorted_current = _sort_docs_pages(current_pages)
+    sorted_previous = _sort_docs_pages(previous_pages)
+    selected_current = _select_summary_pages(sorted_current, limit=8)
+    selected_previous = _select_summary_pages(sorted_previous, limit=6)
+    return {
+        "category": category,
+        "analysis_mode": "diff_update",
+        "page_count": len(current_pages),
+        "section_stats": _build_section_stats(current_pages),
+        "pages": [
+            {
+                "page_id": page.get("id"),
+                "title": page.get("title") or page.get("url"),
+                "url": page.get("url", ""),
+                "snippet": summarize_text(page.get("text_content") or page.get("summary", ""), limit=220),
+                "last_seen_at": page.get("last_seen_at"),
+                "headings": page.get("headings", [])[:6],
+                "extractor_hint": page.get("extractor_hint", "html-main"),
+                "nav_depth": page.get("nav_depth", 0),
+                "parent_section": page.get("parent_section", ""),
+            }
+            for page in selected_current[:6]
+        ],
+        "snapshot_before": {
+            "page_count": len(previous_pages),
+            "pages": [
+                {
+                    "page_id": page.get("id"),
+                    "title": page.get("title") or page.get("url"),
+                    "url": page.get("url", ""),
+                    "summary": page.get("summary") or summarize_text(page.get("text_content", ""), limit=180),
+                    "parent_section": page.get("parent_section", ""),
+                    "nav_depth": page.get("nav_depth", 0),
+                }
+                for page in selected_previous[:4]
+            ],
+        },
+        "snapshot_after": {
+            "page_count": len(current_pages),
+            "pages": [
+                {
+                    "page_id": page.get("id"),
+                    "title": page.get("title") or page.get("url"),
+                    "url": page.get("url", ""),
+                    "summary": page.get("summary") or summarize_text(page.get("text_content", ""), limit=180),
+                    "parent_section": page.get("parent_section", ""),
+                    "nav_depth": page.get("nav_depth", 0),
+                }
+                for page in selected_current[:4]
+            ],
+        },
+        "changed_pages": changed_pages[:5],
+        "diff_summary": {
+            "changed_pages": len(changed_pages),
+            "added_pages": sum(1 for page in changed_pages if page.get("change_type") == "added"),
+            "removed_pages": sum(1 for page in changed_pages if page.get("change_type") == "removed"),
+            "unchanged_page_count": max(len(current_pages) - len(changed_pages), 0),
+        },
     }
 
 
@@ -229,3 +346,60 @@ def _is_candidate_doc_url(parsed_url) -> bool:
     if lowered_path.endswith((".tar.gz", ".tgz", ".zip", ".gz", ".xz", ".bz2", ".sha256", ".sha512", ".exe")):
         return False
     return parsed_url.scheme in {"http", "https"}
+
+
+def _sort_docs_pages(items: list[dict]) -> list[dict]:
+    return sorted(
+        items,
+        key=lambda item: (
+            item.get("nav_depth", 99),
+            0 if item.get("is_index_page") else 1,
+            item.get("nav_order", 999999),
+            item.get("title") or item.get("url") or "",
+        ),
+    )
+
+
+def _select_summary_pages(items: list[dict], *, limit: int) -> list[dict]:
+    if len(items) <= limit:
+        return items
+
+    selected = []
+    selected_ids = set()
+    section_counts = {}
+
+    for item in items:
+        section_key = item.get("section_key") or item.get("parent_section") or item.get("section") or item.get("title") or ""
+        if item.get("is_index_page") and section_key and section_key not in section_counts:
+            selected.append(item)
+            selected_ids.add(item.get("id"))
+            section_counts[section_key] = 1
+            if len(selected) >= limit:
+                return selected
+
+    for item in items:
+        if item.get("id") in selected_ids:
+            continue
+        section_key = item.get("section_key") or item.get("parent_section") or item.get("section") or ""
+        if section_key and section_counts.get(section_key, 0) >= 2:
+            continue
+        selected.append(item)
+        selected_ids.add(item.get("id"))
+        if section_key:
+            section_counts[section_key] = section_counts.get(section_key, 0) + 1
+        if len(selected) >= limit:
+            return selected
+
+    return selected[:limit]
+
+
+def _build_section_stats(items: list[dict]) -> list[dict]:
+    grouped = {}
+    for item in items:
+        key = item.get("section_key") or item.get("parent_section") or item.get("section") or item.get("title") or "未分类"
+        bucket = grouped.setdefault(key, {"section": key, "page_count": 0, "sample_titles": []})
+        bucket["page_count"] += 1
+        title = item.get("title") or item.get("url")
+        if title and title not in bucket["sample_titles"] and len(bucket["sample_titles"]) < 3:
+            bucket["sample_titles"].append(title)
+    return sorted(grouped.values(), key=lambda item: (-item["page_count"], item["section"]))[:10]

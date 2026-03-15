@@ -15,26 +15,26 @@ WEAK_EXCERPT_CHARS = 80
 def answer_query(*, snapshot: dict, payload: dict) -> dict:
     config = normalize_config(snapshot.get("config"))
     assistant_config = config["assistant"]
+    llm_config = config.get("llm")
     filters = _resolve_filters(payload, assistant_config)
-    project_index = _build_project_index(snapshot.get("projects") or [])
-    plan = _build_query_plan(
-        query=payload.get("query", ""),
-        filters=filters,
-        projects=project_index,
-    )
-    web_pages, search_trace = _retrieve_live_pages(plan, assistant_config)
-    if not web_pages:
-        cached_pages = _build_cached_pages(snapshot=snapshot, plan=plan)
-        if cached_pages:
-            web_pages = cached_pages
-            search_trace.append(
-                {
-                    "query": payload.get("query", ""),
-                    "url": "",
-                    "title": "cached_project_evidence",
-                    "fetch_mode": "cache_fallback",
-                    "matched_entity": plan["primary_entities"][0] if plan["primary_entities"] else "",
-                }
+    candidates = _build_candidates(snapshot)
+    ranked = _rank_candidates(candidates, filters, assistant_config)
+    evidence = ranked[: assistant_config["max_evidence_items"]]
+    sources = _build_sources(evidence, assistant_config["max_source_items"])
+    next_steps = _collect_next_steps(evidence)
+    answer = _build_answer(evidence, filters)
+
+    if filters["mode"] in {"hybrid", "live"} and assistant_config["live_search"]["enabled"]:
+        try:
+            web_results = search_web(payload.get("query", ""), max_results=assistant_config["live_search"]["max_results"])
+            web_pages = fetch_search_result_pages(web_results, max_pages=assistant_config["live_search"]["max_pages"])
+            live_answer = answer_with_context(
+                query=payload.get("query", ""),
+                filters=filters,
+                local_evidence=evidence if filters["mode"] != "live" else [],
+                web_results=web_pages,
+                answer_prompt=assistant_config["prompts"]["answer"],
+                llm_config=llm_config,
             )
     evidence = _build_evidence(plan=plan, pages=web_pages, max_items=assistant_config["max_evidence_items"])
     sources = _build_sources(evidence=evidence, max_items=assistant_config["max_source_items"])
@@ -104,11 +104,23 @@ def _resolve_filters(payload: dict, assistant_config: dict) -> dict:
     }
 
 
-def _build_query_plan(*, query: str, filters: dict, projects: list[dict]) -> dict:
-    normalized_query = query.lower().strip()
-    matched_projects = [project for project in projects if _query_matches_project(normalized_query, project)]
-    primary_projects = matched_projects or [project for project in projects if project["id"] in set(filters["project_ids"])]
-    primary_entities = [project["id"] for project in primary_projects]
+def answer_with_context(
+    *,
+    query: str,
+    filters: dict,
+    local_evidence: list[dict],
+    web_results: list[dict],
+    answer_prompt: str = "",
+    llm_config: dict | None = None,
+) -> dict:
+    return answer_question_with_context(
+        query=query,
+        filters=filters,
+        local_evidence=local_evidence,
+        web_results=web_results,
+        answer_prompt=answer_prompt,
+        llm_config=llm_config,
+    )
 
     related_entities = []
     if "cuda" in normalized_query:

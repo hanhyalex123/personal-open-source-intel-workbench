@@ -522,3 +522,288 @@ def test_dashboard_orders_release_items_by_stable_semver_not_publish_time(tmp_pa
     versions = [item["version"] for item in payload["projects"][0]["release_area"]["items"]]
 
     assert versions[:6] == ["v1.35.2", "v1.32.13", "v1.33.9", "v1.34.5", "v1.35.1", "v1.36.0-alpha.2"]
+
+
+def test_docs_endpoints_return_project_events_pages_and_diff(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "openclaw",
+                "name": "OpenClaw",
+                "github_url": "https://github.com/openclaw/openclaw",
+                "repo": "openclaw/openclaw",
+                "docs_url": "https://openclaw.dev/docs",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": True,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T10:00:00Z",
+                "updated_at": "2026-03-15T10:00:00Z",
+            }
+        ]
+    )
+    store.save_docs_snapshots(
+        {
+            "openclaw": {
+                "project_id": "openclaw",
+                "source_key": "openclaw:docs",
+                "updated_at": "2026-03-15T10:00:00Z",
+                "pages": {
+                    "https://openclaw.dev/docs/network": {
+                        "id": "network-page",
+                        "url": "https://openclaw.dev/docs/network",
+                        "path": "/docs/network",
+                        "title": "Network",
+                        "section": "Network",
+                        "category": "网络",
+                        "extractor_hint": "furo",
+                        "headings": ["Network", "Routing"],
+                        "breadcrumbs": ["Docs", "Network"],
+                        "summary": "network summary",
+                        "text_content": "network summary",
+                        "last_seen_at": "2026-03-15T10:00:00Z",
+                    }
+                },
+            }
+        }
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:openclaw:docs:network:initial",
+            "source": "docs_feed",
+            "project_id": "openclaw",
+            "source_key": "openclaw:docs",
+            "event_kind": "docs_initial_read",
+            "title": "OpenClaw 文档 · 网络 首次解读",
+            "url": "https://openclaw.dev/docs/network",
+            "content_hash": "initial-hash",
+            "category": "网络",
+            "published_at": "2026-03-15T09:00:00Z",
+            "research_bundle": {
+                "analysis_mode": "initial_read",
+                "changed_pages": [
+                    {
+                        "page_id": "network-page",
+                        "url": "https://openclaw.dev/docs/network",
+                        "title_after": "Network",
+                        "change_type": "added",
+                    }
+                ],
+            },
+        }
+    )
+    store.save_analysis(
+        "docs-feed:openclaw:docs:network:initial",
+        {
+            "title_zh": "OpenClaw 文档首读",
+            "summary_zh": "首读总结。",
+            "detail_sections": [{"title": "核心变化点", "bullets": ["文档覆盖网络能力"]}],
+            "impact_scope": "network",
+            "impact_points": ["network"],
+            "suggested_action": "read",
+            "action_items": ["read"],
+            "urgency": "medium",
+            "tags": ["docs"],
+            "analysis_mode": "initial_read",
+            "doc_summary": "覆盖网络主题。",
+            "doc_key_points": ["先看网络章节"],
+            "reading_guide": ["先读 Network 页面"],
+            "changed_pages": [
+                {
+                    "url": "https://openclaw.dev/docs/network",
+                    "title": "Network",
+                    "change_type": "added",
+                }
+            ],
+            "is_stable": True,
+        },
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:openclaw:docs:network:diff",
+            "source": "docs_feed",
+            "project_id": "openclaw",
+            "source_key": "openclaw:docs",
+            "event_kind": "docs_diff_update",
+            "title": "OpenClaw 文档 · 网络 文档更新解读",
+            "url": "https://openclaw.dev/docs/network",
+            "content_hash": "diff-hash",
+            "category": "网络",
+            "published_at": "2026-03-15T10:00:00Z",
+            "research_bundle": {
+                "analysis_mode": "diff_update",
+                "changed_pages": [
+                    {
+                        "page_id": "network-page",
+                        "url": "https://openclaw.dev/docs/network",
+                        "title_after": "Network",
+                        "change_type": "changed",
+                        "added_blocks": ["加入 docker compose 部署说明。"],
+                        "removed_blocks": ["移除了旧版启动命令。"],
+                        "before_summary": "旧说明",
+                        "after_summary": "新说明",
+                    }
+                ],
+            },
+        }
+    )
+    store.save_analysis(
+        "docs-feed:openclaw:docs:network:diff",
+        {
+            "title_zh": "OpenClaw 网络文档更新",
+            "summary_zh": "更新了部署说明。",
+            "detail_sections": [{"title": "核心变化点", "bullets": ["更新 docker compose 说明"]}],
+            "impact_scope": "network",
+            "impact_points": ["network"],
+            "suggested_action": "sync",
+            "action_items": ["sync"],
+            "urgency": "high",
+            "tags": ["docs"],
+            "analysis_mode": "diff_update",
+            "doc_summary": "这次主要更新部署方式。",
+            "doc_key_points": ["部署入口变了"],
+            "diff_highlights": ["docker compose 成为推荐入口"],
+            "reading_guide": ["先看 Network 页面 diff"],
+            "changed_pages": [
+                {
+                    "url": "https://openclaw.dev/docs/network",
+                    "title": "Network",
+                    "change_type": "changed",
+                    "after_summary": "新说明",
+                }
+            ],
+            "is_stable": True,
+        },
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    projects_payload = client.get("/api/docs/projects").get_json()
+    detail_payload = client.get("/api/docs/projects/openclaw").get_json()
+    events_payload = client.get("/api/docs/projects/openclaw/events?mode=docs_diff_update").get_json()
+    pages_payload = client.get("/api/docs/projects/openclaw/pages").get_json()
+    diff_payload = client.get("/api/docs/projects/openclaw/pages/network-page/diff").get_json()
+
+    assert projects_payload[0]["project_id"] == "openclaw"
+    assert detail_payload["initial_read"]["analysis_mode"] == "initial_read"
+    assert detail_payload["initial_read"]["changed_pages"][0]["page_id"] == "network-page"
+    assert detail_payload["latest_update"]["analysis_mode"] == "diff_update"
+    assert detail_payload["latest_update"]["changed_pages"][0]["page_id"] == "network-page"
+    assert events_payload[0]["event_kind"] == "docs_diff_update"
+    assert events_payload[0]["changed_pages"][0]["page_id"] == "network-page"
+    assert pages_payload[0]["id"] == "network-page"
+    assert diff_payload["latest_diff"]["change_type"] == "changed"
+
+
+def test_docs_pages_ignore_initial_read_when_marking_recent_changes(tmp_path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "openclaw",
+                "name": "OpenClaw",
+                "repo": "openclaw/openclaw",
+                "repo_url": "https://github.com/openclaw/openclaw",
+                "docs_url": "https://openclaw.dev/docs",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": True,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T10:00:00Z",
+                "updated_at": "2026-03-15T10:00:00Z",
+            }
+        ]
+    )
+    store.save_docs_snapshots(
+        {
+            "openclaw": {
+                "project_id": "openclaw",
+                "source_key": "openclaw:docs",
+                "updated_at": "2026-03-15T10:00:00Z",
+                "pages": {
+                    "https://openclaw.dev/docs/network": {
+                        "id": "network-page",
+                        "url": "https://openclaw.dev/docs/network",
+                        "path": "/docs/network",
+                        "title": "Network",
+                        "section": "Network",
+                        "category": "网络",
+                        "extractor_hint": "furo",
+                        "headings": ["Network", "Routing"],
+                        "breadcrumbs": ["Docs", "Network"],
+                        "summary": "network summary",
+                        "text_content": "network summary",
+                        "last_seen_at": "2026-03-15T10:00:00Z",
+                    }
+                },
+            }
+        }
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:openclaw:docs:network:initial",
+            "source": "docs_feed",
+            "project_id": "openclaw",
+            "source_key": "openclaw:docs",
+            "event_kind": "docs_initial_read",
+            "title": "OpenClaw 文档 · 网络 首次解读",
+            "url": "https://openclaw.dev/docs/network",
+            "content_hash": "initial-hash",
+            "category": "网络",
+            "published_at": "2026-03-15T09:00:00Z",
+            "research_bundle": {
+                "analysis_mode": "initial_read",
+                "changed_pages": [
+                    {
+                        "page_id": "network-page",
+                        "url": "https://openclaw.dev/docs/network",
+                        "title_after": "Network",
+                        "change_type": "added",
+                    }
+                ],
+            },
+        }
+    )
+    store.save_analysis(
+        "docs-feed:openclaw:docs:network:initial",
+        {
+            "title_zh": "OpenClaw 文档首读",
+            "summary_zh": "首读总结。",
+            "detail_sections": [{"title": "核心变化点", "bullets": ["文档覆盖网络能力"]}],
+            "impact_scope": "network",
+            "impact_points": ["network"],
+            "suggested_action": "read",
+            "action_items": ["read"],
+            "urgency": "medium",
+            "tags": ["docs"],
+            "analysis_mode": "initial_read",
+            "doc_summary": "覆盖网络主题。",
+            "doc_key_points": ["先看网络章节"],
+            "reading_guide": ["先读 Network 页面"],
+            "changed_pages": [
+                {
+                    "url": "https://openclaw.dev/docs/network",
+                    "title": "Network",
+                    "change_type": "added",
+                }
+            ],
+            "is_stable": True,
+        },
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    pages_payload = client.get("/api/docs/projects/openclaw/pages").get_json()
+
+    assert pages_payload[0]["id"] == "network-page"
+    assert pages_payload[0]["latest_change"] is None
+    assert pages_payload[0]["is_recently_changed"] is False

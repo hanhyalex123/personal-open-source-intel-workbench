@@ -418,6 +418,258 @@ def test_sync_reports_page_feed_progress_while_crawling(tmp_path: Path):
     assert "MindSpore 文档 · 2 / 40 页" in labels
 
 
+def test_sync_does_not_overwrite_docs_snapshot_when_crawl_is_incomplete(tmp_path: Path):
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+    store.save_docs_snapshots(
+        {
+            "openclaw": {
+                "project_id": "openclaw",
+                "source_key": "openclaw-docs",
+                "updated_at": "2026-03-09T10:00:00Z",
+                "crawl_complete": True,
+                "pages": {
+                    "https://example.com/docs/network": {
+                        "id": "network-page",
+                        "url": "https://example.com/docs/network",
+                        "title": "网络",
+                        "text_content": "旧内容",
+                        "content_hash": "old-content",
+                        "page_hash": "old-page",
+                    }
+                },
+            }
+        }
+    )
+
+    def feed_fetcher(_feed: dict):
+        return [
+            {
+                "id": "docs-partial-run",
+                "project_id": "openclaw",
+                "event_kind": "docs_diff_update",
+                "title": "OpenClaw 文档部分抓取",
+                "link": "https://example.com/docs/network",
+                "published": "2026-03-10T10:00:00Z",
+                "summary": "部分抓取结果",
+                "_docs_snapshot_payload": {
+                    "project_id": "openclaw",
+                    "source_key": "openclaw-docs",
+                    "updated_at": "2026-03-10T10:00:00Z",
+                    "crawl_complete": False,
+                    "incomplete_reasons": ["request_failed:https://example.com/docs/storage"],
+                    "pages": {
+                        "https://example.com/docs/network": {
+                            "id": "network-page",
+                            "url": "https://example.com/docs/network",
+                            "title": "网络",
+                            "text_content": "新内容",
+                            "content_hash": "new-content",
+                            "page_hash": "new-page",
+                        }
+                    },
+                },
+            }
+        ]
+
+    def analyzer(event: dict):
+        return {
+            "title_zh": f'{event["title"]} 中文分析',
+            "summary_zh": "新的中文结论",
+            "details_zh": "详细说明",
+            "impact_scope": "测试范围",
+            "suggested_action": "检查更新",
+            "urgency": "medium",
+            "tags": ["test"],
+            "is_stable": True,
+        }
+
+    run_sync_once(
+        store=store,
+        repos=[],
+        feeds=[{"id": "openclaw-docs", "name": "OpenClaw Docs", "url": "https://example.com/docs", "type": "page"}],
+        release_fetcher=lambda _repo: [],
+        feed_fetcher=feed_fetcher,
+        analyzer=analyzer,
+        now_iso="2026-03-10T12:00:00Z",
+    )
+
+    snapshot = store.load_docs_snapshots()
+
+    assert snapshot["openclaw"]["updated_at"] == "2026-03-09T10:00:00Z"
+    assert snapshot["openclaw"]["pages"]["https://example.com/docs/network"]["page_hash"] == "old-page"
+
+
+def test_sync_persists_docs_baseline_without_events_when_initial_read_is_disabled(tmp_path: Path, monkeypatch):
+    from backend.sources import fetch_feed_entries
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+    analyzed_events = []
+
+    monkeypatch.setattr(
+        "backend.sources.crawl_docs_pages",
+        lambda **kwargs: {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "首次抓取内容",
+                    "text_content": "首次抓取内容",
+                    "headings": ["网络"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-10T10:00:00Z",
+                    "content_hash": "baseline-content",
+                    "page_hash": "baseline-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
+    )
+
+    run_sync_once(
+        store=store,
+        repos=[],
+        feeds=[
+            {
+                "id": "openclaw-docs",
+                "project_id": "openclaw",
+                "name": "OpenClaw Docs",
+                "url": "https://example.com/docs",
+                "type": "page",
+                "initial_read_enabled": False,
+            }
+        ],
+        release_fetcher=lambda _repo: [],
+        feed_fetcher=fetch_feed_entries,
+        analyzer=lambda event: analyzed_events.append(event["id"]) or {},
+        now_iso="2026-03-10T12:00:00Z",
+    )
+
+    snapshot = store.load_docs_snapshots()
+    payload = store.load_all()
+
+    assert snapshot["openclaw"]["updated_at"] == "2026-03-10T10:00:00Z"
+    assert snapshot["openclaw"]["pages"]["https://example.com/docs/network"]["page_hash"] == "baseline-page"
+    assert payload["events"] == {}
+    assert payload["analyses"] == {}
+    assert analyzed_events == []
+
+
+def test_sync_builds_docs_diff_after_initial_read_disabled_baseline(tmp_path: Path, monkeypatch):
+    from backend.sources import fetch_feed_entries
+    from backend.storage import JsonStore
+    from backend.sync import run_sync_once
+
+    store = JsonStore(tmp_path)
+    crawl_results = [
+        {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "首次抓取内容",
+                    "text_content": "首次抓取内容",
+                    "headings": ["网络"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-10T10:00:00Z",
+                    "content_hash": "baseline-content",
+                    "page_hash": "baseline-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
+        {
+            "records": [
+                {
+                    "id": "network-page",
+                    "url": "https://example.com/docs/network",
+                    "path": "/docs/network",
+                    "title": "网络",
+                    "body": "加入 nftables 推荐。",
+                    "text_content": "加入 nftables 推荐。",
+                    "headings": ["网络", "代理模式"],
+                    "breadcrumbs": ["文档", "网络"],
+                    "last_seen_at": "2026-03-11T10:00:00Z",
+                    "content_hash": "updated-content",
+                    "page_hash": "updated-page",
+                    "category": "网络",
+                }
+            ],
+            "crawl_complete": True,
+            "incomplete_reasons": [],
+        },
+    ]
+    analyzed_event_kinds = []
+
+    monkeypatch.setattr("backend.sources.crawl_docs_pages", lambda **kwargs: crawl_results.pop(0))
+
+    feed = {
+        "id": "openclaw-docs",
+        "project_id": "openclaw",
+        "name": "OpenClaw Docs",
+        "url": "https://example.com/docs",
+        "type": "page",
+        "initial_read_enabled": False,
+    }
+
+    def analyzer(event: dict):
+        analyzed_event_kinds.append(event["event_kind"])
+        return {
+            "title_zh": f'{event["title"]} 中文分析',
+            "summary_zh": "检测到文档变更",
+            "details_zh": "详细说明",
+            "impact_scope": "文档使用者",
+            "suggested_action": "同步内部知识库",
+            "urgency": "medium",
+            "tags": ["docs"],
+            "analysis_mode": "diff_update",
+            "changed_pages": [{"title": "网络", "url": "https://example.com/docs/network", "change_type": "changed"}],
+            "is_stable": True,
+        }
+
+    run_sync_once(
+        store=store,
+        repos=[],
+        feeds=[feed],
+        release_fetcher=lambda _repo: [],
+        feed_fetcher=fetch_feed_entries,
+        analyzer=analyzer,
+        now_iso="2026-03-10T12:00:00Z",
+    )
+    run_sync_once(
+        store=store,
+        repos=[],
+        feeds=[feed],
+        release_fetcher=lambda _repo: [],
+        feed_fetcher=fetch_feed_entries,
+        analyzer=analyzer,
+        now_iso="2026-03-11T12:00:00Z",
+    )
+
+    snapshot = store.load_docs_snapshots()
+    payload = store.load_all()
+    docs_events = list(payload["events"].values())
+
+    assert analyzed_event_kinds == ["docs_diff_update"]
+    assert len(docs_events) == 1
+    assert docs_events[0]["event_kind"] == "docs_diff_update"
+    assert docs_events[0]["research_bundle"]["changed_pages"][0]["change_type"] == "changed"
+    assert snapshot["openclaw"]["updated_at"] == "2026-03-11T10:00:00Z"
+    assert snapshot["openclaw"]["pages"]["https://example.com/docs/network"]["page_hash"] == "updated-page"
+
+
 def test_sync_reports_release_progress_while_processing_repo(tmp_path: Path):
     from backend.storage import JsonStore
     from backend.sync import run_sync_once

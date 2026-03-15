@@ -28,11 +28,32 @@ DEFAULT_ASSISTANT_CONFIG = {
     },
 }
 
+DEFAULT_LLM_CONFIG = {
+    "active_provider": "",
+    "reasoning_effort": "",
+    "disable_response_storage": None,
+    "packy": {
+        "api_key": "",
+        "provider": "",
+        "api_url": "",
+        "model": "",
+        "protocol": "",
+    },
+    "openai": {
+        "api_key": "",
+        "provider": "OpenAI",
+        "api_url": "",
+        "model": "",
+        "protocol": "",
+    },
+}
+
 DEFAULT_CONFIG = {
     "sync_interval_minutes": 60,
     "sync_concurrency": 4,
     "sync_source_timeout_seconds": 240,
     "assistant": DEFAULT_ASSISTANT_CONFIG,
+    "llm": DEFAULT_LLM_CONFIG,
 }
 
 DEFAULT_STATE = {
@@ -90,6 +111,10 @@ class JsonStore:
         return self.base_dir / "daily_project_summaries.json"
 
     @property
+    def docs_snapshots_path(self) -> Path:
+        return self.base_dir / "docs_snapshots.json"
+
+    @property
     def state_path(self) -> Path:
         return self.base_dir / "state.json"
 
@@ -101,6 +126,7 @@ class JsonStore:
             "projects": [normalize_project_record(item) for item in self._load_json(self.projects_path, [])],
             "crawl_profiles": self._load_json(self.crawl_profiles_path, {}),
             "daily_project_summaries": self._load_json(self.daily_project_summaries_path, {}),
+            "docs_snapshots": self._load_json(self.docs_snapshots_path, {}),
             "state": self._load_json(self.state_path, DEFAULT_STATE),
         }
 
@@ -147,6 +173,12 @@ class JsonStore:
     def save_daily_project_summaries(self, summaries: dict) -> None:
         self._write_json(self.daily_project_summaries_path, summaries)
 
+    def load_docs_snapshots(self) -> dict:
+        return self._load_json(self.docs_snapshots_path, {})
+
+    def save_docs_snapshots(self, payload: dict) -> None:
+        self._write_json(self.docs_snapshots_path, payload)
+
     def load_sync_runs(self) -> dict:
         return self._load_json(self.sync_runs_path, {"runs": []})
 
@@ -176,15 +208,35 @@ class JsonStore:
 def normalize_config(config: dict | None) -> dict:
     config = config or {}
     assistant = config.get("assistant") or {}
-    default_mode = assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"])
-    if default_mode != "live":
-        default_mode = "live"
+    llm = config.get("llm") or {}
     return {
         "sync_interval_minutes": config.get("sync_interval_minutes", DEFAULT_CONFIG["sync_interval_minutes"]),
         "sync_concurrency": config.get("sync_concurrency", DEFAULT_CONFIG["sync_concurrency"]),
         "sync_source_timeout_seconds": config.get(
             "sync_source_timeout_seconds", DEFAULT_CONFIG["sync_source_timeout_seconds"]
         ),
+        "llm": {
+            "active_provider": _normalize_active_provider(llm.get("active_provider")),
+            "reasoning_effort": llm.get("reasoning_effort", DEFAULT_LLM_CONFIG["reasoning_effort"]),
+            "disable_response_storage": _normalize_bool(
+                llm.get("disable_response_storage"),
+                DEFAULT_LLM_CONFIG["disable_response_storage"],
+            ),
+            "packy": {
+                "api_key": (llm.get("packy") or {}).get("api_key", DEFAULT_LLM_CONFIG["packy"]["api_key"]),
+                "provider": (llm.get("packy") or {}).get("provider", DEFAULT_LLM_CONFIG["packy"]["provider"]),
+                "api_url": (llm.get("packy") or {}).get("api_url", DEFAULT_LLM_CONFIG["packy"]["api_url"]),
+                "model": (llm.get("packy") or {}).get("model", DEFAULT_LLM_CONFIG["packy"]["model"]),
+                "protocol": (llm.get("packy") or {}).get("protocol", DEFAULT_LLM_CONFIG["packy"]["protocol"]),
+            },
+            "openai": {
+                "api_key": (llm.get("openai") or {}).get("api_key", DEFAULT_LLM_CONFIG["openai"]["api_key"]),
+                "provider": (llm.get("openai") or {}).get("provider", DEFAULT_LLM_CONFIG["openai"]["provider"]),
+                "api_url": (llm.get("openai") or {}).get("api_url", DEFAULT_LLM_CONFIG["openai"]["api_url"]),
+                "model": (llm.get("openai") or {}).get("model", DEFAULT_LLM_CONFIG["openai"]["model"]),
+                "protocol": (llm.get("openai") or {}).get("protocol", DEFAULT_LLM_CONFIG["openai"]["protocol"]),
+            },
+        },
         "assistant": {
             "enabled": assistant.get("enabled", DEFAULT_ASSISTANT_CONFIG["enabled"]),
             "default_mode": default_mode,
@@ -233,3 +285,20 @@ def normalize_config(config: dict | None) -> dict:
             },
         },
     }
+
+
+def _normalize_bool(value, default: bool | None) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    if value is None:
+        return default
+    return bool(value)
+
+
+def _normalize_active_provider(value) -> str:
+    if not isinstance(value, str):
+        return DEFAULT_LLM_CONFIG["active_provider"]
+    candidate = value.strip().lower()
+    return candidate if candidate in {"packy", "openai"} else DEFAULT_LLM_CONFIG["active_provider"]

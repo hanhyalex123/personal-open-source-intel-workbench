@@ -197,9 +197,14 @@ def test_crawl_profile_endpoint_reads_and_updates_profile(tmp_path: Path):
     assert snapshot["crawl_profiles"]["openclaw"]["allowed_path_prefixes"] == ["/docs", "/guide"]
 
 
-def test_config_endpoint_reads_and_updates_assistant_settings(tmp_path: Path):
+def test_config_endpoint_reads_and_updates_assistant_settings(tmp_path: Path, monkeypatch):
     from backend.app import create_app
     from backend.storage import JsonStore
+
+    monkeypatch.setenv("PACKY_API_KEY", "gateway-key")
+    monkeypatch.setenv("PACKY_API_URL", "http://127.0.0.1:8080/v1/messages")
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("OPENAI_API_URL", "https://code.swpumc.cn/v1/responses")
 
     store = JsonStore(tmp_path)
     app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
@@ -210,6 +215,17 @@ def test_config_endpoint_reads_and_updates_assistant_settings(tmp_path: Path):
         "/api/config",
         json={
             "sync_interval_minutes": 30,
+            "llm": {
+                "active_provider": "openai",
+                "reasoning_effort": "xhigh",
+                "disable_response_storage": True,
+                "openai": {
+                    "provider": "OpenAI",
+                    "api_url": "https://code.swpumc.cn/v1/responses",
+                    "model": "gpt-5.4",
+                    "protocol": "openai-responses",
+                },
+            },
             "assistant": {
                 "enabled": True,
                 "default_project_ids": ["openclaw"],
@@ -232,9 +248,39 @@ def test_config_endpoint_reads_and_updates_assistant_settings(tmp_path: Path):
     snapshot = store.load_all()
 
     assert get_response.status_code == 200
+    assert get_response.get_json()["llm"]["active_provider"] == "packy"
+    assert get_response.get_json()["llm"]["packy"]["api_key_configured"] is True
+    assert get_response.get_json()["llm"]["packy"]["api_url"] == "http://127.0.0.1:8080/v1/messages"
+    assert get_response.get_json()["llm"]["openai"]["api_key_configured"] is True
     assert get_response.get_json()["assistant"]["enabled"] is True
     assert get_response.get_json()["assistant"]["default_timeframe"] == "14d"
     assert put_response.status_code == 200
     assert snapshot["config"]["sync_interval_minutes"] == 30
+    assert snapshot["config"]["llm"]["active_provider"] == "openai"
+    assert snapshot["config"]["llm"]["reasoning_effort"] == "xhigh"
+    assert snapshot["config"]["llm"]["openai"]["model"] == "gpt-5.4"
     assert snapshot["config"]["assistant"]["default_project_ids"] == ["openclaw"]
     assert snapshot["config"]["assistant"]["retrieval"]["docs_weight"] == 1.4
+
+
+def test_config_endpoint_auto_selects_openai_when_only_openai_env_is_configured(tmp_path: Path, monkeypatch):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    monkeypatch.delenv("PACKY_API_KEY", raising=False)
+    monkeypatch.delenv("PACKY_API_URL", raising=False)
+    monkeypatch.delenv("PACKY_MODEL", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-key")
+    monkeypatch.setenv("OPENAI_API_URL", "https://code.swpumc.cn/v1/responses")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4")
+    monkeypatch.setenv("OPENAI_PROTOCOL", "openai-responses")
+
+    store = JsonStore(tmp_path)
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.get("/api/config")
+
+    assert response.status_code == 200
+    assert response.get_json()["llm"]["active_provider"] == "openai"
+    assert response.get_json()["llm"]["openai"]["api_key_configured"] is True

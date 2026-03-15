@@ -243,6 +243,25 @@ const projectsPayload = [
 
 const configPayload = {
   sync_interval_minutes: 60,
+  llm: {
+    active_provider: "packy",
+    reasoning_effort: "xhigh",
+    disable_response_storage: true,
+    packy: {
+      provider: "primary-gateway",
+      api_url: "https://gateway.example.com/v1/messages",
+      model: "claude-opus-4-6",
+      protocol: "",
+      api_key_configured: true,
+    },
+    openai: {
+      provider: "OpenAI",
+      api_url: "https://code.swpumc.cn/v1/responses",
+      model: "gpt-5.4",
+      protocol: "openai-responses",
+      api_key_configured: true,
+    },
+  },
   assistant: {
     enabled: true,
     default_mode: "live",
@@ -393,88 +412,247 @@ const syncRunDetailPayload = {
   ],
 };
 
+const docsProjectsPayload = [
+  {
+    project_id: "kubernetes",
+    project_name: "Kubernetes",
+    docs_url: "https://kubernetes.io/zh-cn/docs/home/",
+    page_count: 12,
+    last_synced_at: "2026-03-12T10:00:00Z",
+    latest_initial_read: {
+      id: "docs-feed:kubernetes:initial",
+      event_kind: "docs_initial_read",
+      title_zh: "Kubernetes 首次文档解读",
+      summary_zh: "覆盖网络与升级章节。",
+      published_at: "2026-03-11T09:00:00Z",
+      changed_page_count: 3,
+    },
+    latest_diff_update: {
+      id: "docs-feed:kubernetes:diff",
+      event_kind: "docs_diff_update",
+      title_zh: "Kubernetes 网络文档更新",
+      summary_zh: "更新了网络策略说明。",
+      published_at: "2026-03-12T10:00:00Z",
+      changed_page_count: 1,
+    },
+  },
+];
+
+const docsProjectDetailPayload = {
+  project_id: "kubernetes",
+  project_name: "Kubernetes",
+  docs_url: "https://kubernetes.io/zh-cn/docs/home/",
+  page_count: 12,
+  last_synced_at: "2026-03-12T10:00:00Z",
+  initial_read: {
+    id: "docs-feed:kubernetes:initial",
+    event_kind: "docs_initial_read",
+    title_zh: "Kubernetes 首次文档解读",
+    summary_zh: "覆盖网络与升级章节。",
+    published_at: "2026-03-11T09:00:00Z",
+    analysis_mode: "initial_read",
+    changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "added" }],
+  },
+  latest_update: {
+    id: "docs-feed:kubernetes:diff",
+    event_kind: "docs_diff_update",
+    title_zh: "Kubernetes 网络文档更新",
+    summary_zh: "更新了网络策略说明。",
+    published_at: "2026-03-12T10:00:00Z",
+    analysis_mode: "diff_update",
+    changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "changed" }],
+  },
+  recent_events: [],
+  page_stats: {
+    total_pages: 12,
+    changed_pages: 1,
+    last_synced_at: "2026-03-12T10:00:00Z",
+  },
+};
+
+const docsEventsPayload = [
+  {
+    id: "docs-feed:kubernetes:diff",
+    event_kind: "docs_diff_update",
+    title_zh: "Kubernetes 网络文档更新",
+    summary_zh: "更新了网络策略说明。",
+    published_at: "2026-03-12T10:00:00Z",
+    urgency: "high",
+    doc_summary: "本次主要补充网络策略默认行为。",
+    doc_key_points: ["建议先看 network policy 章节"],
+    diff_highlights: ["新增默认行为说明"],
+    reading_guide: ["先读 Network 页面 diff"],
+    changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "changed" }],
+  },
+  {
+    id: "docs-feed:kubernetes:initial",
+    event_kind: "docs_initial_read",
+    title_zh: "Kubernetes 首次文档解读",
+    summary_zh: "覆盖网络与升级章节。",
+    published_at: "2026-03-11T09:00:00Z",
+    urgency: "medium",
+    doc_summary: "先关注网络与升级章节。",
+    doc_key_points: ["阅读文档入口"],
+    diff_highlights: [],
+    reading_guide: ["先读网络章节"],
+    changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "added" }],
+  },
+];
+
+const docsPagesPayload = [
+  {
+    id: "network-page",
+    title: "Network",
+    summary: "网络策略与 CNI 行为。",
+    category: "网络",
+    extractor_hint: "furo",
+    latest_change: { change_type: "changed" },
+    is_recently_changed: true,
+  },
+];
+
+const docsPageDiffPayload = {
+  page: docsPagesPayload[0],
+  latest_diff: {
+    change_type: "changed",
+    added_blocks: ["新增默认行为说明。"],
+    removed_blocks: ["删除旧版提示。"],
+  },
+  history: [],
+};
+
+function createFetchMock({
+  docsProjects = docsProjectsPayload,
+  docsProjectDetail = docsProjectDetailPayload,
+  docsEvents = docsEventsPayload,
+  docsPages = docsPagesPayload,
+  docsPageDiff = docsPageDiffPayload,
+  docsPageDiffById = null,
+} = {}) {
+  return vi.fn((url, options) => {
+    const requestUrl = String(url);
+
+    if (requestUrl.includes("/api/dashboard")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(dashboardPayload),
+      });
+    }
+
+    const pageDiffMatch = requestUrl.match(/\/api\/docs\/projects\/kubernetes\/pages\/([^/]+)\/diff$/);
+    if (pageDiffMatch) {
+      const payload = docsPageDiffById?.[pageDiffMatch[1]] || docsPageDiff;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(payload),
+      });
+    }
+
+    if (requestUrl.includes("/api/docs/projects/kubernetes/pages")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(docsPages),
+      });
+    }
+
+    if (requestUrl.includes("/api/docs/projects/kubernetes/events")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(docsEvents),
+      });
+    }
+
+    if (requestUrl.includes("/api/docs/projects/kubernetes")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(docsProjectDetail),
+      });
+    }
+
+    if (requestUrl.includes("/api/docs/projects")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(docsProjects),
+      });
+    }
+
+    if (requestUrl.includes("/api/projects") && !options?.method) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(projectsPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/config") && !options?.method) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(configPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/projects") && options?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            id: "codex",
+            name: "Codex",
+            github_url: "https://github.com/openai/codex",
+            docs_url: "https://platform.openai.com/docs",
+          }),
+      });
+    }
+
+    if (requestUrl.includes("/api/sync") && options?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        status: 202,
+        json: () => Promise.resolve(syncStatusPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/sync/status")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(syncStatusPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/sync/runs/") && !requestUrl.endsWith("/api/sync/runs")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(syncRunDetailPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/sync/runs")) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(syncRunsPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/assistant/query") && options?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(assistantPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/config") && options?.method === "PUT") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(configPayload),
+      });
+    }
+
+    return Promise.reject(new Error(`unexpected request: ${url}`));
+  });
+}
+
 describe("App", () => {
   beforeEach(() => {
-    global.fetch = vi.fn((url, options) => {
-      if (String(url).includes("/api/dashboard")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(dashboardPayload),
-        });
-      }
-
-      if (String(url).includes("/api/projects") && !options?.method) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(projectsPayload),
-        });
-      }
-
-      if (String(url).includes("/api/config") && !options?.method) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(configPayload),
-        });
-      }
-
-      if (String(url).includes("/api/projects") && options?.method === "POST") {
-        return Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              id: "codex",
-              name: "Codex",
-              github_url: "https://github.com/openai/codex",
-              docs_url: "https://platform.openai.com/docs",
-            }),
-        });
-      }
-
-      if (String(url).includes("/api/sync") && options?.method === "POST") {
-        return Promise.resolve({
-          ok: true,
-          status: 202,
-          json: () => Promise.resolve(syncStatusPayload),
-        });
-      }
-
-      if (String(url).includes("/api/sync/status")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(syncStatusPayload),
-        });
-      }
-
-      if (String(url).includes("/api/sync/runs/") && !String(url).endsWith("/api/sync/runs")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(syncRunDetailPayload),
-        });
-      }
-
-      if (String(url).includes("/api/sync/runs")) {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(syncRunsPayload),
-        });
-      }
-
-      if (String(url).includes("/api/assistant/query") && options?.method === "POST") {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(assistantPayload),
-        });
-      }
-
-      if (String(url).includes("/api/config") && options?.method === "PUT") {
-        return Promise.resolve({
-          ok: true,
-          json: () => Promise.resolve(configPayload),
-        });
-      }
-
-      return Promise.reject(new Error(`unexpected request: ${url}`));
-    });
+    global.fetch = createFetchMock();
   });
 
   it("renders Chinese insight cards and stable labels from backend data", async () => {
@@ -491,6 +669,7 @@ describe("App", () => {
     expect(screen.getAllByText("日报").length).toBeGreaterThan(0);
     expect(screen.getAllByText("情报监控").length).toBeGreaterThan(0);
     expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("文档解读").length).toBeGreaterThan(0);
     expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
     expect(screen.getByText("情报值班台")).toBeInTheDocument();
@@ -553,6 +732,16 @@ describe("App", () => {
     expect(screen.getByText("优先验证。")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "架构" }));
     expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "打开文档视图" })[0]);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "文档解读", level: 1 })).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByText("当前页面快照")).toBeInTheDocument();
+    });
+    expect(screen.getAllByText("Kubernetes 网络文档更新").length).toBeGreaterThan(0);
+    expect(screen.getByText("新增默认行为说明。")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "AI工具" }));
     expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();
 
@@ -562,6 +751,7 @@ describe("App", () => {
     expect(screen.getAllByText("AI工具").length).toBeGreaterThan(0);
     expect(screen.getAllByText("大模型推理部署").length).toBeGreaterThan(0);
     expect(screen.getByText("新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。")).toBeInTheDocument();
+    expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
     expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
     expect(screen.queryByLabelText("默认模式")).not.toBeInTheDocument();
@@ -600,6 +790,158 @@ describe("App", () => {
     expect(screen.getByText("同步雷达")).toBeInTheDocument();
   });
 
+  it("shows dedicated docs view in navigation", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "文档解读" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "文档解读", level: 1 })).toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("当前页面快照")).toBeInTheDocument();
+    });
+    expect(screen.getByText("文档事件流")).toBeInTheDocument();
+    expect(screen.getByText("最近更新 diff")).toBeInTheDocument();
+  });
+
+  it("keeps initial-read pages stable and uses linked page ids for selection", async () => {
+    const initialOnlyPages = [
+      {
+        id: "storage-page",
+        title: "Storage",
+        summary: "存储章节概览。",
+        category: "存储",
+        extractor_hint: "furo",
+        latest_change: null,
+        is_recently_changed: false,
+      },
+      {
+        id: "network-page",
+        title: "Network",
+        summary: "网络策略与 CNI 行为。",
+        category: "网络",
+        extractor_hint: "furo",
+        latest_change: null,
+        is_recently_changed: false,
+      },
+    ];
+    const initialOnlyDetail = {
+      ...docsProjectDetailPayload,
+      latest_update: null,
+      page_stats: {
+        total_pages: 2,
+        changed_pages: 0,
+        last_synced_at: "2026-03-12T10:00:00Z",
+      },
+      initial_read: {
+        ...docsProjectDetailPayload.initial_read,
+        changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "added" }],
+      },
+    };
+    const initialOnlyEvents = [
+      {
+        id: "docs-feed:kubernetes:initial",
+        event_kind: "docs_initial_read",
+        title_zh: "Kubernetes 首次文档解读",
+        summary_zh: "覆盖网络与存储章节。",
+        published_at: "2026-03-11T09:00:00Z",
+        urgency: "medium",
+        doc_summary: "先关注网络与存储章节。",
+        doc_key_points: ["阅读文档入口"],
+        diff_highlights: [],
+        reading_guide: ["先读网络章节"],
+        changed_pages: [{ page_id: "network-page", title_after: "Network", change_type: "added" }],
+      },
+    ];
+
+    global.fetch = createFetchMock({
+      docsProjectDetail: initialOnlyDetail,
+      docsEvents: initialOnlyEvents,
+      docsPages: initialOnlyPages,
+      docsPageDiffById: {
+        "network-page": {
+          page: initialOnlyPages[1],
+          latest_diff: null,
+          history: [],
+        },
+        "storage-page": {
+          page: initialOnlyPages[0],
+          latest_diff: null,
+          history: [],
+        },
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "文档解读" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "文档解读", level: 1 })).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Network", level: 3 })).toBeInTheDocument();
+    });
+
+    const pagesPanel = screen.getByText("当前页面快照").closest("section");
+    expect(within(pagesPanel).getAllByText("稳定")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("button", { name: /Storage/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Storage", level: 3 })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Network.*新增/ }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Network", level: 3 })).toBeInTheDocument();
+    });
+  });
+
+  it("renders structured docs highlights and reading guides from live analyses", async () => {
+    global.fetch = createFetchMock({
+      docsEvents: [
+        {
+          ...docsEventsPayload[0],
+          diff_highlights: [
+            { highlight: "首读只覆盖首页，需要继续补抓 Security 页面。", page_id: "network-page", title: "Incus" },
+          ],
+          reading_guide: [
+            { step: 1, focus: "先读 Incus 首页", reason: "建立产品定位" },
+            { step: 2, focus: "再读 Security", reason: "确认安全边界" },
+          ],
+        },
+      ],
+      docsProjectDetail: {
+        ...docsProjectDetailPayload,
+        recent_events: [],
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "文档解读" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("首读只覆盖首页，需要继续补抓 Security 页面。")).toBeInTheDocument();
+    });
+    expect(screen.getByText("先读 Incus 首页：建立产品定位")).toBeInTheDocument();
+    expect(screen.getByText("再读 Security：确认安全边界")).toBeInTheDocument();
+  });
+
   it("creates a project from github and docs urls", async () => {
     render(<App />);
 
@@ -627,7 +969,51 @@ describe("App", () => {
     });
   });
 
-  it("submits AI console query and renders a live markdown research report", async () => {
+  it("submits AI capability settings with provider switching", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("当前主供应商"), {
+      target: { value: "openai" },
+    });
+    fireEvent.change(screen.getByLabelText("OpenAI 模型"), {
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.change(screen.getByLabelText("OpenAI 协议"), {
+      target: { value: "openai-responses" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存 AI 配置" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/config",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
+    });
+
+    const updateCall = global.fetch.mock.calls.find(
+      ([url, options]) => url === "/api/config" && options?.method === "PUT",
+    );
+    const payload = JSON.parse(updateCall[1].body);
+
+    expect(payload.llm.active_provider).toBe("openai");
+    expect(payload.llm.openai.model).toBe("gpt-5.4");
+    expect(payload.llm.openai.protocol).toBe("openai-responses");
+    expect(payload.llm.disable_response_storage).toBe(true);
+  });
+
+  it("submits AI console query with local filters and renders answer evidence and sources", async () => {
     render(<App />);
 
     await waitFor(() => {

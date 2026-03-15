@@ -121,3 +121,53 @@ export async function queryAssistant(payload) {
   }
   return response.json();
 }
+
+export async function fetchDocsProjects(signal) {
+  const response = await fetch("/api/docs/projects", { signal });
+  if (!response.ok) {
+    throw new Error(`docs projects request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchDocsProject(projectId, signal) {
+  const response = await fetch(`/api/docs/projects/${encodeURIComponent(projectId)}`, { signal });
+  if (!response.ok) {
+    throw new Error(`docs project request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchDocsEvents(projectId, mode = "", signal) {
+  const params = new URLSearchParams();
+  if (mode) {
+    params.set("mode", mode);
+  }
+  const response = await fetch(
+    `/api/docs/projects/${encodeURIComponent(projectId)}/events${params.toString() ? `?${params.toString()}` : ""}`,
+    { signal },
+  );
+  if (!response.ok) {
+    throw new Error(`docs events request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchDocsPages(projectId, signal) {
+  const response = await fetch(`/api/docs/projects/${encodeURIComponent(projectId)}/pages`, { signal });
+  if (!response.ok) {
+    throw new Error(`docs pages request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchDocsPageDiff(projectId, pageId, signal) {
+  const response = await fetch(
+    `/api/docs/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(pageId)}/diff`,
+    { signal },
+  );
+  if (!response.ok) {
+    throw new Error(`docs page diff request failed: ${response.status}`);
+  }
+  return response.json();
+}

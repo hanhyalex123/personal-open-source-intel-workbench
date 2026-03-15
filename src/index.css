@@ -1908,6 +1908,81 @@ a {
   width: auto;
 }
 
+.settings-inline-note {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  background: rgba(238, 247, 242, 0.82);
+}
+
+.settings-inline-note strong {
+  font-size: 14px;
+}
+
+.settings-inline-note span {
+  font-size: 13px;
+  color: rgba(16, 34, 29, 0.62);
+}
+
+.llm-provider-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.llm-provider-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.llm-provider-card--active {
+  border-color: rgba(31, 106, 82, 0.34);
+  box-shadow: inset 0 0 0 1px rgba(31, 106, 82, 0.14);
+  background: linear-gradient(180deg, rgba(239, 249, 244, 0.96), rgba(255, 255, 255, 0.82));
+}
+
+.llm-provider-card__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.llm-provider-card__header h3 {
+  margin: 8px 0 0;
+  font-size: 24px;
+}
+
+.llm-provider-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(16, 34, 29, 0.08);
+  color: rgba(16, 34, 29, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.llm-provider-card__copy {
+  margin: 0;
+  color: rgba(16, 34, 29, 0.62);
+  line-height: 1.6;
+}
+
+.llm-provider-card__form {
+  grid-template-columns: 1fr;
+}
+
 .assistant-response-panel {
   min-height: 100%;
 }
@@ -2302,6 +2377,7 @@ a {
   .sync-monitor-intro--cover,
   .project-form,
   .assistant-config-form,
+  .llm-provider-grid,
   .project-admin__list,
   .intel-grid,
   .category-grid,
@@ -2370,12 +2446,234 @@ a {
     flex-direction: column;
   }
 
+  .llm-provider-card__header {
+    align-items: start;
+    flex-direction: column;
+  }
+
   .project-outline {
     position: static;
   }
 
-  .coverage-card__metric-grid {
+.coverage-card__metric-grid {
     grid-template-columns: 1fr;
     width: 100%;
+  }
+}
+
+.docs-workbench-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.docs-workbench-intro {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 28px;
+  border: 1px solid rgba(88, 108, 98, 0.18);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at top left, rgba(188, 214, 178, 0.22), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(244, 248, 242, 0.94));
+}
+
+.docs-workbench-intro h2,
+.docs-project-rail__inner h3,
+.docs-events-panel__header h3,
+.docs-event-detail__header h3,
+.docs-page-diff__header h3,
+.docs-digest-card h3 {
+  margin: 0;
+}
+
+.docs-workbench-intro p:last-child,
+.docs-digest-card p,
+.docs-event-detail__summary,
+.docs-pages-list__item p,
+.docs-events-list__item p,
+.docs-page-diff p {
+  margin: 0;
+  color: #46544f;
+}
+
+.docs-mode-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.docs-workbench-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 20px;
+}
+
+.docs-project-rail__inner,
+.docs-digest-card,
+.docs-stat-strip,
+.docs-events-panel,
+.docs-event-detail,
+.docs-pages-panel,
+.docs-page-diff {
+  border: 1px solid rgba(88, 108, 98, 0.16);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 18px 44px rgba(55, 78, 66, 0.08);
+}
+
+.docs-project-rail__inner,
+.docs-events-panel,
+.docs-event-detail,
+.docs-pages-panel,
+.docs-page-diff {
+  padding: 22px;
+}
+
+.docs-project-rail__list,
+.docs-events-list,
+.docs-pages-list,
+.docs-linked-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.docs-project-rail__item,
+.docs-events-list__item,
+.docs-pages-list__item,
+.docs-linked-pages button {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid rgba(102, 129, 115, 0.14);
+  border-radius: 18px;
+  background: rgba(247, 249, 246, 0.92);
+  color: inherit;
+  text-align: left;
+}
+
+.docs-project-rail__item strong,
+.docs-events-list__item strong,
+.docs-pages-list__item strong,
+.docs-linked-pages strong,
+.docs-digest-card strong,
+.docs-stat-strip strong {
+  color: #21332b;
+}
+
+.docs-project-rail__item span,
+.docs-events-list__item span,
+.docs-pages-list__item span,
+.docs-digest-card__header span,
+.docs-page-diff__meta span,
+.docs-event-detail__meta span {
+  color: #5b6c64;
+  font-size: 0.9rem;
+}
+
+.docs-project-rail__item--active,
+.docs-events-list__item--active,
+.docs-pages-list__item--active {
+  border-color: rgba(63, 111, 84, 0.34);
+  background: linear-gradient(135deg, rgba(214, 235, 214, 0.76), rgba(247, 249, 246, 0.96));
+}
+
+.docs-workbench-main,
+.docs-analysis-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.docs-digest-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.docs-digest-card {
+  padding: 22px;
+}
+
+.docs-digest-card__header,
+.docs-events-panel__header,
+.docs-page-diff__header,
+.docs-event-detail__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.docs-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 18px 22px;
+}
+
+.docs-stat-strip div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.docs-stat-strip span {
+  color: #5b6c64;
+  font-size: 0.9rem;
+}
+
+.docs-analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1.12fr);
+  gap: 20px;
+}
+
+.docs-event-detail,
+.docs-page-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.docs-copy-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: rgba(247, 249, 246, 0.9);
+}
+
+.docs-copy-block h4 {
+  margin: 0;
+}
+
+.docs-copy-block ul,
+.docs-copy-block ol {
+  margin: 0;
+  padding-left: 18px;
+  color: #3d4f46;
+}
+
+.docs-page-diff__columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 1100px) {
+  .docs-workbench-layout,
+  .docs-analysis-grid,
+  .docs-digest-grid,
+  .docs-page-diff__columns,
+  .docs-stat-strip {
+    grid-template-columns: 1fr;
   }
 }
