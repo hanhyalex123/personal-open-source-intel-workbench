@@ -29,6 +29,7 @@ def build_incremental_sync_runner(store, now_provider=None):
         now_iso = _now_iso()
         snapshot = store.load_all()
         config = snapshot.get("config") or {}
+        llm_config = config.get("llm")
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
         result = run_sync_once(
             store=store,
@@ -36,7 +37,7 @@ def build_incremental_sync_runner(store, now_provider=None):
             feeds=feeds,
             release_fetcher=fetch_github_releases,
             feed_fetcher=fetch_feed_entries,
-            analyzer=analyze_event,
+            analyzer=lambda event: analyze_event(event, llm_config=llm_config),
             event_enricher=enrich_event_for_analysis,
             now_iso=now_iso,
             progress_callback=progress_callback,
@@ -64,6 +65,7 @@ def build_daily_digest_runner(store, now_provider=None):
         summary_date = datetime.fromisoformat(now_iso.replace("Z", "+00:00")).astimezone(LOCAL_TIMEZONE).date().isoformat()
         snapshot = store.load_all()
         config = snapshot.get("config") or {}
+        llm_config = config.get("llm")
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
         if feeds:
             run_sync_once(
@@ -72,7 +74,7 @@ def build_daily_digest_runner(store, now_provider=None):
                 feeds=feeds,
                 release_fetcher=fetch_github_releases,
                 feed_fetcher=fetch_feed_entries,
-                analyzer=analyze_event,
+                analyzer=lambda event: analyze_event(event, llm_config=llm_config),
                 event_enricher=enrich_event_for_analysis,
                 now_iso=now_iso,
                 progress_callback=progress_callback,
@@ -94,7 +96,7 @@ def build_daily_digest_runner(store, now_provider=None):
             snapshot=snapshot,
             summary_date=summary_date,
             now_iso=now_iso,
-            summarizer=summarize_project_daily_intel,
+            summarizer=lambda **kwargs: summarize_project_daily_intel(llm_config=llm_config, **kwargs),
         )
         merged = merge_daily_project_summaries(snapshot.get("daily_project_summaries"), summaries)
         store.save_daily_project_summaries(merged)

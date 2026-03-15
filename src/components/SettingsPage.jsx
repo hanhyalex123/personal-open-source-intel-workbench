@@ -16,6 +16,27 @@ export default function SettingsPage({
   onProjectMetadataSave,
   onConfigSave,
 }) {
+  const [llmForm, setLlmForm] = useState({
+    activeProvider: "packy",
+    reasoningEffort: "",
+    disableResponseStorage: false,
+    packy: {
+      apiKey: "",
+      provider: "",
+      apiUrl: "",
+      model: "",
+      protocol: "",
+      apiKeyConfigured: false,
+    },
+    openai: {
+      apiKey: "",
+      provider: "OpenAI",
+      apiUrl: "",
+      model: "",
+      protocol: "",
+      apiKeyConfigured: false,
+    },
+  });
   const [assistantForm, setAssistantForm] = useState({
     enabled: true,
     defaultMode: "hybrid",
@@ -33,6 +54,27 @@ export default function SettingsPage({
   });
 
   useEffect(() => {
+    setLlmForm({
+      activeProvider: config?.llm?.active_provider || "packy",
+      reasoningEffort: config?.llm?.reasoning_effort || "",
+      disableResponseStorage: config?.llm?.disable_response_storage ?? false,
+      packy: {
+        apiKey: config?.llm?.packy?.api_key || "",
+        provider: config?.llm?.packy?.provider || "",
+        apiUrl: config?.llm?.packy?.api_url || "",
+        model: config?.llm?.packy?.model || "",
+        protocol: config?.llm?.packy?.protocol || "",
+        apiKeyConfigured: config?.llm?.packy?.api_key_configured ?? false,
+      },
+      openai: {
+        apiKey: config?.llm?.openai?.api_key || "",
+        provider: config?.llm?.openai?.provider || "OpenAI",
+        apiUrl: config?.llm?.openai?.api_url || "",
+        model: config?.llm?.openai?.model || "",
+        protocol: config?.llm?.openai?.protocol || "",
+        apiKeyConfigured: config?.llm?.openai?.api_key_configured ?? false,
+      },
+    });
     setAssistantForm({
       enabled: config?.assistant?.enabled ?? true,
       defaultMode: config?.assistant?.default_mode || "hybrid",
@@ -49,6 +91,31 @@ export default function SettingsPage({
       answerPrompt: config?.assistant?.prompts?.answer || "",
     });
   }, [config]);
+
+  async function handleLlmSubmit(event) {
+    event.preventDefault();
+    await onConfigSave({
+      llm: {
+        active_provider: llmForm.activeProvider,
+        reasoning_effort: llmForm.reasoningEffort,
+        disable_response_storage: llmForm.disableResponseStorage,
+        packy: {
+          api_key: llmForm.packy.apiKey,
+          provider: llmForm.packy.provider,
+          api_url: llmForm.packy.apiUrl,
+          model: llmForm.packy.model,
+          protocol: llmForm.packy.protocol,
+        },
+        openai: {
+          api_key: llmForm.openai.apiKey,
+          provider: llmForm.openai.provider,
+          api_url: llmForm.openai.apiUrl,
+          model: llmForm.openai.model,
+          protocol: llmForm.openai.protocol,
+        },
+      },
+    });
+  }
 
   async function handleAssistantSubmit(event) {
     event.preventDefault();
@@ -77,6 +144,222 @@ export default function SettingsPage({
 
   return (
     <section className="settings-page">
+      <section className="settings-panel">
+        <div className="settings-panel__header">
+          <div>
+            <p className="section-kicker">AI Capability</p>
+            <h2>AI 能力管理</h2>
+          </div>
+          <p className="settings-panel__copy">切换当前主供应商，并维护 Packy / OpenAI 两套网关参数。未显式保存主供应商时，服务端会自动选择已配置好 API key 的通道；字段留空时继续沿用容器环境变量。</p>
+        </div>
+
+        <form className="assistant-config-form" onSubmit={handleLlmSubmit}>
+          <label>
+            <span>当前主供应商</span>
+            <select
+              aria-label="当前主供应商"
+              value={llmForm.activeProvider}
+              onChange={(event) => setLlmForm((current) => ({ ...current, activeProvider: event.target.value }))}
+            >
+              <option value="packy">Packy</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+
+          <label>
+            <span>推理强度</span>
+            <input
+              aria-label="推理强度"
+              value={llmForm.reasoningEffort}
+              onChange={(event) => setLlmForm((current) => ({ ...current, reasoningEffort: event.target.value }))}
+              placeholder="例如 xhigh"
+            />
+          </label>
+
+          <label className="assistant-config-form__toggle">
+            <input
+              type="checkbox"
+              checked={llmForm.disableResponseStorage}
+              onChange={(event) => setLlmForm((current) => ({ ...current, disableResponseStorage: event.target.checked }))}
+            />
+            <span>禁用响应存档</span>
+          </label>
+
+          <div className="settings-inline-note assistant-config-form__full">
+            <strong>{llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"} 当前作为主通道。</strong>
+            <span>未选中的另一套配置会作为备用通道参与 fallback；是否真正生效仍取决于服务端是否已配置对应 API key。</span>
+          </div>
+
+          <div className="llm-provider-grid assistant-config-form__full">
+            <section className={`llm-provider-card ${llmForm.activeProvider === "packy" ? "llm-provider-card--active" : ""}`}>
+              <div className="llm-provider-card__header">
+                <div>
+                  <p className="section-kicker">Provider A</p>
+                  <h3>Packy</h3>
+                </div>
+                <span className="llm-provider-card__badge">{llmForm.activeProvider === "packy" ? "主通道" : "备用"}</span>
+              </div>
+              <p className="llm-provider-card__copy">{llmForm.packy.apiKeyConfigured ? "Packy API key 已就绪，可直接作为主通道或备用通道。" : "Packy API key 尚未配置；留空时会继续尝试读取服务端环境变量。"}</p>
+              <div className="assistant-config-form llm-provider-card__form">
+                <label className="assistant-config-form__full">
+                  <span>Packy API Key</span>
+                  <input
+                    type="password"
+                    aria-label="Packy API Key"
+                    value={llmForm.packy.apiKey}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        packy: { ...current.packy, apiKey: event.target.value },
+                      }))
+                    }
+                    placeholder="留空时沿用 PACKY_API_KEY"
+                  />
+                </label>
+                <label>
+                  <span>Packy 供应商标识</span>
+                  <input
+                    aria-label="Packy 供应商标识"
+                    value={llmForm.packy.provider}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        packy: { ...current.packy, provider: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Packy API URL</span>
+                  <input
+                    aria-label="Packy API URL"
+                    value={llmForm.packy.apiUrl}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        packy: { ...current.packy, apiUrl: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Packy 模型</span>
+                  <input
+                    aria-label="Packy 模型"
+                    value={llmForm.packy.model}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        packy: { ...current.packy, model: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>Packy 协议</span>
+                  <input
+                    aria-label="Packy 协议"
+                    value={llmForm.packy.protocol}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        packy: { ...current.packy, protocol: event.target.value },
+                      }))
+                    }
+                    placeholder="例如 openai-chat"
+                  />
+                </label>
+              </div>
+            </section>
+
+            <section className={`llm-provider-card ${llmForm.activeProvider === "openai" ? "llm-provider-card--active" : ""}`}>
+              <div className="llm-provider-card__header">
+                <div>
+                  <p className="section-kicker">Provider B</p>
+                  <h3>OpenAI</h3>
+                </div>
+                <span className="llm-provider-card__badge">{llmForm.activeProvider === "openai" ? "主通道" : "备用"}</span>
+              </div>
+              <p className="llm-provider-card__copy">{llmForm.openai.apiKeyConfigured ? "OpenAI API key 已就绪，可直接切换为主通道。" : "OpenAI API key 尚未配置；留空时会继续尝试读取服务端 OPENAI_API_KEY。"}</p>
+              <div className="assistant-config-form llm-provider-card__form">
+                <label className="assistant-config-form__full">
+                  <span>OpenAI API Key</span>
+                  <input
+                    type="password"
+                    aria-label="OpenAI API Key"
+                    value={llmForm.openai.apiKey}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        openai: { ...current.openai, apiKey: event.target.value },
+                      }))
+                    }
+                    placeholder="留空时沿用 OPENAI_API_KEY"
+                  />
+                </label>
+                <label>
+                  <span>OpenAI 供应商标识</span>
+                  <input
+                    aria-label="OpenAI 供应商标识"
+                    value={llmForm.openai.provider}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        openai: { ...current.openai, provider: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>OpenAI API URL</span>
+                  <input
+                    aria-label="OpenAI API URL"
+                    value={llmForm.openai.apiUrl}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        openai: { ...current.openai, apiUrl: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>OpenAI 模型</span>
+                  <input
+                    aria-label="OpenAI 模型"
+                    value={llmForm.openai.model}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        openai: { ...current.openai, model: event.target.value },
+                      }))
+                    }
+                  />
+                </label>
+                <label>
+                  <span>OpenAI 协议</span>
+                  <input
+                    aria-label="OpenAI 协议"
+                    value={llmForm.openai.protocol}
+                    onChange={(event) =>
+                      setLlmForm((current) => ({
+                        ...current,
+                        openai: { ...current.openai, protocol: event.target.value },
+                      }))
+                    }
+                    placeholder="例如 openai-responses"
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <button className="primary-button" type="submit" disabled={savingConfig}>
+            {savingConfig ? "保存中..." : "保存 AI 配置"}
+          </button>
+        </form>
+      </section>
+
       <section className="settings-panel">
         <div className="settings-panel__header">
           <div>
