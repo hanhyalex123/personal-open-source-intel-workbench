@@ -3,7 +3,7 @@ import re
 from urllib.parse import urlparse
 
 from .llm import generate_live_research_report
-from .search import fetch_search_result_pages, search_web
+from .search import fetch_page_content, fetch_search_result_pages, search_web
 from .storage import normalize_config
 
 
@@ -23,6 +23,19 @@ def answer_query(*, snapshot: dict, payload: dict) -> dict:
         projects=project_index,
     )
     web_pages, search_trace = _retrieve_live_pages(plan, assistant_config)
+    if not web_pages:
+        cached_pages = _build_cached_pages(snapshot=snapshot, plan=plan)
+        if cached_pages:
+            web_pages = cached_pages
+            search_trace.append(
+                {
+                    "query": payload.get("query", ""),
+                    "url": "",
+                    "title": "cached_project_evidence",
+                    "fetch_mode": "cache_fallback",
+                    "matched_entity": plan["primary_entities"][0] if plan["primary_entities"] else "",
+                }
+            )
     evidence = _build_evidence(plan=plan, pages=web_pages, max_items=assistant_config["max_evidence_items"])
     sources = _build_sources(evidence=evidence, max_items=assistant_config["max_source_items"])
     report = _build_research_report(
@@ -42,6 +55,43 @@ def answer_query(*, snapshot: dict, payload: dict) -> dict:
         "applied_plan": plan,
         "applied_filters": filters,
     }
+
+
+def _build_cached_pages(*, snapshot: dict, plan: dict) -> list[dict]:
+    events = snapshot.get("events") or {}
+    analyses = snapshot.get("analyses") or {}
+    timeframe_cutoff = _timeframe_cutoff(plan.get("timeframe", ""))
+    candidate_project_ids = set(plan["primary_entities"] + plan["related_entities"])
+    cached_pages = []
+
+    for event_id, analysis in analyses.items():
+        event = events.get(event_id, {})
+        project_id = event.get("project_id")
+        if project_id not in candidate_project_ids:
+            continue
+        published_at = event.get("published_at")
+        if timeframe_cutoff and published_at:
+            published = _parse_datetime(published_at)
+            if published and published < timeframe_cutoff:
+                continue
+        cached_pages.append(
+            {
+                "title": analysis.get("title_zh") or event.get("title") or "",
+                "url": event.get("url", ""),
+                "excerpt": analysis.get("summary_zh") or event.get("title") or "",
+                "fetch_mode": "cache",
+                "source": event.get("source", "cache"),
+                "published_at": published_at,
+            }
+        )
+
+    cached_pages.sort(
+        key=lambda page: (
+            -_timestamp_for_sort(page.get("published_at")),
+            page.get("title", ""),
+        )
+    )
+    return cached_pages
 
 
 def _resolve_filters(payload: dict, assistant_config: dict) -> dict:
@@ -84,6 +134,7 @@ def _build_query_plan(*, query: str, filters: dict, projects: list[dict]) -> dic
         "must_include_terms": [project["display_name"] for project in primary_projects],
         "must_exclude_terms": [],
         "search_queries": search_queries,
+        "project_seed_pages": _build_project_seed_pages(primary_projects),
     }
 
 
@@ -93,9 +144,50 @@ def _retrieve_live_pages(plan: dict, assistant_config: dict) -> tuple[list[dict]
     trace = []
     seen_urls = set()
 
+    for seed in plan.get("project_seed_pages", []):
+        try:
+            page = fetch_page_content(seed["url"], title=seed["title"])
+            if page["url"] in seen_urls:
+                continue
+            seen_urls.add(page["url"])
+            pages.append({**page, "fetch_mode": "project_seed"})
+            trace.append(
+                {
+                    "query": seed["title"],
+                    "url": page["url"],
+                    "title": page["title"],
+                    "fetch_mode": "project_seed",
+                    "matched_entity": seed["project_id"],
+                }
+            )
+        except Exception as error:
+            trace.append(
+                {
+                    "query": seed["title"],
+                    "url": seed["url"],
+                    "title": seed["title"],
+                    "fetch_mode": "seed_error",
+                    "matched_entity": seed["project_id"],
+                    "error": str(error),
+                }
+            )
+
     for query in plan["search_queries"]:
-        results = search_web(query, max_results=live_search["max_results"])
-        fetched_pages = fetch_search_result_pages(results, max_pages=live_search["max_pages"])
+        try:
+            results = search_web(query, max_results=live_search["max_results"])
+            fetched_pages = fetch_search_result_pages(results, max_pages=live_search["max_pages"])
+        except Exception as error:
+            trace.append(
+                {
+                    "query": query,
+                    "url": "",
+                    "title": "",
+                    "fetch_mode": "search_error",
+                    "matched_entity": "",
+                    "error": str(error),
+                }
+            )
+            continue
         result_map = {item["url"]: item for item in results}
 
         for page in fetched_pages:
@@ -149,7 +241,23 @@ def _build_evidence(*, plan: dict, pages: list[dict], max_items: int) -> list[di
             item["title"],
         )
     )
-    return scored[:max_items]
+    selected = scored[:max_items]
+    if (
+        plan["related_entities"]
+        and selected
+        and not any(item["relation_to_query"] == "supports_primary_project" for item in selected)
+    ):
+        fallback = next((item for item in scored if item["relation_to_query"] == "supports_primary_project"), None)
+        if fallback and fallback not in selected:
+            selected = selected[:-1] + [fallback]
+            selected.sort(
+                key=lambda item: (
+                    -item["relevance_score"],
+                    -_timestamp_for_sort(item.get("published_at")),
+                    item["title"],
+                )
+            )
+    return selected
 
 
 def _score_page(page: dict, plan: dict) -> dict | None:
@@ -191,7 +299,7 @@ def _score_page(page: dict, plan: dict) -> dict | None:
         "id": page["url"],
         "title": page["title"],
         "summary": page["excerpt"],
-        "source": "web_search",
+        "source": page.get("source", "web_search"),
         "project_id": project_id,
         "project_name": _display_name(project_id),
         "category": "",
@@ -274,9 +382,38 @@ def _build_project_index(projects: list[dict]) -> list[dict]:
                 "id": project["id"],
                 "display_name": project.get("name", project["id"]),
                 "aliases": aliases,
+                "github_url": project.get("github_url", ""),
+                "docs_url": project.get("docs_url", ""),
+                "repo": repo,
             }
         )
     return index
+
+
+def _build_project_seed_pages(projects: list[dict]) -> list[dict]:
+    seeds = []
+    for project in projects:
+        github_url = project.get("github_url", "")
+        repo = project.get("repo", "")
+        if not github_url and repo:
+            github_url = f"https://github.com/{repo}"
+        if github_url:
+            seeds.append(
+                {
+                    "project_id": project["id"],
+                    "title": f"{project['display_name']} GitHub Releases",
+                    "url": f"{github_url.rstrip('/')}/releases",
+                }
+            )
+        if project.get("docs_url"):
+            seeds.append(
+                {
+                    "project_id": project["id"],
+                    "title": f"{project['display_name']} Documentation",
+                    "url": project["docs_url"],
+                }
+            )
+    return seeds
 
 
 def _build_search_queries(*, query: str, timeframe: str, primary_projects: list[dict], related_entities: list[str]) -> list[str]:
@@ -288,9 +425,7 @@ def _build_search_queries(*, query: str, timeframe: str, primary_projects: list[
         name = project["display_name"]
         queries.extend(
             [
-                f"{name} recent release notes {timeframe}",
                 f"{name} changelog {timeframe}",
-                f"{name} documentation updates {timeframe}",
             ]
         )
 
@@ -353,11 +488,28 @@ def _infer_matched_entity(page: dict, plan: dict) -> str:
 
 
 def _extract_published_at(page: dict) -> str | None:
+    if page.get("published_at"):
+        return page["published_at"]
     text = " ".join([page.get("title", ""), page.get("excerpt", "")])
     match = re.search(r"(20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)", text)
     if match:
         return match.group(1)
     return None
+
+
+def _timeframe_cutoff(value: str) -> datetime | None:
+    match = re.fullmatch(r"(\d+)([dwm])", (value or "").strip())
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = match.group(2)
+    if unit == "d":
+        delta = timedelta(days=amount)
+    elif unit == "w":
+        delta = timedelta(weeks=amount)
+    else:
+        delta = timedelta(days=30 * amount)
+    return datetime.now(UTC) - delta
 
 
 def _parse_datetime(value: str) -> datetime | None:

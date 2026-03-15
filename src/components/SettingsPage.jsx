@@ -18,7 +18,6 @@ export default function SettingsPage({
 }) {
   const [assistantForm, setAssistantForm] = useState({
     enabled: true,
-    defaultMode: "hybrid",
     defaultProjectId: "",
     defaultCategory: "",
     defaultTimeframe: "14d",
@@ -35,7 +34,6 @@ export default function SettingsPage({
   useEffect(() => {
     setAssistantForm({
       enabled: config?.assistant?.enabled ?? true,
-      defaultMode: config?.assistant?.default_mode || "hybrid",
       defaultProjectId: config?.assistant?.default_project_ids?.[0] || "",
       defaultCategory: config?.assistant?.default_categories?.[0] || "",
       defaultTimeframe: config?.assistant?.default_timeframe || "14d",
@@ -55,7 +53,7 @@ export default function SettingsPage({
     await onConfigSave({
       assistant: {
         enabled: assistantForm.enabled,
-        default_mode: assistantForm.defaultMode,
+        default_mode: "live",
         default_project_ids: assistantForm.defaultProjectId ? [assistantForm.defaultProjectId] : [],
         default_categories: assistantForm.defaultCategory ? [assistantForm.defaultCategory] : [],
         default_timeframe: assistantForm.defaultTimeframe,
@@ -94,19 +92,6 @@ export default function SettingsPage({
               onChange={(event) => setAssistantForm((current) => ({ ...current, enabled: event.target.checked }))}
             />
             <span>Assistant 已启用</span>
-          </label>
-
-          <label>
-            <span>默认模式</span>
-            <select
-              aria-label="默认模式"
-              value={assistantForm.defaultMode}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, defaultMode: event.target.value }))}
-            >
-              <option value="local">local</option>
-              <option value="hybrid">hybrid</option>
-              <option value="live">live</option>
-            </select>
           </label>
 
           <label>

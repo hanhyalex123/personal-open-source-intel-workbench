@@ -564,6 +564,7 @@ describe("App", () => {
     expect(screen.getByText("新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。")).toBeInTheDocument();
     expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
+    expect(screen.queryByLabelText("默认模式")).not.toBeInTheDocument();
   });
 
   it("shows sync monitor page in navigation", async () => {

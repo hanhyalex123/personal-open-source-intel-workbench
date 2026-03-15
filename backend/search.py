@@ -8,6 +8,7 @@ RESULT_SNIPPET_PATTERN = re.compile(r'<div[^>]*class="result__snippet"[^>]*>(.*?
 TAG_PATTERN = re.compile(r"<[^>]+>")
 MAIN_PATTERN = re.compile(r"<main[^>]*>(.*?)</main>", re.I | re.S)
 ARTICLE_PATTERN = re.compile(r"<article[^>]*>(.*?)</article>", re.I | re.S)
+REQUEST_TIMEOUT_SECONDS = 8
 
 
 def search_web(query: str, max_results: int = 5) -> list[dict]:
@@ -15,7 +16,7 @@ def search_web(query: str, max_results: int = 5) -> list[dict]:
         "https://duckduckgo.com/html/",
         params={"q": query},
         headers={"user-agent": "Mozilla/5.0"},
-        timeout=30,
+        timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
     html = response.text
@@ -39,15 +40,7 @@ def fetch_search_result_pages(results: list[dict], max_pages: int = 3, max_chars
     pages = []
     for result in results[:max_pages]:
         try:
-            response = requests.get(result["url"], headers={"user-agent": "Mozilla/5.0"}, timeout=30)
-            response.raise_for_status()
-            pages.append(
-                {
-                    "title": result["title"],
-                    "url": result["url"],
-                    "excerpt": _extract_primary_text(response.text)[:max_chars],
-                }
-            )
+            pages.append(fetch_page_content(result["url"], title=result["title"], max_chars=max_chars))
         except Exception:
             pages.append(
                 {
@@ -57,6 +50,16 @@ def fetch_search_result_pages(results: list[dict], max_pages: int = 3, max_chars
                 }
             )
     return pages
+
+
+def fetch_page_content(url: str, title: str = "", max_chars: int = 2400) -> dict:
+    response = requests.get(url, headers={"user-agent": "Mozilla/5.0"}, timeout=REQUEST_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return {
+        "title": title,
+        "url": url,
+        "excerpt": _extract_primary_text(response.text)[:max_chars],
+    }
 
 
 def _extract_primary_text(html: str) -> str:

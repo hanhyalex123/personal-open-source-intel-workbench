@@ -97,6 +97,10 @@ def test_assistant_query_endpoint_returns_live_report_and_filters_unrelated_evid
             },
         ],
     )
+    monkeypatch.setattr(
+        "backend.assistant.fetch_page_content",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("seed unavailable")),
+    )
 
     app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
     client = app.test_client()
@@ -207,3 +211,83 @@ def test_assistant_query_endpoint_returns_browser_trace_when_http_extraction_is_
     assert response.status_code == 200
     assert payload["search_trace"]
     assert any(item["fetch_mode"] == "browser" for item in payload["search_trace"])
+
+
+def test_assistant_query_endpoint_gracefully_handles_search_failures(tmp_path: Path, monkeypatch):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    _seed_project(store, "openclaw", "OpenClaw", repo="openclaw/openclaw", docs_url="https://openclaw.dev/docs")
+    _seed_release(
+        store,
+        "openclaw",
+        "openclaw/openclaw",
+        "v2026.3.13",
+        "OpenClaw v2026.3.13",
+        "2026-03-14T05:19:41Z",
+        "修复 WebSocket 劫持并新增多模态记忆索引。",
+    )
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("search failed")
+
+    monkeypatch.setattr("backend.assistant.search_web", boom)
+    monkeypatch.setattr(
+        "backend.assistant.fetch_page_content",
+        lambda url, title="": {
+            "title": title or "OpenClaw project page",
+            "url": url,
+            "excerpt": "OpenClaw 2026.3.13 fixes Telegram SSRF and improves multimodal memory index.",
+        },
+    )
+
+    app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.post("/api/assistant/query", json={"query": "openclaw 最近更新方向", "timeframe": "30d"})
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["applied_filters"]["mode"] == "live"
+    assert payload["applied_plan"]["primary_entities"] == ["openclaw"]
+    assert payload["report_markdown"].startswith("## 结论摘要")
+    assert payload["evidence"]
+    assert all(item["project_id"] == "openclaw" for item in payload["evidence"])
+    assert payload["search_trace"]
+    assert any(item["fetch_mode"] == "project_seed" for item in payload["search_trace"])
+
+
+def test_assistant_query_endpoint_uses_project_cache_when_live_fetch_is_unavailable(tmp_path: Path, monkeypatch):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    _seed_project(store, "openclaw", "OpenClaw", repo="openclaw/openclaw", docs_url="https://openclaw.dev/docs")
+    _seed_release(
+        store,
+        "openclaw",
+        "openclaw/openclaw",
+        "v2026.3.13",
+        "OpenClaw v2026.3.13",
+        "2026-03-14T05:19:41Z",
+        "修复 WebSocket 劫持并新增多模态记忆索引。",
+    )
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr("backend.assistant.search_web", boom)
+    monkeypatch.setattr("backend.assistant.fetch_page_content", boom)
+
+    app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.post("/api/assistant/query", json={"query": "openclaw 最近更新方向", "timeframe": "30d"})
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["evidence"]
+    assert payload["evidence"][0]["project_id"] == "openclaw"
+    assert payload["evidence"][0]["source"] == "github_release"
+    assert any(item["fetch_mode"] == "cache_fallback" for item in payload["search_trace"])
