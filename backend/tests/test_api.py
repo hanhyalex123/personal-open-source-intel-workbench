@@ -807,3 +807,24 @@ def test_docs_pages_ignore_initial_read_when_marking_recent_changes(tmp_path):
     assert pages_payload[0]["id"] == "network-page"
     assert pages_payload[0]["latest_change"] is None
     assert pages_payload[0]["is_recently_changed"] is False
+
+
+def test_config_response_includes_effective_values_and_key_source(tmp_path: Path, monkeypatch):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    monkeypatch.setenv("PACKY_API_KEY", "sk-packy-1234567890")
+    monkeypatch.setenv("PACKY_API_URL", "https://env.packy.test/v1/messages")
+    monkeypatch.setenv("PACKY_MODEL", "claude-opus-4-6")
+
+    store = JsonStore(tmp_path)
+    app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.get("/api/config")
+    payload = response.get_json()
+
+    assert payload["llm"]["packy"]["api_key_masked"] == "sk-p****7890"
+    assert payload["llm"]["packy"]["api_key_source"] == "env"
+    assert payload["llm"]["packy"]["effective_api_url"] == "https://env.packy.test/v1/messages"
+    assert payload["llm"]["packy"]["effective_model"] == "claude-opus-4-6"
