@@ -16,3 +16,4 @@ output/playwright/
 __pycache__
 backend/__pycache__
 backend/tests/__pycache__
+AGENTS.md
