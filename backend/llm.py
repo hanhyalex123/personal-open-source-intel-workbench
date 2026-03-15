@@ -45,10 +45,17 @@ class LLMRequestError(RuntimeError):
 
 def get_llm_settings(llm_config: dict | None = None) -> dict:
     active_provider = _resolve_active_provider(llm_config)
+    if not active_provider:
+        raise RuntimeError("No LLM provider enabled")
+
     primary_settings = _resolve_provider_settings(active_provider, llm_config)
     fallback_provider_key = "openai" if active_provider == "packy" else "packy"
-    fallback_settings = _resolve_provider_settings(fallback_provider_key, llm_config)
-    fallback_api_url = fallback_settings["api_url"] or primary_settings["api_url"]
+    if _is_provider_enabled(llm_config, fallback_provider_key):
+        fallback_settings = _resolve_provider_settings(fallback_provider_key, llm_config)
+        fallback_api_url = fallback_settings["api_url"] or primary_settings["api_url"]
+    else:
+        fallback_settings = _empty_provider_settings()
+        fallback_api_url = ""
 
     return {
         "api_key": primary_settings["api_key"],
@@ -70,10 +77,20 @@ def get_llm_settings(llm_config: dict | None = None) -> dict:
 
 def build_llm_config_view(llm_config: dict | None = None) -> dict:
     llm_config = llm_config or {}
-    packy_settings = _resolve_provider_settings("packy", llm_config, use_env_api_key=False, allow_openai_url_fallback=False)
-    openai_settings = _resolve_provider_settings("openai", llm_config, use_env_api_key=False, allow_openai_url_fallback=False)
-    packy_api_key_configured = bool(_resolve_provider_settings("packy", llm_config)["api_key"])
-    openai_api_key_configured = bool(_resolve_provider_settings("openai", llm_config)["api_key"])
+    packy_enabled = _is_provider_enabled(llm_config, "packy")
+    openai_enabled = _is_provider_enabled(llm_config, "openai")
+    packy_settings = (
+        _resolve_provider_settings("packy", llm_config, use_env_api_key=False, allow_openai_url_fallback=False)
+        if packy_enabled
+        else _empty_provider_settings()
+    )
+    openai_settings = (
+        _resolve_provider_settings("openai", llm_config, use_env_api_key=False, allow_openai_url_fallback=False)
+        if openai_enabled
+        else _empty_provider_settings()
+    )
+    packy_api_key_configured = packy_enabled and bool(_resolve_provider_settings("packy", llm_config)["api_key"])
+    openai_api_key_configured = openai_enabled and bool(_resolve_provider_settings("openai", llm_config)["api_key"])
     raw_packy = (llm_config.get("packy") or {})
     raw_openai = (llm_config.get("openai") or {})
     return {
@@ -81,7 +98,8 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
         "reasoning_effort": _resolve_shared_reasoning_effort(llm_config),
         "disable_response_storage": _resolve_shared_disable_response_storage(llm_config),
         "packy": {
-            "api_key": raw_packy.get("api_key", ""),
+            "enabled": packy_enabled,
+            "api_key": raw_packy.get("api_key", "") if packy_enabled else "",
             "provider": packy_settings["provider"],
             "api_url": packy_settings["api_url"],
             "model": packy_settings["model"],
@@ -89,7 +107,8 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
             "api_key_configured": packy_api_key_configured,
         },
         "openai": {
-            "api_key": raw_openai.get("api_key", ""),
+            "enabled": openai_enabled,
+            "api_key": raw_openai.get("api_key", "") if openai_enabled else "",
             "provider": openai_settings["provider"],
             "api_url": openai_settings["api_url"],
             "model": openai_settings["model"],
@@ -189,13 +208,41 @@ def generate_live_research_report(
 
 def _resolve_active_provider(llm_config: dict | None) -> str:
     provider = ((llm_config or {}).get("active_provider") or "").lower()
-    if provider in {"packy", "openai"}:
+    if provider in {"packy", "openai"} and _is_provider_enabled(llm_config, provider):
         return provider
-    if _resolve_provider_settings("packy", llm_config)["api_key"]:
+    if _is_provider_enabled(llm_config, "packy") and _resolve_provider_settings("packy", llm_config)["api_key"]:
         return "packy"
-    if _resolve_provider_settings("openai", llm_config)["api_key"]:
+    if _is_provider_enabled(llm_config, "openai") and _resolve_provider_settings("openai", llm_config)["api_key"]:
         return "openai"
-    return "packy"
+    if _is_provider_enabled(llm_config, "packy"):
+        return "packy"
+    if _is_provider_enabled(llm_config, "openai"):
+        return "openai"
+    return ""
+
+
+def _is_provider_enabled(llm_config: dict | None, provider_key: str) -> bool:
+    if provider_key not in {"packy", "openai"}:
+        return True
+    provider_config = (llm_config or {}).get(provider_key) or {}
+    enabled = provider_config.get("enabled")
+    if enabled is None:
+        return True
+    if isinstance(enabled, bool):
+        return enabled
+    if isinstance(enabled, str):
+        return enabled.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(enabled)
+
+
+def _empty_provider_settings() -> dict:
+    return {
+        "api_key": "",
+        "api_url": "",
+        "model": "",
+        "provider": "",
+        "protocol": "",
+    }
 
 
 def _resolve_provider_settings(
