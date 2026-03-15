@@ -1,0 +1,12 @@
+.git
+.github
+.run
+logs
+node_modules
+dist
+coverage
+.pytest_cache
+__pycache__
+backend/__pycache__
+backend/tests/__pycache__
+.venv

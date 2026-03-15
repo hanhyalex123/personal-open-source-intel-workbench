@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: ghcr.io/${GHCR_IMAGE_PREFIX:-hanhyalex123/personal-open-source-intel-workbench}/backend:local
+    environment:
+      PACKY_API_KEY: ${PACKY_API_KEY:-}
+      PACKY_API_URL: ${PACKY_API_URL:-https://www.packyapi.com/v1/messages}
+      PACKY_MODEL: ${PACKY_MODEL:-claude-sonnet-4-6}
+      PACKY_PROVIDER: ${PACKY_PROVIDER:-primary-gateway}
+      PACKY_PROTOCOL: ${PACKY_PROTOCOL:-}
+      PACKY_REASONING_EFFORT: ${PACKY_REASONING_EFFORT:-}
+      PACKY_DISABLE_RESPONSE_STORAGE: ${PACKY_DISABLE_RESPONSE_STORAGE:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_API_URL: ${OPENAI_API_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_PROVIDER: ${OPENAI_PROVIDER:-}
+      OPENAI_PROTOCOL: ${OPENAI_PROTOCOL:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      INTEL_HIGRESS_REQUIRED: ${INTEL_HIGRESS_REQUIRED:-false}
+    volumes:
+      - backend-data:/app/backend/data
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    image: ghcr.io/${GHCR_IMAGE_PREFIX:-hanhyalex123/personal-open-source-intel-workbench}/frontend:local
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  backend-data:

@@ -7,9 +7,11 @@ dist
 .env.local
 .env.*.local
 .npm-cache
+.venv/
 backend/data/
 .run/
 logs/
+output/playwright/
 .pytest_cache/
 __pycache__
 backend/__pycache__
