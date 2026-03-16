@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 
 from .llm import normalize_analysis_record
-from .daily_ranking import apply_read_decay, compute_base_score
+from .daily_ranking import apply_read_decay, compute_base_score, rerank_with_mmr
 from .storage import normalize_config
 
 
@@ -88,9 +88,11 @@ def build_daily_project_summaries(
         )
         summaries.append(summary)
 
-    return sorted(
+    summaries.sort(key=_summary_sort_key)
+    return rerank_with_mmr(
         summaries,
-        key=_summary_sort_key,
+        lambda_param=daily_ranking.get("mmr_lambda", 0.7),
+        diversity_keys=daily_ranking.get("mmr_diversity_keys", []),
     )
 
 

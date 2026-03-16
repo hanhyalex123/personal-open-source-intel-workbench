@@ -66,6 +66,44 @@ def apply_read_decay(
     return base_score
 
 
+def rerank_with_mmr(items: list[dict], *, lambda_param: float, diversity_keys: list[str]) -> list[dict]:
+    if not items:
+        return []
+    if not diversity_keys:
+        return list(items)
+
+    lambda_param = min(max(lambda_param, 0.0), 1.0)
+    remaining = sorted(items, key=lambda item: item.get("ranking_score", 0.0), reverse=True)
+    selected: list[dict] = []
+    diversity_sets = {id(item): _build_diversity_set(item, diversity_keys) for item in remaining}
+
+    while remaining:
+        if not selected:
+            selected.append(remaining.pop(0))
+            continue
+
+        best_index = 0
+        best_score = None
+        for index, candidate in enumerate(remaining):
+            score = candidate.get("ranking_score", 0.0)
+            candidate_set = diversity_sets.get(id(candidate), set())
+            max_sim = max(
+                (
+                    _jaccard(candidate_set, diversity_sets.get(id(chosen), set()))
+                    for chosen in selected
+                ),
+                default=0.0,
+            )
+            mmr_score = lambda_param * score - (1.0 - lambda_param) * max_sim
+            if best_score is None or mmr_score > best_score:
+                best_score = mmr_score
+                best_index = index
+
+        selected.append(remaining.pop(best_index))
+
+    return selected
+
+
 def _compute_recency_score(items: list[dict], now_iso: str, half_life_days: float) -> float:
     if half_life_days <= 0:
         return 0.0
@@ -94,6 +132,30 @@ def _compute_source_score(items: list[dict]) -> float:
     if not items:
         return 0.5
     return max(SOURCE_SCORES.get(item.get("source"), 0.5) for item in items)
+
+
+def _build_diversity_set(item: dict, diversity_keys: list[str]) -> set[str]:
+    evidence_items = item.get("evidence_items") or []
+    tokens: set[str] = set()
+    for evidence in evidence_items:
+        for key in diversity_keys:
+            if key == "tags":
+                for tag in evidence.get("tags") or []:
+                    tokens.add(f"{key}:{tag}")
+                continue
+            value = evidence.get(key)
+            if value:
+                tokens.add(f"{key}:{value}")
+    return tokens
+
+
+def _jaccard(left: set[str], right: set[str]) -> float:
+    if not left and not right:
+        return 0.0
+    union = left | right
+    if not union:
+        return 0.0
+    return len(left & right) / len(union)
 
 
 def _timestamp_for_sort(value: str | None) -> int:

@@ -220,3 +220,35 @@ def test_daily_ranking_applies_read_decay_within_window():
         )
         == 1.0
     )
+
+
+def test_daily_ranking_mmr_rerank_promotes_diversity():
+    from backend.daily_ranking import rerank_with_mmr
+
+    items = [
+        {
+            "project_id": "alpha",
+            "ranking_score": 0.9,
+            "evidence_items": [
+                {"source": "github_release", "category": "network", "tags": ["kubernetes"]}
+            ],
+        },
+        {
+            "project_id": "beta",
+            "ranking_score": 0.85,
+            "evidence_items": [
+                {"source": "github_release", "category": "network", "tags": ["kubernetes"]}
+            ],
+        },
+        {
+            "project_id": "gamma",
+            "ranking_score": 0.7,
+            "evidence_items": [
+                {"source": "docs_feed", "category": "storage", "tags": ["openclaw"]}
+            ],
+        },
+    ]
+
+    reranked = rerank_with_mmr(items, lambda_param=0.7, diversity_keys=["source", "category", "tags"])
+
+    assert [item["project_id"] for item in reranked] == ["alpha", "gamma", "beta"]
