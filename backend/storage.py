@@ -28,6 +28,20 @@ DEFAULT_ASSISTANT_CONFIG = {
     },
 }
 
+DEFAULT_DAILY_RANKING = {
+    "weights": {
+        "importance": 0.45,
+        "recency": 0.25,
+        "evidence": 0.2,
+        "source": 0.1,
+    },
+    "recency_half_life_days": 3,
+    "read_decay_days": 2,
+    "read_decay_factor": 0.5,
+    "mmr_lambda": 0.7,
+    "mmr_diversity_keys": ["source", "category", "tags"],
+}
+
 DEFAULT_LLM_CONFIG = {
     "active_provider": "",
     "reasoning_effort": "",
@@ -56,6 +70,7 @@ DEFAULT_CONFIG = {
     "sync_source_timeout_seconds": 240,
     "assistant": DEFAULT_ASSISTANT_CONFIG,
     "llm": DEFAULT_LLM_CONFIG,
+    "daily_ranking": DEFAULT_DAILY_RANKING,
 }
 
 DEFAULT_STATE = {
@@ -113,6 +128,10 @@ class JsonStore:
         return self.base_dir / "daily_project_summaries.json"
 
     @property
+    def read_events_path(self) -> Path:
+        return self.base_dir / "read_events.json"
+
+    @property
     def docs_snapshots_path(self) -> Path:
         return self.base_dir / "docs_snapshots.json"
 
@@ -129,6 +148,7 @@ class JsonStore:
             "crawl_profiles": self._load_json(self.crawl_profiles_path, {}),
             "daily_project_summaries": self._load_json(self.daily_project_summaries_path, {}),
             "docs_snapshots": self._load_json(self.docs_snapshots_path, {}),
+            "read_events": self._load_json(self.read_events_path, []),
             "state": self._load_json(self.state_path, DEFAULT_STATE),
         }
 
@@ -175,6 +195,9 @@ class JsonStore:
     def save_daily_project_summaries(self, summaries: dict) -> None:
         self._write_json(self.daily_project_summaries_path, summaries)
 
+    def save_read_events(self, events: list[dict]) -> None:
+        self._write_json(self.read_events_path, events)
+
     def load_docs_snapshots(self) -> dict:
         return self._load_json(self.docs_snapshots_path, {})
 
@@ -211,6 +234,7 @@ def normalize_config(config: dict | None) -> dict:
     config = config or {}
     assistant = config.get("assistant") or {}
     llm = config.get("llm") or {}
+    daily_ranking = config.get("daily_ranking") or {}
     default_mode = assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"])
     if default_mode != "live":
         default_mode = "live"
@@ -296,6 +320,43 @@ def normalize_config(config: dict | None) -> dict:
                     DEFAULT_ASSISTANT_CONFIG["prompts"]["answer"],
                 ),
             },
+        },
+        "daily_ranking": {
+            "weights": {
+                "importance": (daily_ranking.get("weights") or {}).get(
+                    "importance",
+                    DEFAULT_DAILY_RANKING["weights"]["importance"],
+                ),
+                "recency": (daily_ranking.get("weights") or {}).get(
+                    "recency",
+                    DEFAULT_DAILY_RANKING["weights"]["recency"],
+                ),
+                "evidence": (daily_ranking.get("weights") or {}).get(
+                    "evidence",
+                    DEFAULT_DAILY_RANKING["weights"]["evidence"],
+                ),
+                "source": (daily_ranking.get("weights") or {}).get(
+                    "source",
+                    DEFAULT_DAILY_RANKING["weights"]["source"],
+                ),
+            },
+            "recency_half_life_days": daily_ranking.get(
+                "recency_half_life_days",
+                DEFAULT_DAILY_RANKING["recency_half_life_days"],
+            ),
+            "read_decay_days": daily_ranking.get(
+                "read_decay_days",
+                DEFAULT_DAILY_RANKING["read_decay_days"],
+            ),
+            "read_decay_factor": daily_ranking.get(
+                "read_decay_factor",
+                DEFAULT_DAILY_RANKING["read_decay_factor"],
+            ),
+            "mmr_lambda": daily_ranking.get("mmr_lambda", DEFAULT_DAILY_RANKING["mmr_lambda"]),
+            "mmr_diversity_keys": daily_ranking.get(
+                "mmr_diversity_keys",
+                DEFAULT_DAILY_RANKING["mmr_diversity_keys"],
+            ),
         },
     }
 
