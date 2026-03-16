@@ -14,6 +14,31 @@ def test_health_endpoint_returns_ok(tmp_path: Path):
     assert response.get_json() == {"status": "ok"}
 
 
+def test_read_events_endpoints_persist_events(tmp_path: Path):
+    from datetime import datetime
+
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    app = create_app(store=JsonStore(tmp_path), sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    post_response = client.post(
+        "/api/read-events",
+        json={"project_id": "cilium", "event_id": "docs:cilium:intro"},
+    )
+
+    assert post_response.status_code == 201
+
+    payload = client.get("/api/read-events").get_json()
+
+    assert len(payload) == 1
+    assert payload[0]["project_id"] == "cilium"
+    assert payload[0]["event_id"] == "docs:cilium:intro"
+    assert payload[0]["read_at"].endswith("Z")
+    datetime.fromisoformat(payload[0]["read_at"].replace("Z", "+00:00"))
+
+
 def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     from backend.app import create_app
     from backend.storage import JsonStore

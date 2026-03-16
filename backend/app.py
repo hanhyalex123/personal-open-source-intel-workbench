@@ -78,6 +78,27 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
         snapshot = app.config["STORE"].load_all()
         return _build_config_response(snapshot["config"])
 
+    @app.get("/api/read-events")
+    def read_events():
+        snapshot = app.config["STORE"].load_all()
+        return snapshot.get("read_events", [])
+
+    @app.post("/api/read-events")
+    def create_read_event():
+        payload = request.get_json(force=True) or {}
+        store = app.config["STORE"]
+        snapshot = store.load_all()
+        now_iso = datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        record = {
+            "project_id": payload.get("project_id"),
+            "event_id": payload.get("event_id"),
+            "read_at": payload.get("read_at") or now_iso,
+        }
+        events = list(snapshot.get("read_events", []))
+        events.append(record)
+        store.save_read_events(events)
+        return record, 201
+
     @app.put("/api/config")
     def update_config():
         payload = request.get_json(force=True)
