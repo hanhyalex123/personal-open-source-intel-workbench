@@ -1,3 +1,4 @@
+import { postReadEvent } from "../lib/api";
 import { projectThemeStyle } from "../lib/projectTheme";
 
 function formatDate(value) {
@@ -14,12 +15,24 @@ function importanceLabel(level) {
   return "低波动";
 }
 
+function resolveReadEventId(item) {
+  return item?.evidence_items?.[0]?.id || item?.evidence_ids?.[0] || item?.id || "";
+}
+
 export default function ProjectSummaryCard({ item }) {
+  const handleReadEvent = () => {
+    if (!item?.project_id) return;
+    const eventId = resolveReadEventId(item);
+    if (!eventId) return;
+    postReadEvent({ project_id: item.project_id, event_id: eventId }).catch(() => {});
+  };
+
   return (
     <article
       className="project-summary-card"
       data-project-id={item.project_id}
       style={projectThemeStyle(item.project_id)}
+      onClick={handleReadEvent}
     >
       <header className="project-summary-card__header">
         <div>

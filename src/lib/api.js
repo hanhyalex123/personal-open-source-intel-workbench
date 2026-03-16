@@ -108,6 +108,20 @@ export async function updateConfig(payload) {
   return response.json();
 }
 
+export async function postReadEvent(payload) {
+  const response = await fetch("/api/read-events", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`read event request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function queryAssistant(payload) {
   const response = await fetch("/api/assistant/query", {
     method: "POST",

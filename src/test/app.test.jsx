@@ -299,6 +299,19 @@ const configPayload = {
       answer: "answer prompt",
     },
   },
+  daily_ranking: {
+    weights: {
+      importance: 0.45,
+      recency: 0.25,
+      evidence: 0.2,
+      source: 0.1,
+    },
+    recency_half_life_days: 3,
+    read_decay_days: 2,
+    read_decay_factor: 0.5,
+    mmr_lambda: 0.7,
+    mmr_diversity_keys: ["source", "category", "tags"],
+  },
 };
 
 const assistantPayload = {
@@ -650,6 +663,13 @@ function createFetchMock({
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(assistantPayload),
+      });
+    }
+
+    if (requestUrl.includes("/api/read-events") && options?.method === "POST") {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ status: "ok" }),
       });
     }
 
@@ -1024,6 +1044,78 @@ describe("App", () => {
     expect(payload.llm.openai.model).toBe("gpt-5.4");
     expect(payload.llm.openai.protocol).toBe("openai-responses");
     expect(payload.llm.disable_response_storage).toBe(true);
+  });
+
+  it("marks homepage project as read on card click", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    const card = screen
+      .getByText("Kubernetes 今日重点：1.31 补丁与网络策略")
+      .closest(".project-summary-card");
+
+    fireEvent.click(card);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/read-events",
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+    });
+
+    const updateCall = global.fetch.mock.calls.find(([url]) => url === "/api/read-events");
+    const payload = JSON.parse(updateCall[1].body);
+
+    expect(payload.project_id).toBe("kubernetes");
+    expect(payload.event_id).toBe("github-release:kubernetes/kubernetes:v1.31.3");
+  });
+
+  it("submits daily ranking config updates", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报排序")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("重要度权重"), {
+      target: { value: "0.5" },
+    });
+    fireEvent.change(screen.getByLabelText("已读衰减系数"), {
+      target: { value: "0.4" },
+    });
+    fireEvent.change(screen.getByLabelText("MMR λ"), {
+      target: { value: "0.6" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存排序参数" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/config",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
+    });
+
+    const updateCall = global.fetch.mock.calls.find(
+      ([url, options]) => url === "/api/config" && options?.method === "PUT",
+    );
+    const payload = JSON.parse(updateCall[1].body);
+
+    expect(payload.daily_ranking.weights.importance).toBe(0.5);
+    expect(payload.daily_ranking.read_decay_factor).toBe(0.4);
+    expect(payload.daily_ranking.mmr_lambda).toBe(0.6);
   });
 
   it("shows effective config values with masked keys", async () => {

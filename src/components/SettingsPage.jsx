@@ -90,6 +90,17 @@ export default function SettingsPage({
     classificationPrompt: "",
     answerPrompt: "",
   });
+  const [dailyRankingForm, setDailyRankingForm] = useState({
+    importanceWeight: 0.45,
+    recencyWeight: 0.25,
+    evidenceWeight: 0.2,
+    sourceWeight: 0.1,
+    recencyHalfLifeDays: 3,
+    readDecayDays: 2,
+    readDecayFactor: 0.5,
+    mmrLambda: 0.7,
+    mmrDiversityKeys: "source,category,tags",
+  });
 
   useEffect(() => {
     setLlmForm({
@@ -128,6 +139,17 @@ export default function SettingsPage({
       liveSearchMaxPages: config?.assistant?.live_search?.max_pages || 3,
       classificationPrompt: config?.assistant?.prompts?.classification || "",
       answerPrompt: config?.assistant?.prompts?.answer || "",
+    });
+    setDailyRankingForm({
+      importanceWeight: config?.daily_ranking?.weights?.importance ?? 0.45,
+      recencyWeight: config?.daily_ranking?.weights?.recency ?? 0.25,
+      evidenceWeight: config?.daily_ranking?.weights?.evidence ?? 0.2,
+      sourceWeight: config?.daily_ranking?.weights?.source ?? 0.1,
+      recencyHalfLifeDays: config?.daily_ranking?.recency_half_life_days ?? 3,
+      readDecayDays: config?.daily_ranking?.read_decay_days ?? 2,
+      readDecayFactor: config?.daily_ranking?.read_decay_factor ?? 0.5,
+      mmrLambda: config?.daily_ranking?.mmr_lambda ?? 0.7,
+      mmrDiversityKeys: (config?.daily_ranking?.mmr_diversity_keys ?? ["source", "category", "tags"]).join(","),
     });
   }, [config]);
   const packyEffective = config?.llm?.packy;
@@ -181,6 +203,34 @@ export default function SettingsPage({
           classification: assistantForm.classificationPrompt,
           answer: assistantForm.answerPrompt,
         },
+      },
+    });
+  }
+
+  function toNumber(value, fallback = 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
+  async function handleDailyRankingSubmit(event) {
+    event.preventDefault();
+    const diversityKeys = dailyRankingForm.mmrDiversityKeys
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    await onConfigSave({
+      daily_ranking: {
+        weights: {
+          importance: toNumber(dailyRankingForm.importanceWeight, 0.45),
+          recency: toNumber(dailyRankingForm.recencyWeight, 0.25),
+          evidence: toNumber(dailyRankingForm.evidenceWeight, 0.2),
+          source: toNumber(dailyRankingForm.sourceWeight, 0.1),
+        },
+        recency_half_life_days: toNumber(dailyRankingForm.recencyHalfLifeDays, 3),
+        read_decay_days: Math.max(0, Math.floor(toNumber(dailyRankingForm.readDecayDays, 2))),
+        read_decay_factor: toNumber(dailyRankingForm.readDecayFactor, 0.5),
+        mmr_lambda: toNumber(dailyRankingForm.mmrLambda, 0.7),
+        mmr_diversity_keys: diversityKeys,
       },
     });
   }
@@ -575,6 +625,130 @@ export default function SettingsPage({
 
           <button className="primary-button" type="submit" disabled={savingConfig}>
             {savingConfig ? "保存中..." : "保存 Assistant 配置"}
+          </button>
+        </form>
+      </section>
+
+      <section className="settings-panel">
+        <div className="settings-panel__header">
+          <div>
+            <p className="section-kicker">Ranking</p>
+            <h2>日报排序</h2>
+          </div>
+          <p className="settings-panel__copy">调整日报排序权重与已读衰减规则，实时影响首页项目排位。</p>
+        </div>
+
+        <form className="assistant-config-form" onSubmit={handleDailyRankingSubmit}>
+          <label>
+            <span>重要度权重</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="重要度权重"
+              value={dailyRankingForm.importanceWeight}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, importanceWeight: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>时效权重</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="时效权重"
+              value={dailyRankingForm.recencyWeight}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, recencyWeight: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>证据权重</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="证据权重"
+              value={dailyRankingForm.evidenceWeight}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, evidenceWeight: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>来源权重</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="来源权重"
+              value={dailyRankingForm.sourceWeight}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, sourceWeight: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>时效半衰期（天）</span>
+            <input
+              type="number"
+              step="1"
+              aria-label="时效半衰期（天）"
+              value={dailyRankingForm.recencyHalfLifeDays}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, recencyHalfLifeDays: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>已读衰减天数</span>
+            <input
+              type="number"
+              step="1"
+              aria-label="已读衰减天数"
+              value={dailyRankingForm.readDecayDays}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, readDecayDays: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>已读衰减系数</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="已读衰减系数"
+              value={dailyRankingForm.readDecayFactor}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, readDecayFactor: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>MMR λ</span>
+            <input
+              type="number"
+              step="0.05"
+              aria-label="MMR λ"
+              value={dailyRankingForm.mmrLambda}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, mmrLambda: event.target.value }))
+              }
+            />
+          </label>
+          <label className="assistant-config-form__full">
+            <span>多样性维度</span>
+            <input
+              aria-label="多样性维度"
+              value={dailyRankingForm.mmrDiversityKeys}
+              onChange={(event) =>
+                setDailyRankingForm((current) => ({ ...current, mmrDiversityKeys: event.target.value }))
+              }
+              placeholder="source,category,tags"
+            />
+          </label>
+
+          <button className="primary-button" type="submit" disabled={savingConfig}>
+            {savingConfig ? "保存中..." : "保存排序参数"}
           </button>
         </form>
       </section>
