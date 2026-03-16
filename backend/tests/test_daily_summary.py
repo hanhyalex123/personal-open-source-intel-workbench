@@ -111,3 +111,112 @@ def test_resolve_summary_date_prefers_freshest_known_date():
     }
 
     assert resolve_summary_date(snapshot) == "2026-03-10"
+
+
+def test_daily_ranking_base_score_uses_importance_recency_evidence_source():
+    from backend.daily_ranking import compute_base_score
+
+    now_iso = "2026-03-10T12:00:00Z"
+    weights = {"importance": 0.45, "recency": 0.25, "evidence": 0.2, "source": 0.1}
+
+    base_item = {
+        "published_at": "2026-03-01T12:00:00Z",
+        "action_items": [],
+        "impact_points": [],
+        "detail_sections": [],
+        "source": "docs_feed",
+        "category": "",
+        "tags": [],
+    }
+
+    base_summary = {"importance": "medium", "evidence_items": [base_item]}
+    base_score = compute_base_score(
+        base_summary,
+        weights=weights,
+        now_iso=now_iso,
+        recency_half_life_days=3,
+    )
+
+    assert (
+        compute_base_score(
+            {"importance": "high", "evidence_items": [base_item]},
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {
+                "importance": "medium",
+                "evidence_items": [{**base_item, "published_at": "2026-03-10T12:00:00Z"}],
+            },
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {
+                "importance": "medium",
+                "evidence_items": [
+                    {
+                        **base_item,
+                        "action_items": ["a", "b", "c"],
+                        "impact_points": ["i1", "i2"],
+                        "detail_sections": [{"title": "t", "bullets": ["x"]}],
+                    }
+                ],
+            },
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {"importance": "medium", "evidence_items": [{**base_item, "source": "github_release"}]},
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+
+def test_daily_ranking_applies_read_decay_within_window():
+    from backend.daily_ranking import apply_read_decay
+
+    now_iso = "2026-03-10T12:00:00Z"
+    read_events = [{"project_id": "kubernetes", "read_at": "2026-03-09T12:00:00Z"}]
+
+    assert (
+        apply_read_decay(
+            1.0,
+            project_id="kubernetes",
+            read_events=read_events,
+            now_iso=now_iso,
+            read_decay_days=2,
+            read_decay_factor=0.5,
+        )
+        == 0.5
+    )
+
+    assert (
+        apply_read_decay(
+            1.0,
+            project_id="kubernetes",
+            read_events=[{"project_id": "kubernetes", "read_at": "2026-03-07T11:59:59Z"}],
+            now_iso=now_iso,
+            read_decay_days=2,
+            read_decay_factor=0.5,
+        )
+        == 1.0
+    )

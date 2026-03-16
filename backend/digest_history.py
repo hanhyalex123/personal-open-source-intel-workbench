@@ -82,6 +82,7 @@ def sort_daily_digest_projects(items: list[dict]) -> list[dict]:
     return sorted(
         items,
         key=lambda item: (
+            -item.get("ranking_score", 0.0),
             IMPORTANCE_ORDER.get(item.get("importance"), 2),
             -_timestamp_for_sort(item.get("updated_at")),
             item.get("project_name", ""),
