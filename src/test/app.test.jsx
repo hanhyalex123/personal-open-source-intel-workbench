@@ -1046,7 +1046,7 @@ describe("App", () => {
     expect(payload.llm.disable_response_storage).toBe(true);
   });
 
-  it("marks homepage project as read on card click", async () => {
+  it("posts read events when clicking homepage project card", async () => {
     render(<App />);
 
     await waitFor(() => {
