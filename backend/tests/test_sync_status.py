@@ -96,6 +96,54 @@ def test_manual_sync_updates_run_id(tmp_path):
     assert payload.get("run_id")
 
 
+def test_daily_digest_progress_uses_feed_count(tmp_path):
+    from backend.runtime import build_daily_digest_runner
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "alpha",
+                "name": "Alpha",
+                "github_url": "",
+                "repo": "",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": False,
+                "docs_area_enabled": True,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+            {
+                "id": "beta",
+                "name": "Beta",
+                "github_url": "",
+                "repo": "",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": False,
+                "docs_area_enabled": True,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+        ]
+    )
+
+    captured = {}
+
+    def progress_callback(**kwargs):
+        captured.update(kwargs)
+
+    runner = build_daily_digest_runner(store, now_provider=lambda: "2026-03-17T08:00:00Z")
+    runner(progress_callback=progress_callback)
+
+    assert captured["total_sources"] == 0
+    assert captured["current_label"] == "0 个来源"
+
+
 def test_heartbeat_ticker_updates_last_heartbeat():
     from backend.sync_status import SyncCoordinator
 

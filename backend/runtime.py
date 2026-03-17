@@ -88,9 +88,9 @@ def build_daily_digest_runner(store, now_provider=None):
             progress_callback(
                 phase="daily_digest",
                 message="正在整理今日日报",
-                current_label=f"{len(snapshot.get('projects') or [])} 个项目",
+                current_label=f"{len(feeds)} 个来源",
                 processed_sources=0,
-                total_sources=len(snapshot.get("projects") or []),
+                total_sources=len(feeds),
             )
         summaries = build_daily_project_summaries(
             snapshot=snapshot,
