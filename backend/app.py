@@ -661,9 +661,13 @@ def _with_docs_analysis_fallback(*, normalized: dict, event: dict, changed_pages
     page_titles = [title for title in page_titles if title]
     primary_page = page_titles[0] if page_titles else "相关页面"
     event_kind = event.get("event_kind") or "docs_update"
+    fallback_title = prefer_chinese_text(
+        event.get("title"),
+        fallback=docs_event_title(project_name, event_kind),
+    )
     fallback["title_zh"] = prefer_chinese_text(
         fallback.get("title_zh"),
-        fallback=docs_event_title(project_name, event_kind),
+        fallback=fallback_title,
     )
     if not has_usable_chinese_text(fallback.get("summary_zh")):
         fallback["summary_zh"] = f"{primary_page} 页面有新变化，请先看页面摘要与 diff。"
