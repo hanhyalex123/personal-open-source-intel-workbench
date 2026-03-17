@@ -118,6 +118,27 @@ def test_assistant_query_endpoint_returns_live_report_and_filters_unrelated_evid
     assert payload["sources"][0]["url"] == "https://example.com/openclaw/release"
 
 
+def test_build_research_report_surfaces_llm_error(monkeypatch):
+    from backend.assistant import _build_research_report
+    from backend.llm import LLMRequestError
+
+    def boom(**_kwargs):
+        raise LLMRequestError("Invalid API key")
+
+    monkeypatch.setattr("backend.assistant.generate_live_research_report", boom)
+
+    report = _build_research_report(
+        query="test",
+        filters={},
+        plan={"primary_entities": [], "timeframe": "14d"},
+        evidence=[],
+        llm_config={},
+        answer_prompt="",
+    )
+
+    assert "Invalid API key" in report["report_markdown"]
+
+
 def test_assistant_query_endpoint_allows_related_cross_project_evidence(tmp_path: Path, monkeypatch):
     from backend.app import create_app
     from backend.storage import JsonStore

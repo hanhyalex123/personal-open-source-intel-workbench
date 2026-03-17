@@ -169,6 +169,49 @@ def test_get_llm_settings_uses_enabled_openai_when_packy_disabled(monkeypatch):
     assert settings["api_key"] == "backup-key"
 
 
+def test_get_llm_settings_normalizes_openai_base_url(monkeypatch):
+    from backend.llm import get_llm_settings
+
+    monkeypatch.delenv("PACKY_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = _sample_config()
+    cfg["active_provider"] = "openai"
+    cfg["openai"]["api_url"] = "https://code.swpumc.cn"
+    cfg["openai"]["protocol"] = ""
+
+    settings = get_llm_settings(cfg)
+
+    assert settings["api_url"] == "https://code.swpumc.cn/v1/responses"
+    assert settings["protocol"] == "openai-responses"
+
+
+def test_get_llm_settings_normalizes_openai_chat_url(monkeypatch):
+    from backend.llm import get_llm_settings
+
+    monkeypatch.delenv("PACKY_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    cfg = _sample_config()
+    cfg["active_provider"] = "openai"
+    cfg["openai"]["api_url"] = "https://code.swpumc.cn"
+    cfg["openai"]["protocol"] = "openai-chat"
+
+    settings = get_llm_settings(cfg)
+
+    assert settings["api_url"] == "https://code.swpumc.cn/v1/chat/completions"
+    assert settings["protocol"] == "openai-chat"
+
+
+def test_parse_live_research_report_response_surfaces_error_message():
+    from backend.llm import parse_live_research_report_response
+
+    payload = {"code": "INVALID_API_KEY", "message": "Invalid API key"}
+    result = parse_live_research_report_response(payload)
+
+    assert "Invalid API key" in result["report_markdown"]
+
+
 def test_analyze_event_raises_gateway_error_with_context(monkeypatch):
     from backend.llm import analyze_event
 
@@ -763,7 +806,7 @@ def test_analyze_event_uses_explicit_fallback_protocol_on_nonstandard_url(monkey
         }
     )
 
-    assert calls[1]["url"] == "https://gateway.example.com/openai"
+    assert calls[1]["url"] == "https://gateway.example.com/openai/v1/chat/completions"
     assert calls[1]["headers"]["Authorization"] == "Bearer backup-key"
     assert "x-api-key" not in calls[1]["headers"]
     assert calls[1]["payload"]["messages"][0]["role"] == "user"

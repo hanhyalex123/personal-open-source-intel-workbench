@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 import re
 
-from .llm import generate_live_research_report
+from .llm import LLMRequestError, generate_live_research_report
 from .search import fetch_page_content, fetch_search_result_pages, search_web
 from .storage import normalize_config
 
@@ -349,6 +349,8 @@ def _build_research_report(
             answer_prompt=answer_prompt,
             llm_config=llm_config,
         )
+    except LLMRequestError as error:
+        return _error_report(error)
     except Exception:
         return _fallback_report(query=query, plan=plan, evidence=evidence)
 
@@ -375,6 +377,16 @@ def _fallback_report(*, query: str, plan: dict, evidence: list[dict]) -> dict:
         "report_markdown": report_markdown,
         "report_outline": ["结论摘要", "主要方向", "关键证据"],
         "next_steps": ["继续阅读关键证据原文。"],
+    }
+
+
+def _error_report(error: LLMRequestError) -> dict:
+    message = str(error)
+    report_markdown = "## 研究报告生成失败\n\n" f"{message}\n\n" "请检查代理站 API URL、模型与 Key 配置。"
+    return {
+        "report_markdown": report_markdown,
+        "report_outline": ["研究报告生成失败"],
+        "next_steps": ["确认代理站地址包含 /v1/responses 或 /v1/chat/completions。", "检查 API Key 是否可用。"],
     }
 
 

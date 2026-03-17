@@ -286,6 +286,31 @@ def _mask_api_key(value: str) -> str:
     return f"{trimmed[:4]}****{trimmed[-4:]}"
 
 
+def _is_openai_chat_protocol(protocol: str) -> bool:
+    return (protocol or "").strip().lower() in {"openai", "openai-chat", "chat"}
+
+
+def _is_openai_responses_protocol(protocol: str) -> bool:
+    return (protocol or "").strip().lower() in {"responses", "openai-responses", "codex"}
+
+
+def _normalize_openai_settings(api_url: str, protocol: str) -> tuple[str, str]:
+    if not isinstance(api_url, str) or not api_url.strip():
+        return api_url, protocol
+    trimmed = api_url.strip()
+    lower = trimmed.lower()
+    if "/v1/" in lower:
+        return trimmed, protocol
+    normalized_protocol = protocol
+    if _is_openai_chat_protocol(protocol):
+        return f"{trimmed.rstrip('/')}/v1/chat/completions", normalized_protocol
+    if _is_openai_responses_protocol(protocol):
+        return f"{trimmed.rstrip('/')}/v1/responses", normalized_protocol
+    if not protocol:
+        return f"{trimmed.rstrip('/')}/v1/responses", "openai-responses"
+    return trimmed, normalized_protocol
+
+
 def _resolve_provider_settings(
     provider_key: str,
     llm_config: dict | None,
@@ -304,6 +329,7 @@ def _resolve_provider_settings(
         openai_protocol = _first_non_empty(provider_config.get("protocol"), os.getenv("OPENAI_PROTOCOL", ""))
         if not openai_protocol and allow_openai_url_fallback and openai_api_url == packy_api_url:
             openai_protocol = packy_protocol
+        openai_api_url, openai_protocol = _normalize_openai_settings(openai_api_url, openai_protocol)
         return {
             "api_key": _first_non_empty(provider_config.get("api_key"), os.getenv("OPENAI_API_KEY", ""))
             if use_env_api_key
@@ -559,6 +585,10 @@ def _repair_unescaped_quotes(text: str) -> str:
 
 
 def _extract_text(payload: dict[str, Any]) -> str:
+    error_text = _extract_error_text(payload)
+    if error_text:
+        return error_text
+
     output_text = payload.get("output_text")
     if isinstance(output_text, str) and output_text.strip():
         return output_text.strip()
@@ -596,6 +626,26 @@ def _extract_text(payload: dict[str, Any]) -> str:
     if text.endswith("```"):
         text = text[:-3].strip()
     return text
+
+
+def _extract_error_text(payload: dict[str, Any]) -> str:
+    if not isinstance(payload, dict):
+        return ""
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = error.get("message") or ""
+        code = error.get("code") or error.get("type") or ""
+        if isinstance(message, str) and message.strip():
+            if isinstance(code, str) and code.strip():
+                return f"{code}: {message}".strip()
+            return message.strip()
+    message = payload.get("message")
+    code = payload.get("code")
+    if isinstance(message, str) and message.strip():
+        if isinstance(code, str) and code.strip():
+            return f"{code}: {message}".strip()
+        return message.strip()
+    return ""
 
 
 def _extract_json_block(text: str) -> str:
