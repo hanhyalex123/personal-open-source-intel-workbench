@@ -223,6 +223,79 @@ def test_build_daily_project_summaries_replaces_english_analysis_with_chinese_te
     assert summaries[0]["evidence_items"][0]["summary_zh"] == "该条证据的中文解读暂不可用，建议进入详情查看页面变化。"
 
 
+def test_build_daily_digest_buckets_filters_by_recency():
+    from backend.daily_summary import build_daily_digest_buckets
+
+    snapshot = {
+        "config": {
+            "daily_digest": {
+                "must_watch_project_ids": ["alpha", "beta"],
+                "emerging_project_ids": ["gamma", "beta"],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        "projects": [
+            {"id": "alpha", "name": "Alpha"},
+            {"id": "beta", "name": "Beta"},
+            {"id": "gamma", "name": "Gamma"},
+        ],
+        "events": {
+            "github-release:alpha/alpha:v1.0.0": {
+                "id": "github-release:alpha/alpha:v1.0.0",
+                "project_id": "alpha",
+                "source": "github_release",
+                "title": "Alpha v1.0.0",
+                "published_at": "2026-03-10T09:00:00Z",
+            },
+            "github-release:beta/beta:v0.9.0": {
+                "id": "github-release:beta/beta:v0.9.0",
+                "project_id": "beta",
+                "source": "github_release",
+                "title": "Beta v0.9.0",
+                "published_at": "2026-01-10T09:00:00Z",
+            },
+            "github-release:gamma/gamma:v0.1.0": {
+                "id": "github-release:gamma/gamma:v0.1.0",
+                "project_id": "gamma",
+                "source": "github_release",
+                "title": "Gamma v0.1.0",
+                "published_at": "2026-03-16T09:00:00Z",
+            },
+        },
+        "analyses": {
+            "github-release:alpha/alpha:v1.0.0": {
+                "title_zh": "Alpha v1.0.0 发布",
+                "summary_zh": "Alpha 发布了首个正式版。",
+                "urgency": "medium",
+                "tags": ["alpha"],
+            },
+            "github-release:beta/beta:v0.9.0": {
+                "title_zh": "Beta v0.9.0 发布",
+                "summary_zh": "Beta 发布了预览版本。",
+                "urgency": "low",
+                "tags": ["beta"],
+            },
+            "github-release:gamma/gamma:v0.1.0": {
+                "title_zh": "Gamma v0.1.0 发布",
+                "summary_zh": "Gamma 首次发布。",
+                "urgency": "high",
+                "tags": ["gamma"],
+            },
+        },
+        "daily_project_summaries": {},
+    }
+
+    buckets = build_daily_digest_buckets(
+        snapshot=snapshot,
+        summary_date="2026-03-17",
+        now_iso="2026-03-17T08:00:00Z",
+    )
+
+    assert [item["project_id"] for item in buckets["must_watch_projects"]] == ["alpha"]
+    assert [item["project_id"] for item in buckets["emerging_projects"]] == ["gamma"]
+
+
 def test_daily_ranking_base_score_uses_importance_recency_evidence_source():
     from backend.daily_ranking import compute_base_score
 

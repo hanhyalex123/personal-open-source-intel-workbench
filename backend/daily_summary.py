@@ -97,6 +97,47 @@ def build_daily_project_summaries(
     )
 
 
+def build_daily_digest_buckets(
+    *,
+    snapshot: dict,
+    summary_date: str,
+    now_iso: str,
+    summarizer=None,
+) -> dict[str, list[dict]]:
+    summaries = build_daily_project_summaries(
+        snapshot=snapshot,
+        summary_date=summary_date,
+        now_iso=now_iso,
+        summarizer=summarizer,
+    )
+    config = normalize_config(snapshot.get("config"))
+    daily_digest = config.get("daily_digest", {})
+    must_watch_ids = set(daily_digest.get("must_watch_project_ids") or [])
+    emerging_ids = set(daily_digest.get("emerging_project_ids") or [])
+    must_watch_days = daily_digest.get("must_watch_days", 30)
+    emerging_days = daily_digest.get("emerging_days", 3)
+    must_watch_projects: list[dict] = []
+    emerging_projects: list[dict] = []
+
+    for summary in summaries:
+        latest_activity = _project_latest_activity_at(summary)
+        if not latest_activity:
+            continue
+        days_since = _days_since(latest_activity, now_iso)
+        if days_since is None:
+            continue
+        project_id = summary["project_id"]
+        if project_id in must_watch_ids and days_since <= must_watch_days:
+            must_watch_projects.append(summary)
+        if project_id in emerging_ids and days_since <= emerging_days:
+            emerging_projects.append(summary)
+
+    return {
+        "must_watch_projects": must_watch_projects,
+        "emerging_projects": emerging_projects,
+    }
+
+
 def merge_daily_project_summaries(existing: dict, summaries: list[dict]) -> dict:
     merged = dict(existing or {})
     for summary in summaries:
@@ -280,6 +321,31 @@ def _item_date(value: str | None) -> str:
     if not value:
         return ""
     return value[:10]
+
+
+def _days_since(value: str | None, now_iso: str) -> int | None:
+    now_dt = _parse_iso_datetime(now_iso)
+    value_dt = _parse_iso_datetime(value)
+    if not now_dt or not value_dt:
+        return None
+    return (now_dt - value_dt).days
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _project_latest_activity_at(summary: dict) -> str | None:
+    evidence_items = summary.get("evidence_items") or []
+    timestamps = [item.get("published_at") for item in evidence_items if item.get("published_at")]
+    if not timestamps:
+        return None
+    return max(timestamps)
 
 
 def _summary_key(summary_date: str, project_id: str) -> str:
