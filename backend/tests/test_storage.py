@@ -70,6 +70,12 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
                 "mmr_lambda": 0.7,
                 "mmr_diversity_keys": ["source", "category", "tags"],
             },
+            "daily_digest": {
+                "must_watch_project_ids": [],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            },
         },
         "events": {},
         "analyses": {},

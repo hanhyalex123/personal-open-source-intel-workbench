@@ -42,6 +42,13 @@ DEFAULT_DAILY_RANKING = {
     "mmr_diversity_keys": ["source", "category", "tags"],
 }
 
+DEFAULT_DAILY_DIGEST = {
+    "must_watch_project_ids": [],
+    "emerging_project_ids": [],
+    "must_watch_days": 30,
+    "emerging_days": 3,
+}
+
 DEFAULT_LLM_CONFIG = {
     "active_provider": "",
     "reasoning_effort": "",
@@ -71,6 +78,7 @@ DEFAULT_CONFIG = {
     "assistant": DEFAULT_ASSISTANT_CONFIG,
     "llm": DEFAULT_LLM_CONFIG,
     "daily_ranking": DEFAULT_DAILY_RANKING,
+    "daily_digest": DEFAULT_DAILY_DIGEST,
 }
 
 DEFAULT_STATE = {
@@ -235,6 +243,7 @@ def normalize_config(config: dict | None) -> dict:
     assistant = config.get("assistant") or {}
     llm = config.get("llm") or {}
     daily_ranking = config.get("daily_ranking") or {}
+    daily_digest = config.get("daily_digest") or {}
     default_mode = assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"])
     if default_mode != "live":
         default_mode = "live"
@@ -356,6 +365,24 @@ def normalize_config(config: dict | None) -> dict:
             "mmr_diversity_keys": daily_ranking.get(
                 "mmr_diversity_keys",
                 DEFAULT_DAILY_RANKING["mmr_diversity_keys"],
+            ),
+        },
+        "daily_digest": {
+            "must_watch_project_ids": daily_digest.get(
+                "must_watch_project_ids",
+                DEFAULT_DAILY_DIGEST["must_watch_project_ids"],
+            ),
+            "emerging_project_ids": daily_digest.get(
+                "emerging_project_ids",
+                DEFAULT_DAILY_DIGEST["emerging_project_ids"],
+            ),
+            "must_watch_days": daily_digest.get(
+                "must_watch_days",
+                DEFAULT_DAILY_DIGEST["must_watch_days"],
+            ),
+            "emerging_days": daily_digest.get(
+                "emerging_days",
+                DEFAULT_DAILY_DIGEST["emerging_days"],
             ),
         },
     }
