@@ -1373,7 +1373,7 @@ describe("App", () => {
     expect(payload.daily_ranking.mmr_lambda).toBe(0.6);
   });
 
-  it("submits daily digest bucket config updates", async () => {
+  it("submits daily digest buckets config updates", async () => {
     render(<App />);
 
     await waitFor(() => {
