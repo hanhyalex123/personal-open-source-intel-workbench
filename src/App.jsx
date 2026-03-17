@@ -1,8 +1,9 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
 
-import brandAvatar from "./assets/brand-avatar-anime.png";
+import brandAvatar from "./assets/brand-icon.png";
 import AIConsolePage from "./components/AIConsolePage";
 import DocsWorkbenchPage from "./components/DocsWorkbenchPage";
+import HelpTip from "./components/HelpTip";
 import IntelOverviewPage from "./components/IntelOverviewPage";
 import ProjectMonitorPage from "./components/ProjectMonitorPage";
 import SettingsPage from "./components/SettingsPage";
@@ -13,20 +14,22 @@ import {
   fetchConfig,
   fetchDashboard,
   fetchProjects,
+  fetchSyncRuns,
   fetchSyncStatus,
   queryAssistant,
   triggerSync,
   updateConfig,
   updateProject,
 } from "./lib/api";
+import { selectPrimaryJob } from "./lib/syncJobs";
 
 const NAV_ITEMS = [
-  { id: "intel", icon: "◌", label: "日报", title: "日报", subtitle: "固定日报与增量提醒" },
-  { id: "monitor", icon: "◎", label: "同步监控", title: "同步监控", subtitle: "同步状态、日志与异常一目了然" },
-  { id: "projects", icon: "▣", label: "情报监控", title: "情报监控", subtitle: "按项目跟踪版本、文档与分析结论" },
-  { id: "docs", icon: "◫", label: "文档解读", title: "文档解读", subtitle: "首读、diff 解读与单页变化脉络" },
-  { id: "assistant", icon: "◇", label: "AI 控制台", title: "AI 控制台", subtitle: "本地知识检索与结构化问答" },
-  { id: "settings", icon: "◧", label: "配置中心", title: "配置中心", subtitle: "Assistant 全局配置与项目接入" },
+  { id: "cover", icon: "◌", label: "封面", title: "封面", help: "查看今日头条、系统状态和常用入口。" },
+  { id: "clues", icon: "◎", label: "线索台", title: "线索台", help: "查看当前同步、历史 Job 和异常入口。" },
+  { id: "topics", icon: "▣", label: "专题库", title: "专题库", help: "按项目和主题浏览长期变化。" },
+  { id: "docsdesk", icon: "◫", label: "文档台", title: "文档台", help: "看页面变化、详细解读和深读入口。" },
+  { id: "research", icon: "◇", label: "研究台", title: "研究台", help: "提问、看报告、查证据。" },
+  { id: "settings", icon: "◧", label: "设置", title: "设置", help: "管理模型、助手和项目配置。" },
 ];
 
 export default function App() {
@@ -37,14 +40,17 @@ export default function App() {
   const [error, setError] = useState("");
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [syncRuns, setSyncRuns] = useState([]);
+  const [selectedSyncRunId, setSelectedSyncRunId] = useState("");
   const [submittingProject, setSubmittingProject] = useState(false);
   const [savingProjectMetadataId, setSavingProjectMetadataId] = useState("");
   const [savingConfig, setSavingConfig] = useState(false);
-  const [activePage, setActivePage] = useState("intel");
+  const [activePage, setActivePage] = useState("cover");
   const [logDrawerOpen, setLogDrawerOpen] = useState(false);
   const [logFilter, setLogFilter] = useState("all");
   const [selectedDocsProjectId, setSelectedDocsProjectId] = useState("");
   const [highlightedDocsEventId, setHighlightedDocsEventId] = useState("");
+  const [researchSeed, setResearchSeed] = useState(null);
   const [projectForm, setProjectForm] = useState({
     name: "",
     githubUrl: "",
@@ -62,12 +68,16 @@ export default function App() {
           fetchProjects(signal),
           fetchConfig(signal),
         ]);
-        const syncStatusPayload = await fetchSyncStatus(signal);
+        const [syncStatusPayload, syncRunsPayload] = await Promise.all([
+          fetchSyncStatus(signal),
+          fetchSyncRuns(signal, 20),
+        ]);
         startTransition(() => {
           setDashboard(dashboardPayload);
           setProjects(projectsPayload);
           setConfig(configPayload);
           setSyncStatus(syncStatusPayload);
+          setSyncRuns(syncRunsPayload);
           setError("");
           setLoading(false);
         });
@@ -100,9 +110,13 @@ export default function App() {
 
     async function loadStatus(signal) {
       try {
-        const payload = await fetchSyncStatus(signal);
+        const [statusPayload, runsPayload] = await Promise.all([
+          fetchSyncStatus(signal),
+          fetchSyncRuns(signal, 20),
+        ]);
         startTransition(() => {
-          setSyncStatus(payload);
+          setSyncStatus(statusPayload);
+          setSyncRuns(runsPayload);
         });
       } catch (statusError) {
         if (statusError.name !== "AbortError") {
@@ -130,8 +144,11 @@ export default function App() {
     setSyncing(true);
     try {
       const statusPayload = await triggerSync();
+      const runsPayload = await fetchSyncRuns();
       startTransition(() => {
         setSyncStatus(statusPayload);
+        setSyncRuns(runsPayload);
+        setSelectedSyncRunId(statusPayload.run_id || "");
         setError("");
       });
     } catch (syncError) {
@@ -206,6 +223,23 @@ export default function App() {
   const dailyDigestHistory = dashboard?.daily_digest_history ?? [];
   const projectSections = dashboard?.projects ?? [];
   const currentPage = useMemo(() => NAV_ITEMS.find((item) => item.id === activePage) || NAV_ITEMS[0], [activePage]);
+  const primarySyncRun = useMemo(() => {
+    const selectedRun = syncRuns.find((run) => run.id === selectedSyncRunId);
+    return selectedRun || selectPrimaryJob(syncRuns);
+  }, [selectedSyncRunId, syncRuns]);
+
+  useEffect(() => {
+    if (!syncRuns.length) {
+      setSelectedSyncRunId("");
+      return;
+    }
+    setSelectedSyncRunId((current) => {
+      if (current && syncRuns.some((run) => run.id === current)) {
+        return current;
+      }
+      return selectPrimaryJob(syncRuns)?.id || "";
+    });
+  }, [syncRuns]);
 
   function handleOpenLogs(filter = "all") {
     setLogFilter(filter);
@@ -215,7 +249,12 @@ export default function App() {
   function handleOpenDocs(projectId = "", eventId = "") {
     setSelectedDocsProjectId(projectId);
     setHighlightedDocsEventId(eventId);
-    setActivePage("docs");
+    setActivePage("docsdesk");
+  }
+
+  function handleStartResearch(seed) {
+    setResearchSeed(seed);
+    setActivePage("research");
   }
 
   return (
@@ -246,17 +285,16 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <footer className="sidebar__footer">首页看日报，第二页看情报监控</footer>
+        <footer className="sidebar__footer">开源动态、中文结论、同步日志</footer>
       </aside>
 
       <main className="workbench-main">
         <header className="topbar">
-          <div>
-            <p className="section-kicker">Workspace</p>
+          <div className="topbar__title">
             <h1>{currentPage.title}</h1>
-            <p className="topbar__subtitle">{currentPage.subtitle}</p>
+            <HelpTip label={`${currentPage.title}说明`} text={currentPage.help} />
           </div>
-          {activePage === "monitor" ? (
+          {activePage === "clues" ? (
             <button className="primary-button" onClick={handleSync} disabled={syncing}>
               {syncing ? "正在同步..." : "立即同步"}
             </button>
@@ -266,7 +304,7 @@ export default function App() {
         {error ? <div className="error-banner">{error}</div> : null}
         {loading ? <section className="empty-state">正在读取最新数据...</section> : null}
 
-        {!loading && activePage === "intel" ? (
+        {!loading && activePage === "cover" ? (
           <IntelOverviewPage
             overview={overview}
             homepageProjects={homepageProjects}
@@ -275,24 +313,32 @@ export default function App() {
           />
         ) : null}
 
-        {!loading && activePage === "monitor" ? (
-          <SyncMonitorPage status={syncStatus} onOpenLogs={handleOpenLogs} />
+        {!loading && activePage === "clues" ? (
+          <SyncMonitorPage
+            primaryRun={primarySyncRun}
+            runs={syncRuns}
+            selectedRunId={selectedSyncRunId}
+            liveStatus={syncStatus}
+            onSelectRun={setSelectedSyncRunId}
+            onOpenLogs={handleOpenLogs}
+          />
         ) : null}
 
-        {!loading && activePage === "projects" ? (
+        {!loading && activePage === "topics" ? (
           <ProjectMonitorPage projectSections={projectSections} onOpenDocs={handleOpenDocs} />
         ) : null}
 
-        {!loading && activePage === "docs" ? (
+        {!loading && activePage === "docsdesk" ? (
           <DocsWorkbenchPage
             initialProjectId={selectedDocsProjectId}
             highlightedEventId={highlightedDocsEventId}
             onSelectProject={setSelectedDocsProjectId}
+            onStartResearch={handleStartResearch}
           />
         ) : null}
 
-        {!loading && activePage === "assistant" ? (
-          <AIConsolePage projects={projects} assistantConfig={config?.assistant} onQuery={queryAssistant} />
+        {!loading && activePage === "research" ? (
+          <AIConsolePage projects={projects} assistantConfig={config?.assistant} onQuery={queryAssistant} initialContext={researchSeed} />
         ) : null}
 
         {!loading && activePage === "settings" ? (
@@ -313,7 +359,7 @@ export default function App() {
         <SyncLogDrawer
           open={logDrawerOpen}
           onClose={() => setLogDrawerOpen(false)}
-          currentRunId={syncStatus?.run_id}
+          currentRunId={selectedSyncRunId || syncStatus?.run_id}
           initialFilter={logFilter}
         />
       </main>

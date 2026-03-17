@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import UTC, datetime
 
+from .chinese_text import generic_event_title, has_usable_chinese_text, prefer_chinese_text
 from .llm import normalize_analysis_record
 
 
@@ -121,8 +122,8 @@ def _collect_project_items(snapshot: dict) -> dict[str, list[dict]]:
                 "id": event_id,
                 "project_id": project_id,
                 "source": event.get("source", ""),
-                "title_zh": normalized.get("title_zh", event.get("title", "")),
-                "summary_zh": normalized.get("summary_zh", ""),
+                "title_zh": _sanitize_daily_title(project_id, projects, event, normalized),
+                "summary_zh": _sanitize_daily_summary(normalized),
                 "urgency": normalized.get("urgency", "low"),
                 "action_items": normalized.get("action_items", []),
                 "detail_sections": normalized.get("detail_sections", []),
@@ -150,16 +151,22 @@ def _build_project_summary(*, project: dict, summary_date: str, now_iso: str, da
             llm_summary = {}
 
     if llm_summary:
-        headline = llm_summary.get("headline") or f"{project_name} 今日重点：{evidence_items[0]['title_zh']}"
-        summary_zh = llm_summary.get("summary_zh") or _default_summary_text(project_name, daily_items, evidence_items)
-        reason = llm_summary.get("reason") or _default_reason_text(daily_items, evidence_items)
+        headline = prefer_chinese_text(llm_summary.get("headline"), fallback=_default_headline(project_name, evidence_items))
+        summary_zh = prefer_chinese_text(
+            llm_summary.get("summary_zh"),
+            fallback=_default_summary_text(project_name, daily_items, evidence_items),
+        )
+        reason = prefer_chinese_text(
+            llm_summary.get("reason"),
+            fallback=_default_reason_text(project_name, daily_items, evidence_items),
+        )
         importance = llm_summary.get("importance") or importance
     elif daily_items:
-        headline = f"{project_name} 今日重点：{evidence_items[0]['title_zh']}"
+        headline = _default_headline(project_name, evidence_items)
         summary_zh = _default_summary_text(project_name, daily_items, evidence_items)
-        reason = _default_reason_text(daily_items, evidence_items)
+        reason = _default_reason_text(project_name, daily_items, evidence_items)
     elif ranked_items:
-        headline = f"{project_name} 近期待关注：{evidence_items[0]['title_zh']}"
+        headline = _fallback_recent_headline(project_name, evidence_items)
         summary_zh = "今日没有显著新增高影响变化，建议先关注最近仍值得跟进的项目结论。"
         reason = "当前日期没有新的高优先级项目事件，因此首页回退到最近仍需跟进的证据。"
     else:
@@ -198,14 +205,26 @@ def _build_project_summary(*, project: dict, summary_date: str, now_iso: str, da
 
 def _default_summary_text(project_name: str, daily_items: list[dict], evidence_items: list[dict]) -> str:
     lead = evidence_items[0]["title_zh"]
+    if not has_usable_chinese_text(lead) or _is_generic_summary_title(project_name, lead):
+        return "今天检测到新的项目变化，建议查看最新中文解读。"
     if len(evidence_items) == 1:
         return f"{project_name} 今天最值得看的变化是 {lead}，它已经进入首页项目级摘要。"
 
-    other_titles = "；".join(item["title_zh"] for item in evidence_items[1:])
+    other_titles = "；".join(
+        item["title_zh"] for item in evidence_items[1:] if has_usable_chinese_text(item.get("title_zh", ""))
+    )
+    if not other_titles:
+        return f"{project_name} 今天最值得看的变化是 {lead}，建议结合详情继续判断后续动向。"
     return f"{project_name} 今天最值得看的变化是 {lead}，同时还需要结合 {other_titles} 一起判断最新动向。"
 
 
-def _default_reason_text(daily_items: list[dict], evidence_items: list[dict]) -> str:
+def _default_reason_text(project_name: str, daily_items: list[dict], evidence_items: list[dict]) -> str:
+    if not has_usable_chinese_text(evidence_items[0].get("title_zh", "")) or not has_usable_chinese_text(
+        evidence_items[0].get("summary_zh", "")
+    ) or _is_generic_summary_title(project_name, evidence_items[0].get("title_zh", "")) or evidence_items[0].get(
+        "summary_zh", ""
+    ) == "该条证据的中文解读暂不可用，建议进入详情查看页面变化。":
+        return "当前证据的中文摘要不足，已回退为中文提示。"
     top_urgency = evidence_items[0].get("urgency", "low")
     action_rich = sum(1 for item in evidence_items if item.get("action_items"))
     if top_urgency == "high" and action_rich:
@@ -252,6 +271,45 @@ def _item_date(value: str | None) -> str:
 
 def _summary_key(summary_date: str, project_id: str) -> str:
     return f"{summary_date}:{project_id}"
+
+
+def _sanitize_daily_title(project_id: str, projects: list[dict], event: dict, normalized: dict) -> str:
+    project = next((item for item in projects if item.get("id") == project_id), {})
+    project_name = project.get("name") or project_id
+    return prefer_chinese_text(
+        normalized.get("title_zh"),
+        fallback=generic_event_title(project_name, event.get("source", ""), event.get("event_kind", "")),
+    )
+
+
+def _sanitize_daily_summary(normalized: dict) -> str:
+    return prefer_chinese_text(
+        normalized.get("summary_zh"),
+        fallback="该条证据的中文解读暂不可用，建议进入详情查看页面变化。",
+    )
+
+
+def _default_headline(project_name: str, evidence_items: list[dict]) -> str:
+    lead = evidence_items[0].get("title_zh", "") if evidence_items else ""
+    if has_usable_chinese_text(lead) and not _is_generic_summary_title(project_name, lead):
+        return f"{project_name} 今日重点：{lead}"
+    return f"{project_name} 今日重点"
+
+
+def _fallback_recent_headline(project_name: str, evidence_items: list[dict]) -> str:
+    lead = evidence_items[0].get("title_zh", "") if evidence_items else ""
+    if has_usable_chinese_text(lead) and not _is_generic_summary_title(project_name, lead):
+        return f"{project_name} 近期待关注：{lead}"
+    return f"{project_name} 近期待关注"
+
+
+def _is_generic_summary_title(project_name: str, title: str) -> bool:
+    return title in {
+        f"{project_name} 文档更新",
+        f"{project_name} 文档首读",
+        f"{project_name} 版本更新",
+        f"{project_name} 项目更新",
+    }
 
 
 def _timestamp_for_sort(value: str | None) -> int:

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import InsightCard from "./InsightCard";
+import HelpTip from "./HelpTip";
 import { projectThemeStyle } from "../lib/projectTheme";
 import { FOCUS_CATEGORIES, FOCUS_TOPIC_OPTIONS } from "../lib/focusTags";
 
@@ -55,9 +56,7 @@ function ProjectPanel({ project, onOpenDocs }) {
     >
       <header className="project-panel__header">
         <div>
-          <p className="section-kicker">Project</p>
           <h2>{project.name}</h2>
-          <p className="project-panel__copy">单项目下钻视图，保留版本区和文档区的操作上下文。</p>
         </div>
         <div className="project-panel__links">
           <a href={project.github_url} target="_blank" rel="noreferrer">
@@ -150,7 +149,6 @@ function ProjectOutline({ projectSections, activeSectionId }) {
   return (
     <aside className="project-outline">
       <div className="project-outline__inner">
-        <p className="section-kicker">Navigator</p>
         <h3>快速定位</h3>
         <div className="project-outline__list">
           {projectSections.map((project) => {
@@ -315,9 +313,10 @@ export default function ProjectMonitorPage({ projectSections, onOpenDocs }) {
   return (
     <section className="project-monitor-page">
       <div className="project-monitor-intro">
-        <p className="section-kicker">Monitoring</p>
-        <h2>情报监控</h2>
-        <p>按项目跟踪版本、文档与分析结论。</p>
+        <div className="settings-panel__title">
+          <h2>专题</h2>
+          <HelpTip label="专题说明" text="按项目浏览版本、文档和分析结论。" />
+        </div>
       </div>
 
       <FilterBar

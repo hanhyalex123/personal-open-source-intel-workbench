@@ -16,6 +16,7 @@ from .daily_summary import (
     load_daily_project_summaries_for_date,
     resolve_summary_date,
 )
+from .chinese_text import docs_event_title, has_usable_chinese_text, prefer_chinese_text, sanitize_chinese_list
 from .discovery import generate_crawl_profile
 from .docs_classify import group_docs_records
 from .llm import build_llm_config_view, normalize_analysis_record
@@ -580,6 +581,17 @@ def _collect_docs_events(snapshot: dict, project_id: str, mode: str = "") -> lis
             continue
         normalized = normalize_analysis_record(analysis)
         research_bundle = event.get("research_bundle") or {}
+        changed_pages = _merge_docs_changed_pages(
+            normalized.get("changed_pages"),
+            research_bundle.get("changed_pages", []),
+        )
+        project = _get_project_by_id(projects, project_id) or {}
+        normalized = _with_docs_analysis_fallback(
+            normalized=normalized,
+            event=event,
+            changed_pages=changed_pages,
+            project_name=project.get("name") or project_id or "该项目",
+        )
         docs_events.append(
             {
                 "id": event_id,
@@ -601,10 +613,7 @@ def _collect_docs_events(snapshot: dict, project_id: str, mode: str = "") -> lis
                 "action_items": normalized.get("action_items", []),
                 "doc_summary": normalized.get("doc_summary", ""),
                 "doc_key_points": normalized.get("doc_key_points", []),
-                "changed_pages": _merge_docs_changed_pages(
-                    normalized.get("changed_pages"),
-                    research_bundle.get("changed_pages", []),
-                ),
+                "changed_pages": changed_pages,
                 "diff_highlights": normalized.get("diff_highlights", []),
                 "reading_guide": normalized.get("reading_guide", []),
                 "research_bundle": research_bundle,
@@ -619,6 +628,45 @@ def _collect_docs_events(snapshot: dict, project_id: str, mode: str = "") -> lis
         )
     )
     return docs_events
+
+
+def _looks_like_empty_analysis(normalized: dict) -> bool:
+    return not has_usable_chinese_text(normalized.get("summary_zh"))
+
+
+def _with_docs_analysis_fallback(*, normalized: dict, event: dict, changed_pages: list[dict], project_name: str) -> dict:
+    fallback = dict(normalized)
+    page_titles = [page.get("title_after") or page.get("title") or page.get("page_id") for page in changed_pages]
+    page_titles = [title for title in page_titles if title]
+    primary_page = page_titles[0] if page_titles else "相关页面"
+    event_kind = event.get("event_kind") or "docs_update"
+    fallback["title_zh"] = prefer_chinese_text(
+        fallback.get("title_zh"),
+        fallback=docs_event_title(project_name, event_kind),
+    )
+    if not has_usable_chinese_text(fallback.get("summary_zh")):
+        fallback["summary_zh"] = f"{primary_page} 页面有新变化，请先看页面摘要与 diff。"
+    if not has_usable_chinese_text(fallback.get("doc_summary")):
+        fallback["doc_summary"] = "这次文档变更的中文解读暂不可用，请先看页面摘要与 diff。"
+    if not has_usable_chinese_text(fallback.get("details_zh")):
+        fallback["details_zh"] = "当前证据不足以生成详细中文解读，建议先看页面摘要、页面 diff 和关联变更。"
+    fallback["diff_highlights"] = sanitize_chinese_list(
+        fallback.get("diff_highlights"),
+        fallback=f"先看 {primary_page} 的页面变化。",
+    )
+    fallback["reading_guide"] = sanitize_chinese_list(
+        fallback.get("reading_guide"),
+        fallback=f"先看 {primary_page}",
+    )
+    fallback["impact_points"] = sanitize_chinese_list(
+        fallback.get("impact_points"),
+        fallback="影响点待补充，建议先结合页面变化判断。",
+    )
+    fallback["action_items"] = sanitize_chinese_list(
+        fallback.get("action_items"),
+        fallback="建议先核对相关页面变化，再决定是否继续研究。",
+    )
+    return fallback
 
 
 def _build_docs_pages(snapshot: dict, project_id: str) -> list[dict]:

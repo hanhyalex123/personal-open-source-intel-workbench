@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import HelpTip from "./HelpTip";
 import SimpleMarkdown from "./SimpleMarkdown";
 
 const CATEGORY_OPTIONS = ["", "网络", "存储", "调度", "架构", "安全", "升级", "运行时", "可观测性"];
@@ -17,7 +18,7 @@ function relationLabel(value) {
   return "一般相关";
 }
 
-export default function AIConsolePage({ projects, assistantConfig, onQuery }) {
+export default function AIConsolePage({ projects, assistantConfig, onQuery, initialContext = null }) {
   const [query, setQuery] = useState("");
   const [projectId, setProjectId] = useState("");
   const [category, setCategory] = useState("");
@@ -31,6 +32,14 @@ export default function AIConsolePage({ projects, assistantConfig, onQuery }) {
     setCategory(assistantConfig?.default_categories?.[0] || "");
     setTimeframe(assistantConfig?.default_timeframe || "14d");
   }, [assistantConfig]);
+
+  useEffect(() => {
+    if (!initialContext) return;
+    setQuery(initialContext.query || "");
+    if (initialContext.projectId) {
+      setProjectId(initialContext.projectId);
+    }
+  }, [initialContext]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -55,9 +64,10 @@ export default function AIConsolePage({ projects, assistantConfig, onQuery }) {
     <section className="assistant-page">
       <section className="assistant-query-panel">
         <div className="assistant-page__hero">
-          <p className="section-kicker">Live Research Assistant</p>
-          <h2>AI 控制台</h2>
-          <p>围绕公网信息做研究型问答。默认先规划问题，再抓取网页证据，最后输出 Markdown 研究报告。</p>
+          <div className="settings-panel__title">
+            <h2>提问</h2>
+            <HelpTip label="提问说明" text="输入问题并生成研究报告。" />
+          </div>
         </div>
 
         <form className="assistant-form" onSubmit={handleSubmit}>
@@ -118,8 +128,7 @@ export default function AIConsolePage({ projects, assistantConfig, onQuery }) {
         ) : (
           <div className="assistant-response">
             <section className="assistant-answer assistant-answer--report">
-              <p className="section-kicker">Research Report</p>
-              <h3>回答</h3>
+              <h3>报告</h3>
               <div className="assistant-markdown">
                 <SimpleMarkdown content={result.report_markdown} />
               </div>

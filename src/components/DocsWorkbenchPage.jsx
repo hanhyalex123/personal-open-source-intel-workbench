@@ -7,6 +7,7 @@ import {
   fetchDocsProject,
   fetchDocsProjects,
 } from "../lib/api";
+import HelpTip from "./HelpTip";
 
 function formatDate(value) {
   if (!value) return "暂无";
@@ -17,15 +18,23 @@ function formatDate(value) {
 }
 
 function modeLabel(mode) {
-  if (mode === "docs_initial_read") return "首读解读";
-  if (mode === "docs_diff_update") return "更新 diff";
-  return "文档事件";
+  if (mode === "docs_initial_read") return "首读";
+  if (mode === "docs_diff_update") return "更新";
+  return "变更";
 }
 
 function changeTypeLabel(changeType) {
   if (changeType === "added") return "新增";
   if (changeType === "removed") return "删除";
-  return "改写";
+  if (changeType === "changed") return "改写";
+  return "稳定";
+}
+
+function urgencyWeight(value) {
+  if (value === "high") return 3;
+  if (value === "medium") return 2;
+  if (value === "low") return 1;
+  return 0;
 }
 
 function formatDiffHighlight(item) {
@@ -45,188 +54,95 @@ function formatReadingGuideItem(item) {
   return focus || reason || "";
 }
 
-function eventListKey(prefix, item, index) {
-  if (typeof item === "string") return `${prefix}-${item}`;
-  if (!item || typeof item !== "object") return `${prefix}-${index}`;
-  return `${prefix}-${item.page_id || item.step || item.title || item.focus || item.target || item.highlight || index}`;
+function isEmptyAnalysisPlaceholder(value) {
+  return (value || "").trim() === "模型返回空响应，未能生成结构化分析。";
 }
 
-function EventDigestCard({ title, event, emptyText }) {
+function hasChineseText(value) {
+  if (typeof value !== "string") return false;
+  const text = value.trim();
+  if (!text || isEmptyAnalysisPlaceholder(text)) return false;
+  return /[\u3400-\u9fff\uf900-\ufaff]/.test(text);
+}
+
+function readableText(...values) {
+  for (const value of values) {
+    if (typeof value !== "string") continue;
+    const text = value.trim();
+    if (!text || isEmptyAnalysisPlaceholder(text) || !hasChineseText(text)) continue;
+    return text;
+  }
+  return "";
+}
+
+function sortPages(pages, events) {
+  const eventByPageId = new Map();
+  for (const event of events) {
+    for (const page of event.changed_pages || []) {
+      if (!page?.page_id || eventByPageId.has(page.page_id)) continue;
+      eventByPageId.set(page.page_id, event);
+    }
+  }
+
+  return [...pages].sort((left, right) => {
+    const leftEvent = eventByPageId.get(left.id);
+    const rightEvent = eventByPageId.get(right.id);
+
+    const recentDelta = Number(Boolean(right.is_recently_changed)) - Number(Boolean(left.is_recently_changed));
+    if (recentDelta !== 0) return recentDelta;
+
+    const urgencyDelta = urgencyWeight(rightEvent?.urgency) - urgencyWeight(leftEvent?.urgency);
+    if (urgencyDelta !== 0) return urgencyDelta;
+
+    const rightPublished = new Date(rightEvent?.published_at || 0).getTime();
+    const leftPublished = new Date(leftEvent?.published_at || 0).getTime();
+    if (rightPublished !== leftPublished) return rightPublished - leftPublished;
+
+    return left.title.localeCompare(right.title, "zh-CN");
+  });
+}
+
+function buildDeepResearchPrompt(projectName, pageTitle, pageSummary, relatedEvent, pageDiff) {
+  const added = (pageDiff?.latest_diff?.added_blocks || []).join("；") || "暂无新增摘要";
+  const removed = (pageDiff?.latest_diff?.removed_blocks || []).join("；") || "暂无删除摘要";
+  const eventTitle = relatedEvent?.title_zh || "无关联事件";
+  return `请基于 ${projectName} 项目的文档页面 ${pageTitle} 做深入研究。页面摘要：${pageSummary || "暂无摘要"}。关联事件：${eventTitle}。新增：${added}。删除：${removed}。请给出背景、影响、风险和后续建议。`;
+}
+
+function ReadingSection({ title, children }) {
   return (
-    <section className="docs-digest-card">
-      <div className="docs-digest-card__header">
-        <p className="section-kicker">{title}</p>
-        {event?.published_at ? <span>{formatDate(event.published_at)}</span> : null}
-      </div>
-      {event ? (
-        <>
-          <h3>{event.title_zh}</h3>
-          <p>{event.summary_zh}</p>
-          {event.changed_page_count ? <strong>关联页面 {event.changed_page_count} 个</strong> : null}
-        </>
-      ) : (
-        <p>{emptyText}</p>
-      )}
+    <section className="docs-copy-block">
+      <h3>{title}</h3>
+      {children}
     </section>
   );
 }
 
-function EventDetails({ event, onSelectPage }) {
-  if (!event) {
-    return <div className="empty-state">请选择一条文档事件查看解读。</div>;
-  }
-
-  return (
-    <section className="docs-event-detail">
-      <div className="docs-event-detail__header">
-        <div>
-          <p className="section-kicker">{modeLabel(event.event_kind)}</p>
-          <h3>{event.title_zh}</h3>
-        </div>
-        <div className="docs-event-detail__meta">
-          <span>{formatDate(event.published_at)}</span>
-          <span className={`pill pill--${event.urgency || "low"}`}>{event.urgency || "low"}</span>
-        </div>
-      </div>
-
-      <p className="docs-event-detail__summary">{event.summary_zh}</p>
-
-      {event.doc_summary ? (
-        <section className="docs-copy-block">
-          <h4>文档概览</h4>
-          <p>{event.doc_summary}</p>
-        </section>
-      ) : null}
-
-      {(event.doc_key_points || []).length ? (
-        <section className="docs-copy-block">
-          <h4>关键点</h4>
-          <ul>
-            {event.doc_key_points.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {(event.diff_highlights || []).length ? (
-        <section className="docs-copy-block">
-          <h4>Diff 解读</h4>
-          <ul>
-            {event.diff_highlights.map((item, index) => (
-              <li key={eventListKey("highlight", item, index)}>{formatDiffHighlight(item)}</li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {(event.reading_guide || []).length ? (
-        <section className="docs-copy-block">
-          <h4>阅读建议</h4>
-          <ol>
-            {event.reading_guide.map((item, index) => (
-              <li key={eventListKey("guide", item, index)}>{formatReadingGuideItem(item)}</li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
-
-      {(event.changed_pages || []).length ? (
-        <section className="docs-copy-block">
-          <h4>关联页面</h4>
-          <div className="docs-linked-pages">
-            {event.changed_pages.map((page) => (
-              <button key={`${event.id}-${page.page_id || page.url}`} type="button" onClick={() => onSelectPage(page.page_id)}>
-                <strong>{page.title_after || page.title || page.url}</strong>
-                <span>{changeTypeLabel(page.change_type || "changed")}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      ) : null}
-    </section>
-  );
-}
-
-function PageDiffPanel({ detail, loading }) {
-  if (loading) {
-    return <div className="empty-state">正在读取页面 diff...</div>;
-  }
-
-  if (!detail?.page) {
-    return <div className="empty-state">选择页面后，这里会展示最新 diff 和阅读上下文。</div>;
-  }
-
-  const diff = detail.latest_diff;
-
-  return (
-    <section className="docs-page-diff">
-      <div className="docs-page-diff__header">
-        <div>
-          <p className="section-kicker">Page Diff</p>
-          <h3>{detail.page.title}</h3>
-        </div>
-        <div className="docs-page-diff__meta">
-          <span>{detail.page.category || "未分类"}</span>
-          <span>{detail.page.extractor_hint}</span>
-        </div>
-      </div>
-
-      <p>{detail.page.summary}</p>
-
-      {diff ? (
-        <div className="docs-page-diff__columns">
-          <section className="docs-copy-block">
-            <h4>新增内容</h4>
-            <ul>
-              {(diff.added_blocks || []).length ? (
-                diff.added_blocks.map((item) => <li key={item}>{item}</li>)
-              ) : (
-                <li>暂无新增段落摘要。</li>
-              )}
-            </ul>
-          </section>
-          <section className="docs-copy-block">
-            <h4>移除内容</h4>
-            <ul>
-              {(diff.removed_blocks || []).length ? (
-                diff.removed_blocks.map((item) => <li key={item}>{item}</li>)
-              ) : (
-                <li>暂无移除段落摘要。</li>
-              )}
-            </ul>
-          </section>
-        </div>
-      ) : (
-        <div className="empty-state">这个页面目前还没有可展示的 diff 记录。</div>
-      )}
-    </section>
-  );
-}
-
-export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEventId = "", onSelectProject }) {
+export default function DocsWorkbenchPage({
+  initialProjectId = "",
+  highlightedEventId = "",
+  onSelectProject,
+  onStartResearch,
+}) {
   const [projects, setProjects] = useState([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId);
   const [detail, setDetail] = useState(null);
   const [events, setEvents] = useState([]);
   const [pages, setPages] = useState([]);
   const [pageDiff, setPageDiff] = useState(null);
   const [mode, setMode] = useState("");
-  const [activeEventId, setActiveEventId] = useState(highlightedEventId);
+  const [selectedProjectId, setSelectedProjectId] = useState(initialProjectId);
   const [selectedPageId, setSelectedPageId] = useState("");
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [loadingDiff, setLoadingDiff] = useState(false);
+  const [deepReadOpen, setDeepReadOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (initialProjectId) {
       setSelectedProjectId(initialProjectId);
     }
-    if (highlightedEventId) {
-      setActiveEventId(highlightedEventId);
-    }
-  }, [initialProjectId, highlightedEventId]);
+  }, [initialProjectId]);
 
   useEffect(() => {
     let active = true;
@@ -278,19 +194,26 @@ export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEv
           fetchDocsPages(selectedProjectId, controller.signal),
         ]);
         if (!active) return;
-        const preferredEventId =
-          highlightedEventId && eventsPayload.some((item) => item.id === highlightedEventId)
-            ? highlightedEventId
-            : eventsPayload[0]?.id || "";
-        const preferredEvent = eventsPayload.find((item) => item.id === preferredEventId);
+
+        const sortedPages = sortPages(pagesPayload, eventsPayload);
+        const highlightedPageId = highlightedEventId
+          ? eventsPayload.find((event) => event.id === highlightedEventId)?.changed_pages?.[0]?.page_id
+          : "";
+
         const preferredPageId =
-          preferredEvent?.changed_pages?.[0]?.page_id || pagesPayload.find((item) => item.is_recently_changed)?.id || pagesPayload[0]?.id || "";
+          highlightedPageId ||
+          sortedPages.find((page) => page.is_recently_changed)?.id ||
+          detailPayload.latest_update?.changed_pages?.[0]?.page_id ||
+          detailPayload.initial_read?.changed_pages?.[0]?.page_id ||
+          sortedPages[0]?.id ||
+          "";
+
         startTransition(() => {
           setDetail(detailPayload);
           setEvents(eventsPayload);
-          setPages(pagesPayload);
-          setActiveEventId(preferredEventId);
+          setPages(sortedPages);
           setSelectedPageId(preferredPageId);
+          setDeepReadOpen(false);
           setError("");
         });
       } catch (loadError) {
@@ -347,21 +270,56 @@ export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEv
     };
   }, [selectedProjectId, selectedPageId]);
 
-  const activeEvent = useMemo(() => events.find((item) => item.id === activeEventId) || events[0] || null, [events, activeEventId]);
+  useEffect(() => {
+    setDeepReadOpen(false);
+  }, [selectedPageId]);
+
+  const selectedPage = useMemo(() => pages.find((page) => page.id === selectedPageId) || pageDiff?.page || pages[0] || null, [pages, pageDiff, selectedPageId]);
+
+  const relatedEvents = useMemo(
+    () => events.filter((event) => (event.changed_pages || []).some((page) => page.page_id === selectedPage?.id)),
+    [events, selectedPage?.id],
+  );
+
+  const primaryEvent = relatedEvents[0] || null;
+  const addedBlocks = pageDiff?.latest_diff?.added_blocks || [];
+  const removedBlocks = pageDiff?.latest_diff?.removed_blocks || [];
+  const diffHighlights = (primaryEvent?.diff_highlights || [])
+    .map(formatDiffHighlight)
+    .filter((item) => hasChineseText(item));
+  const readingGuide = (primaryEvent?.reading_guide || [])
+    .map(formatReadingGuideItem)
+    .filter((item) => hasChineseText(item));
+  const keyPoints = (primaryEvent?.doc_key_points || []).filter((item) => hasChineseText(item));
+  const sourceLine = `来源：${formatDate(primaryEvent?.published_at || detail?.last_synced_at)}${primaryEvent ? ` / ${primaryEvent.id}` : ""}`;
+
+  function handleResearch() {
+    if (!selectedPage) return;
+    onStartResearch?.({
+      projectId: selectedProjectId,
+      projectName: detail?.project_name || projects.find((item) => item.project_id === selectedProjectId)?.project_name || "",
+      query: buildDeepResearchPrompt(
+        detail?.project_name || projects.find((item) => item.project_id === selectedProjectId)?.project_name || "",
+        selectedPage.title,
+        selectedPage.summary,
+        primaryEvent,
+        pageDiff,
+      ),
+    });
+  }
 
   return (
     <section className="docs-workbench-page">
       <div className="docs-workbench-intro">
-        <div>
-          <p className="section-kicker">Docs Radar</p>
-          <h2>文档解读</h2>
-          <p>针对 Furo / Sphinx 风格文档保留首读结论、更新 diff 和单页变化脉络。</p>
+        <div className="settings-panel__title">
+          <h2>页面</h2>
+          <HelpTip label="页面说明" text="先看最近哪页变了，再看详细解读和深读。" />
         </div>
         <div className="docs-mode-toggle">
           {[
             { id: "", label: "全部" },
             { id: "docs_initial_read", label: "首读" },
-            { id: "docs_diff_update", label: "更新 diff" },
+            { id: "docs_diff_update", label: "更新" },
           ].map((option) => (
             <button
               key={option.id || "all"}
@@ -377,15 +335,13 @@ export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEv
 
       {error ? <div className="error-banner">{error}</div> : null}
       {loadingProjects ? <div className="empty-state">正在读取文档项目...</div> : null}
-
-      {!loadingProjects && !projects.length ? <div className="empty-state">当前还没有接入文档源的项目。</div> : null}
+      {!loadingProjects && !projects.length ? <div className="empty-state">当前没有接入文档项目。</div> : null}
 
       {!loadingProjects && projects.length ? (
         <div className="docs-workbench-layout">
           <aside className="docs-project-rail">
-            <div className="docs-project-rail__inner">
-              <p className="section-kicker">Projects</p>
-              <h3>文档项目</h3>
+            <section className="docs-project-rail__inner">
+              <h2>项目</h2>
               <div className="docs-project-rail__list">
                 {projects.map((project) => (
                   <button
@@ -399,87 +355,25 @@ export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEv
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           </aside>
 
           <div className="docs-workbench-main">
             {loadingDetail ? <div className="empty-state">正在读取文档详情...</div> : null}
 
             {!loadingDetail && detail ? (
-              <>
-                <div className="docs-digest-grid">
-                  <EventDigestCard title="首次完整解读" event={detail.initial_read} emptyText="该项目还没有完成首读。"/>
-                  <EventDigestCard title="最近更新 diff" event={detail.latest_update} emptyText="最近还没有新的文档 diff。"/>
-                </div>
-
-                <section className="docs-stat-strip">
-                  <div>
-                    <span>总页面数</span>
-                    <strong>{detail.page_stats?.total_pages ?? 0}</strong>
+              <div className="docs-reading-layout">
+                <section className="docs-pages-panel">
+                  <div className="docs-panel-header">
+                    <h2>页面</h2>
+                    <span>{pages.length} 页</span>
                   </div>
-                  <div>
-                    <span>最近变更页</span>
-                    <strong>{detail.page_stats?.changed_pages ?? 0}</strong>
-                  </div>
-                  <div>
-                    <span>最近同步</span>
-                    <strong>{formatDate(detail.last_synced_at)}</strong>
-                  </div>
-                </section>
-
-                <div className="docs-analysis-grid">
-                  <section className="docs-events-panel">
-                    <div className="docs-events-panel__header">
-                      <div>
-                        <p className="section-kicker">Event Stream</p>
-                        <h3>文档事件流</h3>
-                      </div>
-                      <span>{events.length} 条</span>
-                    </div>
-                    <div className="docs-events-list">
-                      {events.map((event) => (
-                        <button
-                          key={event.id}
-                          type="button"
-                          className={`docs-events-list__item ${activeEvent?.id === event.id ? "docs-events-list__item--active" : ""}`}
-                          onClick={() => {
-                            setActiveEventId(event.id);
-                            if (event.changed_pages?.[0]?.page_id) {
-                              setSelectedPageId(event.changed_pages[0].page_id);
-                            }
-                          }}
-                        >
-                          <div>
-                            <strong>{event.title_zh}</strong>
-                            <p>{event.summary_zh}</p>
-                          </div>
-                          <span>{modeLabel(event.event_kind)}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-
-                  <EventDetails
-                    event={activeEvent}
-                    onSelectPage={(pageId) => {
-                      if (pageId) {
-                        setSelectedPageId(pageId);
-                      }
-                    }}
-                  />
-                </div>
-
-                <div className="docs-analysis-grid">
-                  <section className="docs-pages-panel">
-                    <div className="docs-events-panel__header">
-                      <div>
-                        <p className="section-kicker">Pages</p>
-                        <h3>当前页面快照</h3>
-                      </div>
-                      <span>{pages.length} 页</span>
-                    </div>
-                    <div className="docs-pages-list">
-                      {pages.map((page) => (
+                  <div className="docs-pages-list">
+                    {pages.map((page) => {
+                      const event = events.find((item) => (item.changed_pages || []).some((changedPage) => changedPage.page_id === page.id));
+                      const teaser = readableText(event?.doc_summary, event?.summary_zh, page.summary) || "先看页面摘要与 diff。";
+                      const time = event?.published_at || detail.last_synced_at;
+                      return (
                         <button
                           key={page.id}
                           type="button"
@@ -488,17 +382,135 @@ export default function DocsWorkbenchPage({ initialProjectId = "", highlightedEv
                         >
                           <div>
                             <strong>{page.title}</strong>
-                            <p>{page.summary}</p>
+                          <p>{teaser}</p>
                           </div>
-                          <span>{page.latest_change ? changeTypeLabel(page.latest_change.change_type) : "稳定"}</span>
+                          <div className="docs-pages-list__meta">
+                            <span>{modeLabel(event?.event_kind)}</span>
+                            <span>{changeTypeLabel(page.latest_change?.change_type)}</span>
+                            <span>{formatDate(time)}</span>
+                          </div>
                         </button>
-                      ))}
-                    </div>
-                  </section>
+                      );
+                    })}
+                  </div>
+                </section>
 
-                  <PageDiffPanel detail={pageDiff} loading={loadingDiff} />
-                </div>
-              </>
+                <section className="docs-reading-panel">
+                  <div className="docs-panel-header">
+                    <h2>解读</h2>
+                    {selectedPage ? <span>{selectedPage.title}</span> : null}
+                  </div>
+
+                  {selectedPage ? (
+                    <>
+                      <section className="docs-reading-hero">
+                        <div>
+                          <p className="section-kicker">{changeTypeLabel(selectedPage.latest_change?.change_type)}</p>
+                          <h3>{selectedPage.title}</h3>
+                        </div>
+                        <div className="docs-page-diff__meta">
+                          <span>{selectedPage.category || "未分类"}</span>
+                          <span>{selectedPage.extractor_hint || "docs"}</span>
+                        </div>
+                      </section>
+
+                      <div className="docs-reading-grid">
+                        <ReadingSection title="变化">
+                          <p>
+                            {readableText(
+                              diffHighlights[0],
+                              primaryEvent?.doc_summary,
+                              primaryEvent?.summary_zh,
+                              selectedPage.summary,
+                            ) || "先看页面摘要与 diff。"}
+                          </p>
+                        </ReadingSection>
+
+                        <ReadingSection title="影响">
+                          <p>{readableText(keyPoints[0], selectedPage.summary) || "这页暂无额外影响说明。"}</p>
+                        </ReadingSection>
+
+                        <ReadingSection title="建议">
+                          {readingGuide.length ? (
+                            <ul>
+                              {readingGuide.slice(0, deepReadOpen ? readingGuide.length : 1).map((item) => (
+                                <li key={item}>{item}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p>{readableText(primaryEvent?.summary_zh) || "先看这页 diff，再决定是否继续深读。"}</p>
+                          )}
+                        </ReadingSection>
+
+                        <ReadingSection title="Diff">
+                          {loadingDiff ? (
+                            <p>正在读取页面 diff...</p>
+                          ) : (
+                            <div className="docs-page-diff__columns">
+                              <div>
+                                <strong>新增</strong>
+                                <ul>
+                                  {addedBlocks.length ? addedBlocks.map((item) => <li key={item}>{item}</li>) : <li>这页暂无 diff 记录。</li>}
+                                </ul>
+                              </div>
+                              <div>
+                                <strong>删除</strong>
+                                <ul>
+                                  {removedBlocks.length ? removedBlocks.map((item) => <li key={item}>{item}</li>) : <li>这页暂无删除摘要。</li>}
+                                </ul>
+                              </div>
+                            </div>
+                          )}
+                        </ReadingSection>
+                      </div>
+
+                      <ReadingSection title="关联">
+                        <div className="docs-related-meta">
+                          <p>{sourceLine}</p>
+                          {primaryEvent ? (
+                            <p>{readableText(primaryEvent.title_zh) || "关联事件暂无中文标题。"}</p>
+                          ) : (
+                            <p>当前页面暂无关联事件，直接使用页面摘要和 diff。</p>
+                          )}
+                        </div>
+                      </ReadingSection>
+
+                      {deepReadOpen ? (
+                        <ReadingSection title="深读">
+                          <div className="docs-deep-read">
+                            <p>{readableText(primaryEvent?.doc_summary, selectedPage.summary) || "先看页面摘要与 diff。"}</p>
+                            {readingGuide.length > 1 ? (
+                              <ul>
+                                {readingGuide.slice(1).map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : null}
+                            {diffHighlights.length > 1 ? (
+                              <ul>
+                                {diffHighlights.slice(1).map((item) => (
+                                  <li key={item}>{item}</li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        </ReadingSection>
+                      ) : null}
+
+                      <div className="docs-reading-actions">
+                        <button type="button" className="secondary-button" onClick={() => setDeepReadOpen((current) => !current)}>
+                          深读
+                        </button>
+                        <button type="button" className="primary-button" onClick={handleResearch}>
+                          去研究
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-state">选择页面后，这里会展示详细解读。</div>
+                  )}
+                </section>
+              </div>
             ) : null}
           </div>
         </div>

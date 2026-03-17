@@ -95,6 +95,68 @@ def test_build_daily_project_summaries_generates_ranked_project_cards():
     assert summaries[1]["evidence_items"][0]["title_zh"] == "OpenClaw 2.4.0 发布"
 
 
+
+
+
+def test_build_daily_project_summaries_ignores_empty_llm_daily_summary_fallback():
+    from backend.daily_summary import build_daily_project_summaries
+
+    snapshot = {
+        "projects": [
+            {
+                "id": "crio",
+                "name": "CRI-O",
+                "github_url": "https://github.com/cri-o/cri-o",
+                "repo": "cri-o/cri-o",
+                "docs_url": "",
+            }
+        ],
+        "events": {
+            "github-release:cri-o/cri-o:v1.35.1": {
+                "id": "github-release:cri-o/cri-o:v1.35.1",
+                "project_id": "crio",
+                "source": "github_release",
+                "repo": "cri-o/cri-o",
+                "title": "CRI-O v1.35.1",
+                "version": "v1.35.1",
+                "url": "https://example.com/crio",
+                "published_at": "2026-03-03T00:35:59Z",
+            }
+        },
+        "analyses": {
+            "github-release:cri-o/cri-o:v1.35.1": {
+                "title_zh": "CRI-O v1.35.1 版本发布",
+                "summary_zh": "CRI-O v1.35.1 是 v1.35.0 后的首个补丁版本。",
+                "detail_sections": [],
+                "impact_points": [],
+                "action_items": [],
+                "urgency": "low",
+                "tags": ["cri-o"],
+                "is_stable": True,
+            }
+        },
+        "daily_project_summaries": {},
+    }
+
+    def summarizer(**_kwargs):
+        return {
+            "headline": "CRI-O 今日重点：CRI-O v1.35.1 版本发布",
+            "summary_zh": "模型返回空响应，无法生成日报摘要。",
+            "reason": "",
+            "importance": "low",
+        }
+
+    summaries = build_daily_project_summaries(
+        snapshot=snapshot,
+        summary_date="2026-03-17",
+        now_iso="2026-03-17T08:00:00Z",
+        summarizer=summarizer,
+    )
+
+    assert summaries[0]["summary_zh"] == "CRI-O 今天最值得看的变化是 CRI-O v1.35.1 版本发布，它已经进入首页项目级摘要。"
+    assert summaries[0]["reason"] == "该变化在今天的项目证据里最值得优先查看。"
+
+
 def test_resolve_summary_date_prefers_freshest_known_date():
     from backend.daily_summary import resolve_summary_date
 
@@ -111,3 +173,52 @@ def test_resolve_summary_date_prefers_freshest_known_date():
     }
 
     assert resolve_summary_date(snapshot) == "2026-03-10"
+
+
+
+def test_build_daily_project_summaries_replaces_english_analysis_with_chinese_text():
+    from backend.daily_summary import build_daily_project_summaries
+
+    snapshot = {
+        "projects": [
+            {
+                "id": "podman",
+                "name": "Podman",
+                "github_url": "https://github.com/containers/podman",
+                "repo": "containers/podman",
+                "docs_url": "https://docs.podman.io",
+            }
+        ],
+        "events": {
+            "docs-feed:podman:docs:https://docs.podman.io/en/latest/markdown/podman-run.1.html": {
+                "id": "docs-feed:podman:docs:https://docs.podman.io/en/latest/markdown/podman-run.1.html",
+                "project_id": "podman",
+                "source": "docs_feed",
+                "title": "podman run",
+                "url": "https://docs.podman.io/en/latest/markdown/podman-run.1.html",
+                "published_at": "2026-03-17T01:00:00Z",
+                "category": "运行",
+            },
+        },
+        "analyses": {
+            "docs-feed:podman:docs:https://docs.podman.io/en/latest/markdown/podman-run.1.html": {
+                "title_zh": "podman run",
+                "summary_zh": "Rootless networking flags updated.",
+                "detail_sections": [],
+                "impact_points": ["Rootless containers"],
+                "action_items": ["Check existing scripts."],
+                "urgency": "medium",
+                "tags": ["podman"],
+                "is_stable": True,
+            }
+        },
+        "daily_project_summaries": {},
+    }
+
+    summaries = build_daily_project_summaries(snapshot=snapshot, summary_date="2026-03-17", now_iso="2026-03-17T08:00:00Z")
+
+    assert summaries[0]["headline"] == "Podman 今日重点"
+    assert summaries[0]["summary_zh"] == "今天检测到新的项目变化，建议查看最新中文解读。"
+    assert summaries[0]["reason"] == "当前证据的中文摘要不足，已回退为中文提示。"
+    assert summaries[0]["evidence_items"][0]["title_zh"] == "Podman 文档更新"
+    assert summaries[0]["evidence_items"][0]["summary_zh"] == "该条证据的中文解读暂不可用，建议进入详情查看页面变化。"

@@ -196,6 +196,90 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     assert payload["projects"][0]["docs_area"]["categories"][0]["items"][0]["title_zh"] == "网络策略文档更新"
 
 
+
+
+def test_docs_events_replace_english_analysis_with_chinese_fallback(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "podman",
+                "name": "Podman",
+                "github_url": "https://github.com/containers/podman",
+                "repo": "containers/podman",
+                "docs_url": "https://docs.podman.io",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": True,
+                "tech_categories": [],
+                "focus_topics": [],
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-17T00:00:00Z",
+                "updated_at": "2026-03-17T00:00:00Z",
+            }
+        ]
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:podman:docs:https://docs.podman.io/en/latest/markdown/podman-run.1.html",
+            "source": "docs_feed",
+            "project_id": "podman",
+            "source_key": "podman:docs",
+            "title": "podman run",
+            "url": "https://docs.podman.io/en/latest/markdown/podman-run.1.html",
+            "content_hash": "hash-docs-1",
+            "published_at": "2026-03-17T01:00:00Z",
+            "event_kind": "docs_diff_update",
+            "research_bundle": {
+                "changed_pages": [
+                    {
+                        "page_id": "podman-run",
+                        "title_after": "podman run",
+                        "change_type": "changed",
+                        "after_summary": "Rootless networking flags updated.",
+                        "added_blocks": ["The default network mode changed."],
+                        "removed_blocks": [],
+                    }
+                ]
+            },
+        }
+    )
+    store.save_analysis(
+        "docs-feed:podman:docs:https://docs.podman.io/en/latest/markdown/podman-run.1.html",
+        {
+            "title_zh": "podman run",
+            "summary_zh": "Rootless networking flags updated.",
+            "details_zh": "The default network mode changed.",
+            "doc_summary": "Updated rootless networking behavior.",
+            "diff_highlights": ["The default network mode changed."],
+            "reading_guide": ["Read the run command changes first."],
+            "impact_points": ["Rootless containers"],
+            "action_items": ["Check existing scripts."],
+            "urgency": "medium",
+            "is_stable": True,
+        },
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    response = client.get('/api/docs/projects/podman/events')
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload[0]['title_zh'] == 'Podman 文档更新'
+    assert payload[0]['summary_zh'] == 'podman run 页面有新变化，请先看页面摘要与 diff。'
+    assert payload[0]['doc_summary'] == '这次文档变更的中文解读暂不可用，请先看页面摘要与 diff。'
+    assert payload[0]['details_zh'] == '当前证据不足以生成详细中文解读，建议先看页面摘要、页面 diff 和关联变更。'
+    assert payload[0]['diff_highlights'] == ['先看 podman run 的页面变化。']
+    assert payload[0]['reading_guide'] == ['先看 podman run']
+    assert payload[0]['impact_points'] == ['影响点待补充，建议先结合页面变化判断。']
+    assert payload[0]['action_items'] == ['建议先核对相关页面变化，再决定是否继续研究。']
+
+
 def test_manual_sync_endpoint_returns_runner_result(tmp_path: Path):
     from backend.app import create_app
     from backend.storage import JsonStore
@@ -807,6 +891,103 @@ def test_docs_pages_ignore_initial_read_when_marking_recent_changes(tmp_path):
     assert pages_payload[0]["id"] == "network-page"
     assert pages_payload[0]["latest_change"] is None
     assert pages_payload[0]["is_recently_changed"] is False
+
+
+def test_docs_events_replace_empty_llm_placeholder_with_readable_fallback(tmp_path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "openclaw",
+                "name": "OpenClaw",
+                "repo": "openclaw/openclaw",
+                "repo_url": "https://github.com/openclaw/openclaw",
+                "docs_url": "https://openclaw.dev/docs",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": True,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T10:00:00Z",
+                "updated_at": "2026-03-15T10:00:00Z",
+            }
+        ]
+    )
+    store.save_docs_snapshots(
+        {
+            "openclaw": {
+                "project_id": "openclaw",
+                "source_key": "openclaw:docs",
+                "updated_at": "2026-03-15T10:00:00Z",
+                "pages": {
+                    "https://openclaw.dev/docs/runtime": {
+                        "id": "runtime-page",
+                        "url": "https://openclaw.dev/docs/runtime",
+                        "path": "/docs/runtime",
+                        "title": "Runtime",
+                        "section": "Runtime",
+                        "category": "运行时",
+                        "extractor_hint": "html-main",
+                        "headings": ["Runtime"],
+                        "breadcrumbs": ["Docs", "Runtime"],
+                        "summary": "runtime summary",
+                        "text_content": "runtime summary",
+                        "last_seen_at": "2026-03-15T10:00:00Z",
+                    }
+                },
+            }
+        }
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:openclaw:docs:runtime:initial",
+            "source": "docs_feed",
+            "project_id": "openclaw",
+            "source_key": "openclaw:docs",
+            "event_kind": "docs_initial_read",
+            "title": "OpenClaw 文档 · Runtime 首次解读",
+            "url": "https://openclaw.dev/docs/runtime",
+            "content_hash": "runtime-hash",
+            "category": "运行时",
+            "published_at": "2026-03-15T09:00:00Z",
+            "research_bundle": {
+                "analysis_mode": "initial_read",
+                "changed_pages": [
+                    {
+                        "page_id": "runtime-page",
+                        "url": "https://openclaw.dev/docs/runtime",
+                        "title_after": "Runtime",
+                        "change_type": "added",
+                    }
+                ],
+            },
+        }
+    )
+    store.save_analysis(
+        "docs-feed:openclaw:docs:runtime:initial",
+        {
+            "title_zh": "",
+            "summary_zh": "模型返回空响应，未能生成结构化分析。",
+            "details_zh": "",
+            "analysis_mode": "fallback",
+            "doc_summary": "",
+            "doc_key_points": [],
+            "diff_highlights": [],
+            "reading_guide": [],
+        },
+    )
+
+    app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
+    client = app.test_client()
+
+    events_payload = client.get("/api/docs/projects/openclaw/events").get_json()
+
+    assert events_payload[0]["title_zh"] == "OpenClaw 文档 · Runtime 首次解读"
+    assert events_payload[0]["summary_zh"] != "模型返回空响应，未能生成结构化分析。"
+    assert "Runtime" in events_payload[0]["summary_zh"]
+    assert events_payload[0]["reading_guide"] == ["先看 Runtime"]
 
 
 def test_config_response_includes_effective_values_and_key_source(tmp_path: Path, monkeypatch):

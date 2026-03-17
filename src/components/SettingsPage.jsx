@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { FOCUS_CATEGORIES, FOCUS_TOPIC_OPTIONS } from "../lib/focusTags";
+import HelpTip from "./HelpTip";
 
 const CATEGORY_OPTIONS = ["", ...FOCUS_CATEGORIES];
 
@@ -36,6 +37,17 @@ function EffectiveConfig({ data }) {
       <div className="llm-effective__row">
         <span className="llm-effective__label">供应商</span>
         <strong className="llm-effective__value">{data?.effective_provider || "未配置"}</strong>
+      </div>
+    </div>
+  );
+}
+
+function SettingsSectionHeader({ title, help }) {
+  return (
+    <div className="settings-panel__header">
+      <div className="settings-panel__title">
+        <h2>{title}</h2>
+        <HelpTip label={`${title}说明`} text={help} />
       </div>
     </div>
   );
@@ -188,13 +200,7 @@ export default function SettingsPage({
   return (
     <section className="settings-page">
       <section className="settings-panel">
-        <div className="settings-panel__header">
-          <div>
-            <p className="section-kicker">AI Capability</p>
-            <h2>AI 能力管理</h2>
-          </div>
-          <p className="settings-panel__copy">切换当前主供应商，并维护 Packy / OpenAI 两套网关参数。未显式保存主供应商时，服务端会自动选择已配置好 API key 的通道；字段留空时继续沿用容器环境变量。</p>
-        </div>
+        <SettingsSectionHeader title="模型" help="切换主供应商并维护两套模型网关。" />
 
         <form className="assistant-config-form" onSubmit={handleLlmSubmit}>
           <label>
@@ -258,8 +264,8 @@ export default function SettingsPage({
           </div>
 
           <div className="settings-inline-note assistant-config-form__full">
-            <strong>{llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"} 当前作为主通道。</strong>
-            <span>未选中的另一套配置会作为备用通道参与 fallback；是否真正生效仍取决于服务端是否已配置对应 API key。</span>
+            <strong>主通道</strong>
+            <span>{llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"}</span>
           </div>
 
           <div className="llm-provider-grid assistant-config-form__full">
@@ -268,12 +274,11 @@ export default function SettingsPage({
             >
               <div className="llm-provider-card__header">
                 <div>
-                  <p className="section-kicker">Provider A</p>
                   <h3>Packy</h3>
                 </div>
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "packy" ? "主通道" : "备用"}</span>
               </div>
-              <p className="llm-provider-card__copy">{llmForm.packy.apiKeyConfigured ? "Packy API key 已就绪，可直接作为主通道或备用通道。" : "Packy API key 尚未配置；留空时会继续尝试读取服务端环境变量。"}</p>
+              <div className="llm-provider-card__status">{llmForm.packy.apiKeyConfigured ? "已配置" : "未配置"}</div>
               <EffectiveConfig data={packyEffective} />
               <div className="assistant-config-form llm-provider-card__form">
                 <label className="assistant-config-form__full">
@@ -352,12 +357,11 @@ export default function SettingsPage({
             >
               <div className="llm-provider-card__header">
                 <div>
-                  <p className="section-kicker">Provider B</p>
                   <h3>OpenAI</h3>
                 </div>
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "openai" ? "主通道" : "备用"}</span>
               </div>
-              <p className="llm-provider-card__copy">{llmForm.openai.apiKeyConfigured ? "OpenAI API key 已就绪，可直接切换为主通道。" : "OpenAI API key 尚未配置；留空时会继续尝试读取服务端 OPENAI_API_KEY。"}</p>
+              <div className="llm-provider-card__status">{llmForm.openai.apiKeyConfigured ? "已配置" : "未配置"}</div>
               <EffectiveConfig data={openaiEffective} />
               <div className="assistant-config-form llm-provider-card__form">
                 <label className="assistant-config-form__full">
@@ -439,13 +443,7 @@ export default function SettingsPage({
       </section>
 
       <section className="settings-panel">
-        <div className="settings-panel__header">
-          <div>
-            <p className="section-kicker">Assistant</p>
-            <h2>Assistant 全局配置</h2>
-          </div>
-          <p className="settings-panel__copy">所有 AI 控制台 查询都先走这份本地配置，再进入 assistant 检索和组织回答。</p>
-        </div>
+        <SettingsSectionHeader title="助手" help="设置 Assistant 默认筛选、搜索和 Prompt。" />
 
         <form className="assistant-config-form" onSubmit={handleAssistantSubmit}>
           <label className="assistant-config-form__toggle">
@@ -581,11 +579,10 @@ export default function SettingsPage({
 
       <section className="settings-panel project-admin">
         <div className="project-admin__header">
-          <div>
-            <p className="section-kicker">Config Center</p>
-            <h2>配置中心</h2>
+          <div className="settings-panel__title">
+            <h2>项目</h2>
+            <HelpTip label="项目说明" text="维护项目来源、技术分类和关注主题。" />
           </div>
-          <p className="project-admin__copy">新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。</p>
         </div>
 
         <form className="project-form" onSubmit={onProjectSubmit}>

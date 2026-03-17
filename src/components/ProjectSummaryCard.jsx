@@ -14,7 +14,28 @@ function importanceLabel(level) {
   return "低波动";
 }
 
+function hasChineseText(value) {
+  if (typeof value !== "string") return false;
+  const text = value.trim();
+  if (!text) return false;
+  return /[\u3400-\u9fff\uf900-\ufaff]/.test(text);
+}
+
+function fallbackEvidenceTitle(projectName, source) {
+  if (source === "docs_feed") return `${projectName} 文档更新`;
+  if (source === "github_release") return `${projectName} 版本更新`;
+  return `${projectName} 项目更新`;
+}
+
 export default function ProjectSummaryCard({ item }) {
+  const projectName = item.project_name || "项目";
+  const headline = hasChineseText(item.headline) ? item.headline : `${projectName} 今日重点`;
+  const summary = hasChineseText(item.summary_zh)
+    ? item.summary_zh
+    : "今天检测到新的项目变化，建议查看最新中文解读。";
+  const reason = hasChineseText(item.reason)
+    ? item.reason
+    : "当前证据的中文摘要不足，已回退为中文提示。";
   return (
     <article
       className="project-summary-card"
@@ -30,9 +51,9 @@ export default function ProjectSummaryCard({ item }) {
       </header>
 
       <div className="project-summary-card__body">
-        <h3>{item.headline}</h3>
-        <p className="project-summary-card__summary">{item.summary_zh}</p>
-        <p className="project-summary-card__reason">{item.reason}</p>
+        <h3>{headline}</h3>
+        <p className="project-summary-card__summary">{summary}</p>
+        <p className="project-summary-card__reason">{reason}</p>
       </div>
 
       <section className="project-summary-card__evidence">
@@ -47,8 +68,16 @@ export default function ProjectSummaryCard({ item }) {
                 <span className={`pill pill--${evidence.urgency || "low"}`}>{evidence.category || evidence.version || evidence.source}</span>
               </div>
               <div className="project-evidence-row__copy">
-                <strong>{evidence.title_zh}</strong>
-                <p>{evidence.summary_zh}</p>
+                <strong>
+                  {hasChineseText(evidence.title_zh)
+                    ? evidence.title_zh
+                    : fallbackEvidenceTitle(projectName, evidence.source)}
+                </strong>
+                <p>
+                  {hasChineseText(evidence.summary_zh)
+                    ? evidence.summary_zh
+                    : "该条证据的中文解读暂不可用，建议进入详情查看页面变化。"}
+                </p>
               </div>
               {evidence.url ? (
                 <a href={evidence.url} target="_blank" rel="noreferrer" className="insight-link">

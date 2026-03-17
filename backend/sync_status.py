@@ -62,6 +62,28 @@ class SyncCoordinator:
         return recorder.start_run(run_kind=run_kind, started_at=started_at)
 
     @staticmethod
+    def _job_status(
+        *,
+        run_kind: str,
+        run_id: str | None,
+        phase: str,
+        message: str,
+        started_at: str,
+        last_incremental_metrics: dict | None = None,
+    ) -> dict:
+        return {
+            **default_sync_status(),
+            "last_incremental_metrics": last_incremental_metrics,
+            "run_id": run_id,
+            "status": "running",
+            "run_kind": run_kind,
+            "phase": phase,
+            "message": message,
+            "started_at": started_at,
+            "last_heartbeat_at": started_at,
+        }
+
+    @staticmethod
     def _runner_supports(runner, name: str) -> bool:
         try:
             params = inspect.signature(runner).parameters
@@ -111,18 +133,15 @@ class SyncCoordinator:
 
             previous_incremental = self._status.get("last_incremental_metrics")
             started_at = now_iso()
-            run_id = self._start_run("manual", started_at=started_at)
-            initial_status = {
-                **default_sync_status(),
-                "last_incremental_metrics": previous_incremental,
-                "run_id": run_id,
-                "status": "running",
-                "run_kind": "manual",
-                "phase": "queued",
-                "message": "同步任务已开始",
-                "started_at": started_at,
-                "last_heartbeat_at": started_at,
-            }
+            run_id = self._start_run("manual-incremental", started_at=started_at)
+            initial_status = self._job_status(
+                run_kind="manual-incremental",
+                run_id=run_id,
+                phase="queued",
+                message="同步任务已开始",
+                started_at=started_at,
+                last_incremental_metrics=previous_incremental,
+            )
             self._status = initial_status
 
         self._update_run_record(initial_status, initial_status)
@@ -215,8 +234,9 @@ class SyncCoordinator:
     def _run_manual_sync(self) -> None:
         incremental_result = {}
         daily_digest_result = {}
-        run_id = self._status.get("run_id")
+        incremental_run_id = self._status.get("run_id")
         run_logger = self._ensure_recorder()
+        digest_started = False
 
         try:
             self._set_status(phase="incremental", message="正在抓取并分析项目更新")
@@ -224,33 +244,53 @@ class SyncCoordinator:
                 self.incremental_runner,
                 progress_callback=self._progress_callback,
                 run_logger=run_logger,
-                run_id=run_id,
+                run_id=incremental_run_id,
             )
-            finished_at = now_iso()
+            incremental_finished_at = now_iso()
+            incremental_metrics = self._build_incremental_metrics(incremental_result, finished_at=incremental_finished_at)
             self._set_status(
-                phase="daily_digest",
-                message="正在生成今日日报",
-                last_incremental_metrics=self._build_incremental_metrics(incremental_result, finished_at=finished_at),
+                status="success",
+                phase="completed",
+                message="增量同步完成",
+                finished_at=incremental_finished_at,
+                last_incremental_metrics=incremental_metrics,
                 result={"incremental": incremental_result},
             )
+
+            digest_started_at = now_iso()
+            digest_run_id = self._start_run("manual-digest", started_at=digest_started_at)
+            digest_started = True
+            with self._lock:
+                self._status = self._job_status(
+                    run_kind="manual-digest",
+                    run_id=digest_run_id,
+                    phase="daily_digest",
+                    message="正在生成今日日报",
+                    started_at=digest_started_at,
+                    last_incremental_metrics=incremental_metrics,
+                )
+                next_status = deepcopy(self._status)
+            self._update_run_record(next_status, next_status)
+            self._refresh_heartbeat_ticker(next_status)
+
             daily_digest_result = self._invoke_runner(
                 self.daily_digest_runner,
                 progress_callback=self._progress_callback,
                 run_logger=run_logger,
-                run_id=run_id,
+                run_id=digest_run_id,
             )
             self._set_status(
                 status="success",
                 phase="completed",
-                message="同步完成",
+                message="日报生成完成",
                 finished_at=now_iso(),
-                result={"incremental": incremental_result, "daily_digest": daily_digest_result},
+                result={"daily_digest": daily_digest_result},
             )
         except Exception as error:
             self._set_status(
                 status="failed",
                 phase="failed",
-                message="同步失败",
+                message="日报生成失败" if digest_started else "增量同步失败",
                 finished_at=now_iso(),
                 error=str(error),
                 result={"incremental": incremental_result, "daily_digest": daily_digest_result},

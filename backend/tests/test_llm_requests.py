@@ -547,6 +547,40 @@ def test_analyze_event_uses_openai_responses_protocol(monkeypatch):
     assert analysis["summary_zh"] == "Responses API 格式返回"
 
 
+def test_analyze_event_falls_back_to_plain_text_summary_for_non_json_content(monkeypatch):
+    from backend.llm import analyze_event
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        return DummyResponse(
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "temporary upstream html page",
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setenv("PACKY_API_KEY", "test-key")
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    analysis = analyze_event(
+        {
+            "id": "docs-feed:kind:docs:network",
+            "source": "docs_feed",
+            "source_key": "kind:docs",
+            "title": "kind 文档",
+            "body": "See docs",
+            "url": "https://kind.sigs.k8s.io/docs/",
+            "event_kind": "docs_initial_read",
+        }
+    )
+
+    assert analysis["analysis_mode"] == "fallback"
+    assert "temporary upstream html page" in analysis["summary_zh"]
+
+
 def test_analyze_event_uses_codex_protocol_with_responses_wire_format(monkeypatch):
     from backend.llm import analyze_event
 

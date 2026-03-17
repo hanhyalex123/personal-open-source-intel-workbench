@@ -74,7 +74,7 @@ def test_manual_sync_runs_in_background_and_updates_status(tmp_path):
         raise AssertionError("sync did not finish in time")
 
     assert payload["phase"] == "completed"
-    assert payload["result"]["incremental"]["new_events"] == 2
+    assert payload["run_kind"] == "manual-digest"
     assert payload["result"]["daily_digest"]["summary_count"] == 8
     assert payload["last_incremental_metrics"]["new_events"] == 2
     assert payload["last_incremental_metrics"]["analyzed_events"] == 1
@@ -183,14 +183,91 @@ def test_manual_sync_updates_run_logs(tmp_path):
 
     runs = load_runs(store)["runs"]
     assert runs
-    run = runs[0]
-    assert run["run_kind"] == "manual"
+    assert runs[0]["run_kind"] == "manual-digest"
+    assert runs[0]["status"] == "success"
+    run = runs[1]
+    assert run["run_kind"] == "manual-incremental"
     assert run["status"] == "success"
     assert run["phase"] == "completed"
     assert run["metrics"]["total_sources"] == 2
     assert run["metrics"]["new_events"] == 1
     assert run["metrics"]["skipped_events"] == 3
     assert run["sources"][0]["label"] == "openclaw/openclaw"
+
+
+def test_manual_sync_records_incremental_and_digest_as_separate_jobs(tmp_path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+    from backend.sync_runs import load_runs
+
+    store = JsonStore(tmp_path)
+
+    def fake_incremental_runner(*, progress_callback=None, run_logger=None, run_id=None):
+        assert run_logger is not None
+        assert run_id
+        if progress_callback is not None:
+            progress_callback(
+                phase="incremental",
+                message="正在抓取 GitHub releases",
+                current_label="openclaw/openclaw",
+                processed_sources=1,
+                total_sources=2,
+                new_events=1,
+                analyzed_events=0,
+                failed_events=1,
+                skipped_events=3,
+            )
+        run_logger.record_source(
+            run_id,
+            {
+                "kind": "repo",
+                "label": "openclaw/openclaw",
+                "url": "https://github.com/openclaw/openclaw",
+                "status": "success",
+                "metrics": {"new_events": 1, "analyzed_events": 0, "failed_events": 1, "skipped_events": 3},
+                "error": None,
+                "events": [],
+            },
+        )
+        return {"new_events": 1, "analyzed_events": 0, "failed_events": 1, "skipped_events": 3}
+
+    def fake_digest_runner(*, progress_callback=None, run_logger=None, run_id=None):
+        assert run_logger is not None
+        assert run_id
+        if progress_callback is not None:
+            progress_callback(
+                phase="daily_digest",
+                message="正在生成今日日报",
+                current_label="2 个项目",
+                processed_sources=2,
+                total_sources=2,
+            )
+        return {"summary_date": "2026-03-17", "summary_count": 2}
+
+    app = create_app(store=store, sync_runner=fake_incremental_runner, daily_digest_runner=fake_digest_runner)
+    client = app.test_client()
+
+    response = client.post("/api/sync")
+    assert response.status_code == 202
+
+    for _ in range(20):
+        payload = client.get("/api/sync/status").get_json()
+        if payload["status"] == "success":
+            break
+        sleep(0.1)
+    else:
+        raise AssertionError("sync did not finish in time")
+
+    runs = load_runs(store)["runs"]
+
+    assert len(runs) == 2
+    assert runs[0]["run_kind"] == "manual-digest"
+    assert runs[0]["status"] == "success"
+    assert runs[1]["run_kind"] == "manual-incremental"
+    assert runs[1]["status"] == "success"
+    assert runs[1]["metrics"]["failed_events"] == 1
+    assert payload["run_kind"] == "manual-digest"
+    assert payload["last_incremental_metrics"]["failed_events"] == 1
 
 
 def test_scheduled_incremental_marks_status_failed_on_exception(tmp_path):

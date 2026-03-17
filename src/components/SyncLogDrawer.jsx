@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { clearSyncRuns, fetchSyncRun, fetchSyncRuns } from "../lib/api";
+import { runKindLabel } from "../lib/syncJobs";
 
 const FILTERS = [
   { id: "all", label: "全部" },
@@ -16,13 +17,6 @@ function formatDate(value) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
-}
-
-function runKindLabel(runKind) {
-  if (runKind === "scheduled-incremental") return "定时增量";
-  if (runKind === "scheduled-digest") return "定时日报";
-  if (runKind === "manual") return "手动同步";
-  return "未知";
 }
 
 function statusLabel(status) {
