@@ -12,6 +12,7 @@ from .sync_runs import load_runs, save_runs
 from .digest_history import build_daily_digest_history, build_recent_project_updates, sort_daily_digest_projects
 from .daily_summary import (
     IMPORTANCE_ORDER,
+    build_daily_digest_buckets,
     build_daily_project_summaries,
     load_daily_project_summaries_for_date,
     resolve_summary_date,
@@ -46,6 +47,17 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
         groups = _group_items(items, snapshot["projects"], snapshot["crawl_profiles"])
         digest_history = build_daily_digest_history(snapshot.get("daily_project_summaries"))
         digest_date = digest_history[0]["date"] if digest_history else resolve_summary_date(snapshot)
+        digest_now_iso = (
+            snapshot.get("state", {}).get("last_daily_summary_at")
+            or snapshot.get("state", {}).get("last_sync_at")
+            or f"{digest_date}T00:00:00Z"
+        )
+        digest_buckets = build_daily_digest_buckets(
+            snapshot=snapshot,
+            summary_date=digest_date,
+            now_iso=digest_now_iso,
+        )
+        homepage_projects = digest_buckets["must_watch_projects"] + digest_buckets["emerging_projects"]
         return {
             "overview": {
                 "total_items": len(items),
@@ -59,7 +71,9 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
                 "last_heartbeat_at": snapshot["state"].get("last_heartbeat_at"),
                 "scheduler": snapshot["state"].get("scheduler", {}),
             },
-            "homepage_projects": _build_homepage_projects(snapshot, digest_date),
+            "homepage_projects": homepage_projects,
+            "must_watch_projects": digest_buckets["must_watch_projects"],
+            "emerging_projects": digest_buckets["emerging_projects"],
             "recent_project_updates": build_recent_project_updates(
                 snapshot=snapshot,
                 since_iso=snapshot["state"].get("last_daily_digest_at"),

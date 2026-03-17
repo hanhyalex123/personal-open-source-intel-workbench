@@ -194,6 +194,16 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
             "scheduler": {"running": True, "interval_minutes": 60},
         }
     )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["kubernetes"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        }
+    )
 
     app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
     client = app.test_client()
@@ -219,6 +229,112 @@ def test_dashboard_endpoint_returns_grouped_chinese_analysis(tmp_path: Path):
     assert payload["projects"][0]["release_area"]["items"][0]["published_at"] == "2026-03-10T10:00:00Z"
     assert [item["category"] for item in payload["projects"][0]["docs_area"]["categories"]] == ["网络"]
     assert payload["projects"][0]["docs_area"]["categories"][0]["items"][0]["title_zh"] == "网络策略文档更新"
+
+
+def test_dashboard_returns_daily_digest_buckets(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "alpha",
+                "name": "Alpha",
+                "github_url": "https://example.com/alpha",
+                "repo": "example/alpha",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+            {
+                "id": "beta",
+                "name": "Beta",
+                "github_url": "https://example.com/beta",
+                "repo": "example/beta",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+        ]
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/alpha:v1.0.0",
+            "source": "github_release",
+            "repo": "example/alpha",
+            "source_key": "example/alpha",
+            "title": "Alpha v1.0.0",
+            "version": "v1.0.0",
+            "url": "https://example.com/alpha/v1.0.0",
+            "content_hash": "hash-alpha",
+            "published_at": "2026-03-16T09:00:00Z",
+        }
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/beta:v0.5.0",
+            "source": "github_release",
+            "repo": "example/beta",
+            "source_key": "example/beta",
+            "title": "Beta v0.5.0",
+            "version": "v0.5.0",
+            "url": "https://example.com/beta/v0.5.0",
+            "content_hash": "hash-beta",
+            "published_at": "2026-03-16T09:00:00Z",
+        }
+    )
+    store.save_analysis(
+        "github-release:example/alpha:v1.0.0",
+        {
+            "title_zh": "Alpha v1.0.0 发布",
+            "summary_zh": "Alpha 发布。",
+            "urgency": "medium",
+            "tags": ["alpha"],
+            "is_stable": True,
+        },
+    )
+    store.save_analysis(
+        "github-release:example/beta:v0.5.0",
+        {
+            "title_zh": "Beta v0.5.0 发布",
+            "summary_zh": "Beta 发布。",
+            "urgency": "low",
+            "tags": ["beta"],
+            "is_stable": True,
+        },
+    )
+    store.save_state(
+        {
+            "last_sync_at": "2026-03-16T10:00:00Z",
+            "last_analysis_at": "2026-03-16T10:00:00Z",
+            "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["alpha"],
+                "emerging_project_ids": ["beta"],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        }
+    )
+
+    payload = create_app(store=store, sync_runner=lambda: {"status": "noop"}).test_client().get("/api/dashboard").get_json()
+
+    assert [item["project_id"] for item in payload["must_watch_projects"]] == ["alpha"]
+    assert [item["project_id"] for item in payload["emerging_projects"]] == ["beta"]
+    assert [item["project_id"] for item in payload["homepage_projects"]] == ["alpha", "beta"]
 
 
 
@@ -465,6 +581,16 @@ def test_dashboard_resorts_homepage_projects_after_backfilling_missing_summaries
             "scheduler": {"running": True, "interval_minutes": 60},
         }
     )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["high-project", "low-project"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        }
+    )
 
     app = create_app(store=store, sync_runner=lambda: {"status": "noop"})
     client = app.test_client()
@@ -552,6 +678,16 @@ def test_dashboard_returns_digest_history_and_recent_updates_separately(tmp_path
             "last_daily_digest_at": "2026-03-10T08:00:00Z",
             "last_heartbeat_at": "2026-03-11T09:30:00Z",
             "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["cilium"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
         }
     )
 

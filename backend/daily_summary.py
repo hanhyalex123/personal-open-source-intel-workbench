@@ -344,7 +344,7 @@ def _project_latest_activity_at(summary: dict) -> str | None:
     evidence_items = summary.get("evidence_items") or []
     timestamps = [item.get("published_at") for item in evidence_items if item.get("published_at")]
     if not timestamps:
-        return None
+        return summary.get("updated_at")
     return max(timestamps)
 
 
