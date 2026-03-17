@@ -115,7 +115,7 @@ export default function AIConsolePage({ projects, assistantConfig, onQuery, init
           </button>
         </form>
 
-        {!assistantConfig?.enabled ? <div className="error-banner">Assistant 当前被禁用，请先在配置中心开启。</div> : null}
+        {!assistantConfig?.enabled ? <div className="error-banner">Assistant 当前被禁用，请先在设置开启。</div> : null}
         {error ? <div className="error-banner">{error}</div> : null}
       </section>
 

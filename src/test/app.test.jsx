@@ -804,7 +804,7 @@ describe("App", () => {
     expect(screen.getAllByText("情报监控").length).toBeGreaterThan(0);
     expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
     expect(screen.getAllByText("文档解读").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("设置").length).toBeGreaterThan(0);
     expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
     expect(screen.getByText("情报值班台")).toBeInTheDocument();
     expect(screen.getAllByAltText("品牌头像").length).toBeGreaterThan(0);
@@ -879,8 +879,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "AI工具" }));
     expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
-    expect(screen.getAllByText("配置中心").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
+    expect(screen.getAllByText("设置").length).toBeGreaterThan(0);
     expect(screen.getAllByText("OpenClaw").length).toBeGreaterThan(0);
     expect(screen.getAllByText("AI工具").length).toBeGreaterThan(0);
     expect(screen.getAllByText("大模型推理部署").length).toBeGreaterThan(0);
@@ -1231,7 +1231,7 @@ describe("App", () => {
       expect(screen.getAllByText("Kubernetes 今日重点：1.31 补丁与网络策略").length).toBeGreaterThan(0);
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
       expect(screen.getAllByText("OpenClaw").length).toBeGreaterThan(0);
@@ -1258,7 +1258,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
       expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
@@ -1331,7 +1331,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
       expect(screen.getByText("日报排序")).toBeInTheDocument();
@@ -1374,7 +1374,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
       expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
@@ -1448,7 +1448,7 @@ describe("App", () => {
       expect(screen.getByText("日报首页")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
     await waitFor(() => {
       expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
     });
@@ -1479,7 +1479,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "配置中心" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
       expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
