@@ -313,6 +313,12 @@ const configPayload = {
     mmr_lambda: 0.7,
     mmr_diversity_keys: ["source", "category", "tags"],
   },
+  daily_digest: {
+    must_watch_project_ids: ["openclaw"],
+    emerging_project_ids: [],
+    must_watch_days: 30,
+    emerging_days: 3,
+  },
 };
 
 const assistantPayload = {
@@ -1365,6 +1371,58 @@ describe("App", () => {
     expect(payload.daily_ranking.weights.importance).toBe(0.5);
     expect(payload.daily_ranking.read_decay_factor).toBe(0.4);
     expect(payload.daily_ranking.mmr_lambda).toBe(0.6);
+  });
+
+  it("submits daily digest bucket config updates", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText("日报分区")).toBeInTheDocument();
+    });
+
+    const mustWatchSelect = screen.getByLabelText("老牌必看项目");
+    Array.from(mustWatchSelect.options).forEach((option) => {
+      option.selected = option.value === "openclaw";
+    });
+    fireEvent.change(mustWatchSelect);
+
+    const emergingSelect = screen.getByLabelText("近期更新项目");
+    Array.from(emergingSelect.options).forEach((option) => {
+      option.selected = option.value === "openclaw";
+    });
+    fireEvent.change(emergingSelect);
+    fireEvent.change(screen.getByLabelText("老牌必看窗口（天）"), {
+      target: { value: "20" },
+    });
+    fireEvent.change(screen.getByLabelText("近期更新窗口（天）"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "保存日报分区" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/config",
+        expect.objectContaining({
+          method: "PUT",
+        }),
+      );
+    });
+
+    const updateCall = global.fetch.mock.calls.find(
+      ([url, options]) => url === "/api/config" && options?.method === "PUT",
+    );
+    const payload = JSON.parse(updateCall[1].body);
+
+    expect(payload.daily_digest.must_watch_project_ids).toEqual(["openclaw"]);
+    expect(payload.daily_digest.emerging_project_ids).toEqual(["openclaw"]);
+    expect(payload.daily_digest.must_watch_days).toBe(20);
+    expect(payload.daily_digest.emerging_days).toBe(5);
   });
 
   it("shows effective config values with masked keys", async () => {

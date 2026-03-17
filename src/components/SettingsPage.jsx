@@ -113,6 +113,12 @@ export default function SettingsPage({
     mmrLambda: 0.7,
     mmrDiversityKeys: "source,category,tags",
   });
+  const [dailyDigestForm, setDailyDigestForm] = useState({
+    mustWatchProjectIds: [],
+    emergingProjectIds: [],
+    mustWatchDays: 30,
+    emergingDays: 3,
+  });
 
   useEffect(() => {
     setLlmForm({
@@ -162,6 +168,12 @@ export default function SettingsPage({
       readDecayFactor: config?.daily_ranking?.read_decay_factor ?? 0.5,
       mmrLambda: config?.daily_ranking?.mmr_lambda ?? 0.7,
       mmrDiversityKeys: (config?.daily_ranking?.mmr_diversity_keys ?? ["source", "category", "tags"]).join(","),
+    });
+    setDailyDigestForm({
+      mustWatchProjectIds: config?.daily_digest?.must_watch_project_ids ?? [],
+      emergingProjectIds: config?.daily_digest?.emerging_project_ids ?? [],
+      mustWatchDays: config?.daily_digest?.must_watch_days ?? 30,
+      emergingDays: config?.daily_digest?.emerging_days ?? 3,
     });
   }, [config]);
   const packyEffective = config?.llm?.packy;
@@ -224,6 +236,14 @@ export default function SettingsPage({
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
+  function selectedValues(event) {
+    const options = Array.from(event.target.options || []);
+    if (options.length) {
+      return options.filter((option) => option.selected).map((option) => option.value).filter(Boolean);
+    }
+    return Array.from(event.target.selectedOptions || []).map((option) => option.value).filter(Boolean);
+  }
+
   async function handleDailyRankingSubmit(event) {
     event.preventDefault();
     const diversityKeys = dailyRankingForm.mmrDiversityKeys
@@ -243,6 +263,18 @@ export default function SettingsPage({
         read_decay_factor: toNumber(dailyRankingForm.readDecayFactor, 0.5),
         mmr_lambda: toNumber(dailyRankingForm.mmrLambda, 0.7),
         mmr_diversity_keys: diversityKeys,
+      },
+    });
+  }
+
+  async function handleDailyDigestSubmit(event) {
+    event.preventDefault();
+    await onConfigSave({
+      daily_digest: {
+        must_watch_project_ids: dailyDigestForm.mustWatchProjectIds,
+        emerging_project_ids: dailyDigestForm.emergingProjectIds,
+        must_watch_days: Math.max(1, Math.floor(toNumber(dailyDigestForm.mustWatchDays, 30))),
+        emerging_days: Math.max(1, Math.floor(toNumber(dailyDigestForm.emergingDays, 3))),
       },
     });
   }
@@ -623,6 +655,85 @@ export default function SettingsPage({
 
           <button className="primary-button" type="submit" disabled={savingConfig}>
             {savingConfig ? "保存中..." : "保存 Assistant 配置"}
+          </button>
+        </form>
+      </section>
+
+      <section className="settings-panel">
+        <SettingsSectionHeader title="日报分区" help="挑选老牌必看与近期更新项目，并设置时间窗口。" />
+
+        <form className="assistant-config-form" onSubmit={handleDailyDigestSubmit}>
+          <label className="assistant-config-form__full">
+            <span>老牌必看项目</span>
+            <select
+              multiple
+              aria-label="老牌必看项目"
+              value={dailyDigestForm.mustWatchProjectIds}
+              onChange={(event) =>
+                setDailyDigestForm((current) => ({
+                  ...current,
+                  mustWatchProjectIds: selectedValues(event),
+                }))
+              }
+            >
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="assistant-config-form__full">
+            <span>近期更新项目</span>
+            <select
+              multiple
+              aria-label="近期更新项目"
+              value={dailyDigestForm.emergingProjectIds}
+              onChange={(event) =>
+                setDailyDigestForm((current) => ({
+                  ...current,
+                  emergingProjectIds: selectedValues(event),
+                }))
+              }
+            >
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>老牌必看窗口（天）</span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              aria-label="老牌必看窗口（天）"
+              value={dailyDigestForm.mustWatchDays}
+              onChange={(event) =>
+                setDailyDigestForm((current) => ({ ...current, mustWatchDays: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>近期更新窗口（天）</span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              aria-label="近期更新窗口（天）"
+              value={dailyDigestForm.emergingDays}
+              onChange={(event) =>
+                setDailyDigestForm((current) => ({ ...current, emergingDays: event.target.value }))
+              }
+            />
+          </label>
+
+          <button className="primary-button" type="submit" disabled={savingConfig}>
+            {savingConfig ? "保存中..." : "保存日报分区"}
           </button>
         </form>
       </section>
