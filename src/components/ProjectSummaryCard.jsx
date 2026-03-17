@@ -1,3 +1,4 @@
+import { postReadEvent } from "../lib/api";
 import { projectThemeStyle } from "../lib/projectTheme";
 
 function formatDate(value) {
@@ -27,6 +28,10 @@ function fallbackEvidenceTitle(projectName, source) {
   return `${projectName} 项目更新`;
 }
 
+function resolveReadEventId(item) {
+  return item?.evidence_items?.[0]?.id || item?.evidence_ids?.[0] || item?.id || "";
+}
+
 export default function ProjectSummaryCard({ item }) {
   const projectName = item.project_name || "项目";
   const headline = hasChineseText(item.headline) ? item.headline : `${projectName} 今日重点`;
@@ -36,11 +41,18 @@ export default function ProjectSummaryCard({ item }) {
   const reason = hasChineseText(item.reason)
     ? item.reason
     : "当前证据的中文摘要不足，已回退为中文提示。";
+  const handleReadEvent = () => {
+    if (!item?.project_id) return;
+    const eventId = resolveReadEventId(item);
+    if (!eventId) return;
+    postReadEvent({ project_id: item.project_id, event_id: eventId }).catch(() => {});
+  };
   return (
     <article
       className="project-summary-card"
       data-project-id={item.project_id}
       style={projectThemeStyle(item.project_id)}
+      onClick={handleReadEvent}
     >
       <header className="project-summary-card__header">
         <div>

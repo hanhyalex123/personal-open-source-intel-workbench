@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 
 from .chinese_text import generic_event_title, has_usable_chinese_text, prefer_chinese_text
 from .llm import normalize_analysis_record
+from .daily_ranking import apply_read_decay, compute_base_score, rerank_with_mmr
+from .storage import normalize_config
 
 
 URGENCY_SCORES = {
@@ -52,6 +54,9 @@ def build_daily_project_summaries(
 ) -> list[dict]:
     projects = snapshot.get("projects") or []
     items_by_project = _collect_project_items(snapshot)
+    config = normalize_config(snapshot.get("config"))
+    daily_ranking = config.get("daily_ranking", {})
+    read_events = snapshot.get("read_events") or []
     summaries = []
 
     for project in projects:
@@ -59,25 +64,36 @@ def build_daily_project_summaries(
         ranked_items = _sort_items(items_by_project.get(project_id, []))
         daily_items = [item for item in ranked_items if _item_date(item.get("published_at")) == summary_date]
         evidence_items = (daily_items or ranked_items)[:3]
-        summaries.append(
-            _build_project_summary(
-                project=project,
-                summary_date=summary_date,
-                now_iso=now_iso,
-                daily_items=daily_items,
-                ranked_items=ranked_items,
-                evidence_items=evidence_items,
-                summarizer=summarizer,
-            )
+        summary = _build_project_summary(
+            project=project,
+            summary_date=summary_date,
+            now_iso=now_iso,
+            daily_items=daily_items,
+            ranked_items=ranked_items,
+            evidence_items=evidence_items,
+            summarizer=summarizer,
         )
+        base_score = compute_base_score(
+            summary,
+            weights=daily_ranking.get("weights", {}),
+            now_iso=now_iso,
+            recency_half_life_days=daily_ranking.get("recency_half_life_days", 3),
+        )
+        summary["ranking_score"] = apply_read_decay(
+            base_score,
+            project_id=project_id,
+            read_events=read_events,
+            now_iso=now_iso,
+            read_decay_days=daily_ranking.get("read_decay_days", 2),
+            read_decay_factor=daily_ranking.get("read_decay_factor", 0.5),
+        )
+        summaries.append(summary)
 
-    return sorted(
+    summaries.sort(key=_summary_sort_key)
+    return rerank_with_mmr(
         summaries,
-        key=lambda item: (
-            IMPORTANCE_ORDER.get(item.get("importance"), 2),
-            -_timestamp_for_sort(item.get("updated_at")),
-            item.get("project_name", ""),
-        ),
+        lambda_param=daily_ranking.get("mmr_lambda", 0.7),
+        diversity_keys=daily_ranking.get("mmr_diversity_keys", []),
     )
 
 
@@ -94,14 +110,7 @@ def load_daily_project_summaries_for_date(summary_index: dict, summary_date: str
         for key, value in (summary_index or {}).items()
         if key.startswith(f"{summary_date}:")
     ]
-    return sorted(
-        summaries,
-        key=lambda item: (
-            IMPORTANCE_ORDER.get(item.get("importance"), 2),
-            -_timestamp_for_sort(item.get("updated_at")),
-            item.get("project_name", ""),
-        ),
-    )
+    return sorted(summaries, key=_summary_sort_key)
 
 
 def _collect_project_items(snapshot: dict) -> dict[str, list[dict]]:
@@ -192,6 +201,10 @@ def _build_project_summary(*, project: dict, summary_date: str, now_iso: str, da
                 "summary_zh": item["summary_zh"],
                 "urgency": item["urgency"],
                 "source": item["source"],
+                "action_items": item.get("action_items", []),
+                "impact_points": item.get("impact_points", []),
+                "detail_sections": item.get("detail_sections", []),
+                "tags": item.get("tags", []),
                 "url": item["url"],
                 "version": item.get("version", ""),
                 "category": item.get("category", ""),
@@ -273,6 +286,18 @@ def _summary_key(summary_date: str, project_id: str) -> str:
     return f"{summary_date}:{project_id}"
 
 
+def _summary_sort_key(item: dict) -> tuple:
+    ranking_score = item.get("ranking_score")
+    if ranking_score is None:
+        ranking_score = 0.0
+    return (
+        -ranking_score,
+        IMPORTANCE_ORDER.get(item.get("importance"), 2),
+        -_timestamp_for_sort(item.get("updated_at")),
+        item.get("project_name", ""),
+    )
+
+
 def _sanitize_daily_title(project_id: str, projects: list[dict], event: dict, normalized: dict) -> str:
     project = next((item for item in projects if item.get("id") == project_id), {})
     project_name = project.get("name") or project_id
@@ -310,8 +335,6 @@ def _is_generic_summary_title(project_name: str, title: str) -> bool:
         f"{project_name} 版本更新",
         f"{project_name} 项目更新",
     }
-
-
 def _timestamp_for_sort(value: str | None) -> int:
     if not value:
         return 0

@@ -175,7 +175,6 @@ def test_resolve_summary_date_prefers_freshest_known_date():
     assert resolve_summary_date(snapshot) == "2026-03-10"
 
 
-
 def test_build_daily_project_summaries_replaces_english_analysis_with_chinese_text():
     from backend.daily_summary import build_daily_project_summaries
 
@@ -222,3 +221,144 @@ def test_build_daily_project_summaries_replaces_english_analysis_with_chinese_te
     assert summaries[0]["reason"] == "当前证据的中文摘要不足，已回退为中文提示。"
     assert summaries[0]["evidence_items"][0]["title_zh"] == "Podman 文档更新"
     assert summaries[0]["evidence_items"][0]["summary_zh"] == "该条证据的中文解读暂不可用，建议进入详情查看页面变化。"
+
+
+def test_daily_ranking_base_score_uses_importance_recency_evidence_source():
+    from backend.daily_ranking import compute_base_score
+
+    now_iso = "2026-03-10T12:00:00Z"
+    weights = {"importance": 0.45, "recency": 0.25, "evidence": 0.2, "source": 0.1}
+
+    base_item = {
+        "published_at": "2026-03-01T12:00:00Z",
+        "action_items": [],
+        "impact_points": [],
+        "detail_sections": [],
+        "source": "docs_feed",
+        "category": "",
+        "tags": [],
+    }
+
+    base_summary = {"importance": "medium", "evidence_items": [base_item]}
+    base_score = compute_base_score(
+        base_summary,
+        weights=weights,
+        now_iso=now_iso,
+        recency_half_life_days=3,
+    )
+
+    assert (
+        compute_base_score(
+            {"importance": "high", "evidence_items": [base_item]},
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {
+                "importance": "medium",
+                "evidence_items": [{**base_item, "published_at": "2026-03-10T12:00:00Z"}],
+            },
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {
+                "importance": "medium",
+                "evidence_items": [
+                    {
+                        **base_item,
+                        "action_items": ["a", "b", "c"],
+                        "impact_points": ["i1", "i2"],
+                        "detail_sections": [{"title": "t", "bullets": ["x"]}],
+                    }
+                ],
+            },
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+    assert (
+        compute_base_score(
+            {"importance": "medium", "evidence_items": [{**base_item, "source": "github_release"}]},
+            weights=weights,
+            now_iso=now_iso,
+            recency_half_life_days=3,
+        )
+        > base_score
+    )
+
+
+def test_daily_ranking_applies_read_decay_within_window():
+    from backend.daily_ranking import apply_read_decay
+
+    now_iso = "2026-03-10T12:00:00Z"
+    read_events = [{"project_id": "kubernetes", "read_at": "2026-03-09T12:00:00Z"}]
+
+    assert (
+        apply_read_decay(
+            1.0,
+            project_id="kubernetes",
+            read_events=read_events,
+            now_iso=now_iso,
+            read_decay_days=2,
+            read_decay_factor=0.5,
+        )
+        == 0.5
+    )
+
+    assert (
+        apply_read_decay(
+            1.0,
+            project_id="kubernetes",
+            read_events=[{"project_id": "kubernetes", "read_at": "2026-03-07T11:59:59Z"}],
+            now_iso=now_iso,
+            read_decay_days=2,
+            read_decay_factor=0.5,
+        )
+        == 1.0
+    )
+
+
+def test_daily_ranking_mmr_rerank_promotes_diversity():
+    from backend.daily_ranking import rerank_with_mmr
+
+    items = [
+        {
+            "project_id": "alpha",
+            "ranking_score": 0.9,
+            "evidence_items": [
+                {"source": "github_release", "category": "network", "tags": ["kubernetes"]}
+            ],
+        },
+        {
+            "project_id": "beta",
+            "ranking_score": 0.85,
+            "evidence_items": [
+                {"source": "github_release", "category": "network", "tags": ["kubernetes"]}
+            ],
+        },
+        {
+            "project_id": "gamma",
+            "ranking_score": 0.7,
+            "evidence_items": [
+                {"source": "docs_feed", "category": "storage", "tags": ["openclaw"]}
+            ],
+        },
+    ]
+
+    reranked = rerank_with_mmr(items, lambda_param=0.7, diversity_keys=["source", "category", "tags"])
+
+    assert [item["project_id"] for item in reranked] == ["alpha", "gamma", "beta"]

@@ -57,6 +57,19 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
                     "answer": "",
                 },
             },
+            "daily_ranking": {
+                "weights": {
+                    "importance": 0.45,
+                    "recency": 0.25,
+                    "evidence": 0.2,
+                    "source": 0.1,
+                },
+                "recency_half_life_days": 3,
+                "read_decay_days": 2,
+                "read_decay_factor": 0.5,
+                "mmr_lambda": 0.7,
+                "mmr_diversity_keys": ["source", "category", "tags"],
+            },
         },
         "events": {},
         "analyses": {},
@@ -64,6 +77,7 @@ def test_storage_initializes_default_json_state(tmp_path: Path):
         "crawl_profiles": {},
         "daily_project_summaries": {},
         "docs_snapshots": {},
+        "read_events": [],
         "state": {
             "last_sync_at": None,
             "last_analysis_at": None,
