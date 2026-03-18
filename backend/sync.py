@@ -410,16 +410,20 @@ def _llm_log_fields(source) -> dict:
             "error_kind": source.get("error_kind"),
             "provider": source.get("provider"),
             "model": source.get("model"),
+            "route_alias": source.get("route_alias"),
             "used_fallback": source.get("used_fallback", False),
             "fallback_provider": source.get("fallback_provider") or source.get("fallback_from_provider"),
             "fallback_model": source.get("fallback_model") or source.get("fallback_from_model"),
+            "fallback_route_alias": source.get("fallback_route_alias") or source.get("fallback_from_route_alias"),
         }
 
     return {
         "error_kind": getattr(source, "error_kind", None),
         "provider": getattr(source, "provider", None),
         "model": getattr(source, "model", None),
+        "route_alias": getattr(source, "route_alias", None),
         "used_fallback": getattr(source, "used_fallback", False),
         "fallback_provider": getattr(source, "fallback_provider", None),
         "fallback_model": getattr(source, "fallback_model", None),
+        "fallback_route_alias": getattr(source, "fallback_route_alias", None),
     }

@@ -238,6 +238,42 @@ class JsonStore:
         temp_path.replace(path)
 
 
+def _normalize_openai_route(route: dict | None, index: int) -> dict:
+    route = route or {}
+    return {
+        "alias": route.get("alias", f"route-{index + 1}"),
+        "enabled": _normalize_bool(route.get("enabled"), True),
+        "api_key": route.get("api_key", ""),
+        "api_url": route.get("api_url", ""),
+        "model": route.get("model", ""),
+        "protocol": route.get("protocol", ""),
+        "priority": route.get("priority", index + 1),
+    }
+
+
+def _normalize_openai_routes(openai_config: dict | None) -> list[dict]:
+    openai_config = openai_config or {}
+    routes = openai_config.get("routes")
+    if isinstance(routes, list) and routes:
+        return [_normalize_openai_route(route, index) for index, route in enumerate(routes)]
+    if any(openai_config.get(key) for key in ("api_key", "api_url", "model", "protocol")):
+        return [
+            _normalize_openai_route(
+                {
+                    "alias": openai_config.get("model") or "openai-primary",
+                    "enabled": openai_config.get("enabled", True),
+                    "api_key": openai_config.get("api_key", ""),
+                    "api_url": openai_config.get("api_url", ""),
+                    "model": openai_config.get("model", ""),
+                    "protocol": openai_config.get("protocol", ""),
+                    "priority": 1,
+                },
+                0,
+            )
+        ]
+    return []
+
+
 def normalize_config(config: dict | None) -> dict:
     config = config or {}
     assistant = config.get("assistant") or {}
@@ -247,6 +283,20 @@ def normalize_config(config: dict | None) -> dict:
     default_mode = assistant.get("default_mode", DEFAULT_ASSISTANT_CONFIG["default_mode"])
     if default_mode != "live":
         default_mode = "live"
+    openai_routes = _normalize_openai_routes(llm.get("openai") or {})
+    openai_config = {
+        "enabled": _normalize_bool(
+            (llm.get("openai") or {}).get("enabled"),
+            DEFAULT_LLM_CONFIG["openai"]["enabled"],
+        ),
+        "api_key": (llm.get("openai") or {}).get("api_key", DEFAULT_LLM_CONFIG["openai"]["api_key"]),
+        "provider": (llm.get("openai") or {}).get("provider", DEFAULT_LLM_CONFIG["openai"]["provider"]),
+        "api_url": (llm.get("openai") or {}).get("api_url", DEFAULT_LLM_CONFIG["openai"]["api_url"]),
+        "model": (llm.get("openai") or {}).get("model", DEFAULT_LLM_CONFIG["openai"]["model"]),
+        "protocol": (llm.get("openai") or {}).get("protocol", DEFAULT_LLM_CONFIG["openai"]["protocol"]),
+    }
+    if openai_routes:
+        openai_config["routes"] = openai_routes
     return {
         "sync_interval_minutes": config.get("sync_interval_minutes", DEFAULT_CONFIG["sync_interval_minutes"]),
         "sync_concurrency": config.get("sync_concurrency", DEFAULT_CONFIG["sync_concurrency"]),
@@ -271,17 +321,7 @@ def normalize_config(config: dict | None) -> dict:
                 "model": (llm.get("packy") or {}).get("model", DEFAULT_LLM_CONFIG["packy"]["model"]),
                 "protocol": (llm.get("packy") or {}).get("protocol", DEFAULT_LLM_CONFIG["packy"]["protocol"]),
             },
-            "openai": {
-                "enabled": _normalize_bool(
-                    (llm.get("openai") or {}).get("enabled"),
-                    DEFAULT_LLM_CONFIG["openai"]["enabled"],
-                ),
-                "api_key": (llm.get("openai") or {}).get("api_key", DEFAULT_LLM_CONFIG["openai"]["api_key"]),
-                "provider": (llm.get("openai") or {}).get("provider", DEFAULT_LLM_CONFIG["openai"]["provider"]),
-                "api_url": (llm.get("openai") or {}).get("api_url", DEFAULT_LLM_CONFIG["openai"]["api_url"]),
-                "model": (llm.get("openai") or {}).get("model", DEFAULT_LLM_CONFIG["openai"]["model"]),
-                "protocol": (llm.get("openai") or {}).get("protocol", DEFAULT_LLM_CONFIG["openai"]["protocol"]),
-            },
+            "openai": openai_config,
         },
         "assistant": {
             "enabled": assistant.get("enabled", DEFAULT_ASSISTANT_CONFIG["enabled"]),

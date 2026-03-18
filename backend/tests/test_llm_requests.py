@@ -333,6 +333,7 @@ def test_analyze_event_falls_back_to_backup_model_after_gateway_failure(monkeypa
     monkeypatch.setenv("OPENAI_API_KEY", "backup-key")
     monkeypatch.setenv("OPENAI_API_URL", "https://www.packyapi.com/v1/messages")
     monkeypatch.setenv("OPENAI_MODEL", "glm-5")
+    monkeypatch.delenv("OPENAI_PROTOCOL", raising=False)
     monkeypatch.setattr("backend.llm.requests.post", fake_post)
 
     analysis = analyze_event(
@@ -726,6 +727,7 @@ def test_analyze_event_rebuilds_fallback_payload_for_different_protocol(monkeypa
     monkeypatch.setenv("OPENAI_API_KEY", "backup-key")
     monkeypatch.setenv("OPENAI_API_URL", "https://www.packyapi.com/v1/messages")
     monkeypatch.setenv("OPENAI_MODEL", "glm-5")
+    monkeypatch.delenv("OPENAI_PROTOCOL", raising=False)
     monkeypatch.setattr("backend.llm.requests.post", fake_post)
 
     analysis = analyze_event(
@@ -811,3 +813,151 @@ def test_analyze_event_uses_explicit_fallback_protocol_on_nonstandard_url(monkey
     assert "x-api-key" not in calls[1]["headers"]
     assert calls[1]["payload"]["messages"][0]["role"] == "user"
     assert analysis["summary_zh"] == "显式 fallback protocol 生效"
+
+
+def test_analyze_event_fails_over_across_openai_routes(monkeypatch):
+    from backend.llm import analyze_event
+
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append({"url": url, "headers": headers, "payload": json})
+        if len(calls) == 1:
+            return ErrorResponse(status_code=503, text="primary unavailable")
+        return DummyResponse(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json_module.dumps(
+                                    {
+                                        "title_zh": "备用路由成功",
+                                        "summary_zh": "gpt-5.2 已接管分析。",
+                                        "details_zh": "这是一条具体结论。",
+                                        "impact_scope": "测试范围",
+                                        "suggested_action": "继续观察。",
+                                        "urgency": "low",
+                                        "tags": ["kubernetes"],
+                                        "is_stable": True,
+                                    },
+                                    ensure_ascii=False,
+                                ),
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+    json_module = json
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    analysis = analyze_event(
+        {
+            "id": "github-release:kubernetes/kubernetes:v1.35.2",
+            "source": "github_release",
+            "repo": "kubernetes/kubernetes",
+            "title": "v1.35.2",
+            "version": "v1.35.2",
+            "body": "See CHANGELOG",
+            "url": "https://github.com/kubernetes/kubernetes/releases/tag/v1.35.2",
+        },
+        llm_config={
+            "active_provider": "openai",
+            "openai": {
+                "enabled": True,
+                "provider": "OpenAI",
+                "routes": [
+                    {
+                        "alias": "primary-gpt54",
+                        "enabled": True,
+                        "api_key": "key-54",
+                        "api_url": "https://code.swpumc.cn",
+                        "model": "gpt-5.4",
+                        "protocol": "openai-responses",
+                        "priority": 1,
+                    },
+                    {
+                        "alias": "backup-gpt52",
+                        "enabled": True,
+                        "api_key": "key-52",
+                        "api_url": "https://code.swpumc.cn",
+                        "model": "gpt-5.2",
+                        "protocol": "openai-responses",
+                        "priority": 2,
+                    },
+                ],
+            },
+            "packy": {"enabled": False},
+        },
+    )
+
+    assert len(calls) == 2
+    assert calls[0]["payload"]["model"] == "gpt-5.4"
+    assert calls[1]["payload"]["model"] == "gpt-5.2"
+    assert analysis["summary_zh"] == "gpt-5.2 已接管分析。"
+    assert analysis["_llm"]["used_fallback"] is True
+    assert analysis["_llm"]["model"] == "gpt-5.2"
+    assert analysis["_llm"]["route_alias"] == "backup-gpt52"
+    assert analysis["_llm"]["fallback_from_model"] == "gpt-5.4"
+
+
+def test_analyze_event_raises_after_all_openai_routes_fail(monkeypatch):
+    from backend.llm import analyze_event
+
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append({"url": url, "headers": headers, "payload": json})
+        return ErrorResponse(status_code=503, text="all unavailable")
+
+    monkeypatch.setattr("backend.llm.requests.post", fake_post)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        analyze_event(
+            {
+                "id": "github-release:kubernetes/kubernetes:v1.35.2",
+                "source": "github_release",
+                "repo": "kubernetes/kubernetes",
+                "title": "v1.35.2",
+                "version": "v1.35.2",
+                "body": "See CHANGELOG",
+                "url": "https://github.com/kubernetes/kubernetes/releases/tag/v1.35.2",
+            },
+            llm_config={
+                "active_provider": "openai",
+                "openai": {
+                    "enabled": True,
+                    "provider": "OpenAI",
+                    "routes": [
+                        {
+                            "alias": "primary-gpt54",
+                            "enabled": True,
+                            "api_key": "key-54",
+                            "api_url": "https://code.swpumc.cn",
+                            "model": "gpt-5.4",
+                            "protocol": "openai-responses",
+                            "priority": 1,
+                        },
+                        {
+                            "alias": "backup-gpt52",
+                            "enabled": True,
+                            "api_key": "key-52",
+                            "api_url": "https://code.swpumc.cn",
+                            "model": "gpt-5.2",
+                            "protocol": "openai-responses",
+                            "priority": 2,
+                        },
+                    ],
+                },
+                "packy": {"enabled": False},
+            },
+        )
+
+    assert len(calls) == 2
+    message = str(exc_info.value)
+    assert "gpt-5.4" in message
+    assert "gpt-5.2" in message

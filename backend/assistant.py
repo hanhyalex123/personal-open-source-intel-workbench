@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 import re
 
-from .llm import LLMRequestError, generate_live_research_report
+from .llm import LLMRequestError, ensure_llm_availability, generate_live_research_report
 from .search import fetch_page_content, fetch_search_result_pages, search_web
 from .storage import normalize_config
 
@@ -22,6 +22,24 @@ def answer_query(*, snapshot: dict, payload: dict) -> dict:
         filters=filters,
         projects=project_index,
     )
+    try:
+        ensure_llm_availability(llm_config)
+    except LLMRequestError as error:
+        report = _error_report(error)
+        return {
+            "report_markdown": report["report_markdown"],
+            "report_outline": report["report_outline"],
+            "next_steps": report["next_steps"],
+            "llm": report.get("_llm") or {},
+            "evidence": [],
+            "sources": [],
+            "search_trace": [],
+            "applied_plan": plan,
+            "applied_filters": filters,
+        }
+    except RuntimeError as error:
+        if "is not configured" not in str(error):
+            raise
     web_pages, search_trace = _retrieve_live_pages(plan, assistant_config)
     if not web_pages:
         cached_pages = _build_cached_pages(snapshot=snapshot, plan=plan)
@@ -51,6 +69,7 @@ def answer_query(*, snapshot: dict, payload: dict) -> dict:
         "report_markdown": report["report_markdown"],
         "report_outline": report["report_outline"],
         "next_steps": report["next_steps"],
+        "llm": report.get("_llm") or {},
         "evidence": evidence,
         "sources": sources,
         "search_trace": search_trace,
@@ -383,12 +402,22 @@ def _fallback_report(*, query: str, plan: dict, evidence: list[dict]) -> dict:
 def _error_report(error: LLMRequestError) -> dict:
     message = str(error)
     report_markdown = "## 研究报告生成失败\n\n" f"{message}\n\n" "请检查代理站 API URL、模型与 Key 配置。"
+    llm_meta = {
+        "provider": error.provider,
+        "model": error.model,
+        "api_url": error.api_url,
+        "route_alias": error.route_alias,
+        "used_fallback": error.used_fallback,
+        "fallback_provider": error.fallback_provider,
+        "fallback_model": error.fallback_model,
+        "fallback_route_alias": error.fallback_route_alias,
+    }
     return {
         "report_markdown": report_markdown,
         "report_outline": ["研究报告生成失败"],
         "next_steps": ["确认代理站地址包含 /v1/responses 或 /v1/chat/completions。", "检查 API Key 是否可用。"],
+        "_llm": {key: value for key, value in llm_meta.items() if value not in ("", None, False)},
     }
-
 
 def _build_project_index(projects: list[dict]) -> list[dict]:
     index = []

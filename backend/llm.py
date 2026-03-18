@@ -28,19 +28,25 @@ class LLMRequestError(RuntimeError):
         error_kind: str = "llm_gateway",
         provider: str = "",
         model: str = "",
+        api_url: str = "",
+        route_alias: str = "",
         status_code: int | str | None = None,
         used_fallback: bool = False,
         fallback_provider: str = "",
         fallback_model: str = "",
+        fallback_route_alias: str = "",
     ):
         super().__init__(message)
         self.error_kind = error_kind
         self.provider = provider
         self.model = model
+        self.api_url = api_url
+        self.route_alias = route_alias
         self.status_code = status_code
         self.used_fallback = used_fallback
         self.fallback_provider = fallback_provider
         self.fallback_model = fallback_model
+        self.fallback_route_alias = fallback_route_alias
 
 
 def get_llm_settings(llm_config: dict | None = None) -> dict:
@@ -48,30 +54,61 @@ def get_llm_settings(llm_config: dict | None = None) -> dict:
     if not active_provider:
         raise RuntimeError("No LLM provider enabled")
 
-    primary_settings = _resolve_provider_settings(active_provider, llm_config)
-    fallback_provider_key = "openai" if active_provider == "packy" else "packy"
-    if _is_provider_enabled(llm_config, fallback_provider_key):
-        fallback_settings = _resolve_provider_settings(fallback_provider_key, llm_config)
-        fallback_api_url = fallback_settings["api_url"] or primary_settings["api_url"]
+    primary_settings = _empty_provider_settings()
+    fallback_settings = _empty_provider_settings()
+    targets: list[dict] = []
+
+    if active_provider == "openai":
+        openai_routes = [route for route in _resolve_openai_routes(llm_config) if route.get("enabled")]
+        if openai_routes:
+            primary_settings = dict(openai_routes[0])
+            targets.append(dict(primary_settings))
+            if len(openai_routes) > 1:
+                fallback_settings = dict(openai_routes[1])
+                targets.append(dict(fallback_settings))
+            elif _is_provider_enabled(llm_config, "packy"):
+                fallback_settings = _resolve_provider_settings("packy", llm_config)
+                targets.append(dict(fallback_settings))
+        else:
+            primary_settings = _resolve_provider_settings(active_provider, llm_config)
+            targets.append(dict(primary_settings))
+            if _is_provider_enabled(llm_config, "packy"):
+                fallback_settings = _resolve_provider_settings("packy", llm_config)
+                targets.append(dict(fallback_settings))
     else:
-        fallback_settings = _empty_provider_settings()
+        primary_settings = _resolve_provider_settings(active_provider, llm_config)
+        targets.append(dict(primary_settings))
+        if _is_provider_enabled(llm_config, "openai"):
+            openai_routes = [route for route in _resolve_openai_routes(llm_config) if route.get("enabled")]
+            if openai_routes:
+                fallback_settings = dict(openai_routes[0])
+            else:
+                fallback_settings = _resolve_provider_settings("openai", llm_config)
+            if fallback_settings.get("api_key") or fallback_settings.get("model") or fallback_settings.get("api_url"):
+                targets.append(dict(fallback_settings))
+
+    fallback_api_url = fallback_settings.get("api_url") or primary_settings.get("api_url", "")
+    if len(targets) == 1 and not fallback_settings.get("api_key"):
         fallback_api_url = ""
 
     return {
-        "api_key": primary_settings["api_key"],
-        "api_url": primary_settings["api_url"],
-        "model": primary_settings["model"],
-        "provider": primary_settings["provider"],
-        "protocol": primary_settings["protocol"],
+        "api_key": primary_settings.get("api_key", ""),
+        "api_url": primary_settings.get("api_url", ""),
+        "model": primary_settings.get("model", ""),
+        "provider": primary_settings.get("provider", ""),
+        "protocol": primary_settings.get("protocol", ""),
+        "route_alias": primary_settings.get("route_alias", ""),
         "reasoning_effort": _resolve_shared_reasoning_effort(llm_config),
         "disable_response_storage": _resolve_shared_disable_response_storage(llm_config),
-        "fallback_api_key": fallback_settings["api_key"],
+        "fallback_api_key": fallback_settings.get("api_key", ""),
         "fallback_api_url": fallback_api_url,
-        "fallback_model": fallback_settings["model"],
-        "fallback_provider": fallback_settings["provider"],
-        "fallback_protocol": fallback_settings["protocol"] or (
-            primary_settings["protocol"] if fallback_api_url == primary_settings["api_url"] else ""
+        "fallback_model": fallback_settings.get("model", ""),
+        "fallback_provider": fallback_settings.get("provider", ""),
+        "fallback_protocol": fallback_settings.get("protocol", "") or (
+            primary_settings.get("protocol", "") if fallback_api_url == primary_settings.get("api_url", "") else ""
         ),
+        "fallback_route_alias": fallback_settings.get("route_alias", ""),
+        "targets": targets,
     }
 
 
@@ -92,7 +129,9 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
         else _empty_provider_settings()
     )
     packy_api_key_configured = packy_enabled and bool(_resolve_provider_settings("packy", llm_config)["api_key"])
-    openai_api_key_configured = openai_enabled and bool(_resolve_provider_settings("openai", llm_config)["api_key"])
+    openai_api_key_configured = openai_enabled and bool(
+        _resolve_provider_settings("openai", llm_config)["api_key"] or any(route.get("api_key") for route in _resolve_openai_routes(llm_config))
+    )
     raw_packy = (llm_config.get("packy") or {})
     raw_openai = (llm_config.get("openai") or {})
     packy_env_key = os.getenv("PACKY_API_KEY", "")
@@ -101,6 +140,24 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
     openai_key_source = _resolve_api_key_source(raw_openai.get("api_key", ""), openai_env_key)
     packy_key_masked = _mask_api_key(raw_packy.get("api_key") or packy_env_key)
     openai_key_masked = _mask_api_key(raw_openai.get("api_key") or openai_env_key)
+    openai_routes = []
+    for route in _resolve_openai_routes(llm_config):
+        route_api_key = route.get("api_key", "")
+        route_source = _resolve_api_key_source(route_api_key, openai_env_key if not route_api_key else "")
+        openai_routes.append(
+            {
+                "alias": route.get("route_alias", ""),
+                "enabled": route.get("enabled", True),
+                "api_key": route_api_key,
+                "api_key_masked": _mask_api_key(route_api_key or openai_env_key),
+                "api_key_source": route_source,
+                "api_url": route.get("api_url", ""),
+                "model": route.get("model", ""),
+                "protocol": route.get("protocol", ""),
+                "priority": route.get("priority", 0),
+                "provider": route.get("provider", ""),
+            }
+        )
     return {
         "active_provider": _resolve_active_provider(llm_config),
         "reasoning_effort": _resolve_shared_reasoning_effort(llm_config),
@@ -127,6 +184,7 @@ def build_llm_config_view(llm_config: dict | None = None) -> dict:
             "api_url": openai_settings["api_url"],
             "model": openai_settings["model"],
             "protocol": openai_settings["protocol"],
+            "routes": openai_routes,
             "api_key_configured": openai_api_key_configured,
             "api_key_masked": openai_key_masked,
             "api_key_source": openai_key_source,
@@ -163,7 +221,7 @@ def answer_question_with_context(
     if not settings["api_key"]:
         raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
 
-    response, _llm_meta = _request_with_fallback(
+    response, llm_meta = _request_with_fallback(
         settings=settings,
         prompt=build_assistant_answer_prompt(
             query=query,
@@ -174,8 +232,10 @@ def answer_question_with_context(
         ),
         max_tokens=1400,
     )
-    payload = _safe_response_payload(response, settings=_llm_meta)
-    return parse_assistant_response(payload)
+    payload = _safe_response_payload(response, settings=llm_meta)
+    parsed = parse_assistant_response(payload)
+    parsed["_llm"] = llm_meta
+    return parsed
 
 
 def summarize_project_daily_intel(
@@ -189,7 +249,7 @@ def summarize_project_daily_intel(
     if not settings["api_key"]:
         raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
 
-    response, _llm_meta = _request_with_fallback(
+    response, llm_meta = _request_with_fallback(
         settings=settings,
         prompt=build_project_daily_summary_prompt(
             project=project,
@@ -198,8 +258,10 @@ def summarize_project_daily_intel(
         ),
         max_tokens=700,
     )
-    payload = _safe_response_payload(response, settings=_llm_meta)
-    return parse_project_daily_summary_response(payload)
+    payload = _safe_response_payload(response, settings=llm_meta)
+    parsed = parse_project_daily_summary_response(payload)
+    parsed["_llm"] = llm_meta
+    return parsed
 
 
 def generate_live_research_report(
@@ -215,7 +277,7 @@ def generate_live_research_report(
     if not settings["api_key"]:
         raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
 
-    response, _llm_meta = _request_with_fallback(
+    response, llm_meta = _request_with_fallback(
         settings=settings,
         prompt=build_live_research_report_prompt(
             query=query,
@@ -226,8 +288,42 @@ def generate_live_research_report(
         ),
         max_tokens=1800,
     )
-    payload = _safe_response_payload(response, settings=_llm_meta)
-    return parse_live_research_report_response(payload)
+    payload = _safe_response_payload(response, settings=llm_meta)
+    parsed = parse_live_research_report_response(payload)
+    parsed["_llm"] = llm_meta
+    return parsed
+
+
+def has_configured_llm(llm_config: dict | None = None) -> bool:
+    try:
+        settings = get_llm_settings(llm_config)
+    except RuntimeError:
+        return False
+    return any(target.get("api_key") for target in settings.get("targets") or []) or bool(settings.get("api_key"))
+
+
+def ensure_llm_availability(llm_config: dict | None = None) -> dict:
+    settings = get_llm_settings(llm_config)
+    if not settings["api_key"]:
+        raise RuntimeError(f"{_missing_api_key_name(llm_config)} is not configured")
+
+    response, llm_meta = _request_with_fallback(
+        settings=settings,
+        prompt="reply only with ok",
+        max_tokens=16,
+    )
+    payload = _safe_response_payload(response, settings=llm_meta)
+    text = _extract_text(payload).strip()
+    if not text:
+        raise LLMRequestError(
+            f"主模型 {llm_meta.get('model') or 'unknown'} 可达但返回空响应。",
+            error_kind="llm_empty_response",
+            provider=llm_meta.get("provider", ""),
+            model=llm_meta.get("model", ""),
+            api_url=llm_meta.get("api_url", ""),
+            route_alias=llm_meta.get("route_alias", ""),
+        )
+    return llm_meta
 
 
 def _resolve_active_provider(llm_config: dict | None) -> str:
@@ -236,8 +332,12 @@ def _resolve_active_provider(llm_config: dict | None) -> str:
         return provider
     if _is_provider_enabled(llm_config, "packy") and _resolve_provider_settings("packy", llm_config)["api_key"]:
         return "packy"
-    if _is_provider_enabled(llm_config, "openai") and _resolve_provider_settings("openai", llm_config)["api_key"]:
-        return "openai"
+    if _is_provider_enabled(llm_config, "openai"):
+        openai_settings = _resolve_provider_settings("openai", llm_config)
+        if openai_settings["api_key"]:
+            return "openai"
+        if any(route.get("enabled") and route.get("api_key") for route in _resolve_openai_routes(llm_config)):
+            return "openai"
     if _is_provider_enabled(llm_config, "packy"):
         return "packy"
     if _is_provider_enabled(llm_config, "openai"):
@@ -266,6 +366,9 @@ def _empty_provider_settings() -> dict:
         "model": "",
         "provider": "",
         "protocol": "",
+        "route_alias": "",
+        "priority": 0,
+        "enabled": True,
     }
 
 
@@ -355,6 +458,76 @@ def _resolve_provider_settings(
         ),
         "protocol": _first_non_empty(provider_config.get("protocol"), os.getenv("PACKY_PROTOCOL", "")),
     }
+
+
+def _coerce_priority(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _resolve_openai_routes(
+    llm_config: dict | None,
+    *,
+    use_env_api_key: bool = True,
+    allow_openai_url_fallback: bool = True,
+) -> list[dict]:
+    provider_config = ((llm_config or {}).get("openai") or {})
+    base_settings = _resolve_provider_settings(
+        "openai",
+        llm_config,
+        use_env_api_key=use_env_api_key,
+        allow_openai_url_fallback=allow_openai_url_fallback,
+    )
+    raw_routes = provider_config.get("routes")
+    if not isinstance(raw_routes, list) or not raw_routes:
+        if any(base_settings.get(key) for key in ("api_key", "api_url", "model", "protocol")):
+            raw_routes = [
+                {
+                    "alias": provider_config.get("model") or base_settings.get("model") or "openai-primary",
+                    "enabled": provider_config.get("enabled", True),
+                    "api_key": provider_config.get("api_key", ""),
+                    "api_url": provider_config.get("api_url", "") or base_settings.get("api_url", ""),
+                    "model": provider_config.get("model", "") or base_settings.get("model", ""),
+                    "protocol": provider_config.get("protocol", "") or base_settings.get("protocol", ""),
+                    "priority": 1,
+                }
+            ]
+        else:
+            raw_routes = []
+
+    routes = []
+    for index, raw_route in enumerate(raw_routes):
+        route = raw_route or {}
+        api_key = _first_non_empty(route.get("api_key"), base_settings.get("api_key", ""))
+        api_url = _first_non_empty(route.get("api_url"), base_settings.get("api_url", ""))
+        protocol = _first_non_empty(route.get("protocol"), base_settings.get("protocol", ""))
+        api_url, protocol = _normalize_openai_settings(api_url, protocol)
+        routes.append(
+            {
+                "api_key": api_key,
+                "api_url": api_url,
+                "model": _first_non_empty(route.get("model"), base_settings.get("model", "")),
+                "provider": _first_non_empty(route.get("provider"), base_settings.get("provider", DEFAULT_OPENAI_PROVIDER)),
+                "protocol": protocol,
+                "route_alias": _first_non_empty(route.get("alias"), route.get("model"), f"openai-route-{index + 1}"),
+                "priority": _coerce_priority(route.get("priority"), index + 1),
+                "enabled": _normalize_provider_flag(route.get("enabled"), True),
+            }
+        )
+    routes.sort(key=lambda item: (item.get("priority", 0), item.get("route_alias", "")))
+    return routes
+
+
+def _normalize_provider_flag(value: Any, default: bool = True) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 
 def _resolve_shared_reasoning_effort(llm_config: dict | None) -> str:
@@ -873,37 +1046,58 @@ def _post_with_retry(*, settings: dict, payload: dict, max_attempts: int = 2):
 
 
 def _request_with_fallback(*, settings: dict, prompt: str, max_tokens: int):
-    primary_settings = _build_target_settings(settings=settings)
-    primary_payload = _build_request_payload(settings=primary_settings, prompt=prompt, max_tokens=max_tokens)
-    try:
-        response = _post_with_retry(settings=primary_settings, payload=primary_payload)
-        _raise_for_status_with_context(response, primary_settings)
-        return response, {
-            "provider": primary_settings["provider"],
-            "model": primary_settings["model"],
-            "api_url": primary_settings["api_url"],
-            "used_fallback": False,
-        }
-    except (LLMRequestError, requests.exceptions.RequestException) as primary_exc:
-        if not _should_fallback(primary_exc, settings):
-            raise _normalize_llm_error(primary_exc, primary_settings)
+    targets = _build_request_targets(settings)
+    errors: list[LLMRequestError] = []
 
-        fallback_settings = _build_target_settings(settings=settings, use_fallback=True)
-        fallback_payload = _build_request_payload(settings=fallback_settings, prompt=prompt, max_tokens=max_tokens)
+    for index, target in enumerate(targets):
+        payload = _build_request_payload(settings=target, prompt=prompt, max_tokens=max_tokens)
         try:
-            response = _post_with_retry(settings=fallback_settings, payload=fallback_payload)
-            _raise_for_status_with_context(response, fallback_settings)
-            return response, {
-                "provider": fallback_settings["provider"],
-                "model": fallback_settings["model"],
-                "api_url": fallback_settings["api_url"],
-                "used_fallback": True,
-                "fallback_from_provider": primary_settings["provider"],
-                "fallback_from_model": primary_settings["model"],
-                "fallback_reason": str(primary_exc),
+            response = _post_with_retry(settings=target, payload=payload)
+            _raise_for_status_with_context(response, target)
+            metadata = {
+                "provider": target["provider"],
+                "model": target["model"],
+                "api_url": target["api_url"],
+                "route_alias": target.get("route_alias", ""),
+                "used_fallback": index > 0,
             }
-        except (LLMRequestError, requests.exceptions.RequestException) as fallback_exc:
-            raise _combine_llm_errors(primary_exc, fallback_exc, primary_settings, fallback_settings)
+            if index > 0 and targets:
+                primary_target = targets[0]
+                metadata.update(
+                    {
+                        "fallback_from_provider": primary_target["provider"],
+                        "fallback_from_model": primary_target["model"],
+                        "fallback_from_route_alias": primary_target.get("route_alias", ""),
+                        "fallback_reason": str(errors[0]) if errors else "",
+                    }
+                )
+            return response, metadata
+        except (LLMRequestError, requests.exceptions.RequestException) as exc:
+            normalized = _normalize_llm_error(exc, target)
+            errors.append(normalized)
+            if index >= len(targets) - 1 or not _should_try_next_target(normalized):
+                if len(errors) == 1:
+                    raise normalized
+                raise _combine_llm_errors(errors[0], normalized, targets[0], target)
+
+    raise errors[-1]
+
+
+def _build_request_targets(settings: dict) -> list[dict]:
+    targets = []
+    for target in settings.get("targets") or []:
+        merged = dict(target)
+        merged["reasoning_effort"] = settings.get("reasoning_effort", "")
+        merged["disable_response_storage"] = settings.get("disable_response_storage", False)
+        targets.append(merged)
+    if targets:
+        return targets
+
+    primary_target = _build_target_settings(settings=settings)
+    targets.append(primary_target)
+    if settings.get("fallback_api_key") and settings.get("fallback_model"):
+        targets.append(_build_target_settings(settings=settings, use_fallback=True))
+    return targets
 
 
 def _build_target_settings(*, settings: dict, use_fallback: bool = False) -> dict:
@@ -914,6 +1108,7 @@ def _build_target_settings(*, settings: dict, use_fallback: bool = False) -> dic
             "model": settings["model"],
             "provider": settings.get("provider", "primary-gateway"),
             "protocol": settings.get("protocol", ""),
+            "route_alias": settings.get("route_alias", ""),
             "reasoning_effort": settings.get("reasoning_effort", ""),
             "disable_response_storage": settings.get("disable_response_storage", False),
         }
@@ -924,6 +1119,7 @@ def _build_target_settings(*, settings: dict, use_fallback: bool = False) -> dic
         "model": settings["fallback_model"],
         "provider": settings.get("fallback_provider", "fallback-provider"),
         "protocol": settings.get("fallback_protocol", ""),
+        "route_alias": settings.get("fallback_route_alias", ""),
         "reasoning_effort": settings.get("reasoning_effort", ""),
         "disable_response_storage": settings.get("disable_response_storage", False),
     }
@@ -938,6 +1134,8 @@ def _raise_for_status_with_context(response, settings: dict) -> None:
             f"LLM gateway request failed: url={settings['api_url']} model={settings['model']} status={status_code}",
             provider=settings.get("provider", ""),
             model=settings.get("model", ""),
+            api_url=settings.get("api_url", ""),
+            route_alias=settings.get("route_alias", ""),
             status_code=status_code,
         ) from exc
 
@@ -995,9 +1193,7 @@ def _env_flag(name: str) -> bool:
     return value in {"1", "true", "yes", "on"}
 
 
-def _should_fallback(error: Exception, settings: dict) -> bool:
-    if not settings.get("fallback_api_key") or not settings.get("fallback_model"):
-        return False
+def _should_try_next_target(error: Exception) -> bool:
     if isinstance(error, LLMRequestError):
         if error.status_code in {429, "429"}:
             return True
@@ -1017,24 +1213,44 @@ def _should_fallback(error: Exception, settings: dict) -> bool:
 
 def _normalize_llm_error(error: Exception, settings: dict) -> LLMRequestError:
     if isinstance(error, LLMRequestError):
-        return error
+        if error.provider and error.model and error.api_url:
+            return error
+        return LLMRequestError(
+            str(error),
+            error_kind=error.error_kind,
+            provider=error.provider or settings.get("provider", ""),
+            model=error.model or settings.get("model", ""),
+            api_url=error.api_url or settings.get("api_url", ""),
+            route_alias=error.route_alias or settings.get("route_alias", ""),
+            status_code=error.status_code,
+            used_fallback=error.used_fallback,
+            fallback_provider=error.fallback_provider,
+            fallback_model=error.fallback_model,
+            fallback_route_alias=error.fallback_route_alias,
+        )
     return LLMRequestError(
         f"LLM gateway request failed: url={settings['api_url']} model={settings['model']} error={error}",
         provider=settings.get("provider", ""),
         model=settings.get("model", ""),
+        api_url=settings.get("api_url", ""),
+        route_alias=settings.get("route_alias", ""),
     )
 
 
 def _combine_llm_errors(primary_error: Exception, fallback_error: Exception, primary_settings: dict, fallback_settings: dict) -> LLMRequestError:
+    primary = _normalize_llm_error(primary_error, primary_settings)
     fallback = _normalize_llm_error(fallback_error, fallback_settings)
     return LLMRequestError(
-        f"{primary_error}; fallback failed: {fallback}",
+        f"主模型 {primary_settings.get('model', 'unknown')} 不可用（{primary}）；备用模型 {fallback_settings.get('model', 'unknown')} 也不可用（{fallback}）",
         provider=primary_settings.get("provider", ""),
         model=primary_settings.get("model", ""),
-        status_code=getattr(primary_error, "status_code", None),
+        api_url=primary_settings.get("api_url", ""),
+        route_alias=primary_settings.get("route_alias", ""),
+        status_code=getattr(primary, "status_code", None),
         used_fallback=True,
         fallback_provider=fallback_settings.get("provider", ""),
         fallback_model=fallback_settings.get("model", ""),
+        fallback_route_alias=fallback_settings.get("route_alias", ""),
     )
 
 

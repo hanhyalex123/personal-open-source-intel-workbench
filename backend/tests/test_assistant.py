@@ -312,3 +312,65 @@ def test_assistant_query_endpoint_uses_project_cache_when_live_fetch_is_unavaila
     assert payload["evidence"][0]["project_id"] == "openclaw"
     assert payload["evidence"][0]["source"] == "github_release"
     assert any(item["fetch_mode"] == "cache_fallback" for item in payload["search_trace"])
+
+
+
+def test_assistant_query_endpoint_returns_explicit_failure_when_llm_preflight_fails(tmp_path: Path, monkeypatch):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+    from backend.llm import LLMRequestError
+
+    store = JsonStore(tmp_path)
+    _seed_project(store, "openclaw", "OpenClaw", repo="openclaw/openclaw", docs_url="https://openclaw.dev/docs")
+    _seed_release(
+        store,
+        "openclaw",
+        "openclaw/openclaw",
+        "v2026.3.13",
+        "OpenClaw v2026.3.13",
+        "2026-03-14T05:19:41Z",
+        "修复 WebSocket 劫持并新增多模态记忆索引。",
+    )
+
+    called = {"search": 0, "pages": 0}
+
+    def should_not_run(*_args, **_kwargs):
+        called["search"] += 1
+        raise AssertionError("preflight failed, should not start retrieval")
+
+    def should_not_fetch_pages(*_args, **_kwargs):
+        called["pages"] += 1
+        raise AssertionError("preflight failed, should not fetch pages")
+
+    monkeypatch.setattr("backend.assistant.search_web", should_not_run)
+    monkeypatch.setattr("backend.assistant.fetch_search_result_pages", should_not_fetch_pages)
+    monkeypatch.setattr(
+        "backend.assistant.ensure_llm_availability",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            LLMRequestError(
+                "主模型 gpt-5.4 不可用，备用模型 gpt-5.2 也不可用",
+                provider="OpenAI",
+                model="gpt-5.4",
+                api_url="https://code.swpumc.cn/v1/responses",
+                route_alias="gpt-5.4",
+                used_fallback=True,
+                fallback_provider="OpenAI",
+                fallback_model="gpt-5.2",
+                fallback_route_alias="gpt-5.2",
+            )
+        ),
+        raising=False,
+    )
+
+    app = create_app(store=store, sync_runner=lambda **_kwargs: {"status": "noop"})
+    client = app.test_client()
+    response = client.post("/api/assistant/query", json={"query": "openclaw 最近更新方向", "timeframe": "30d"})
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert "主模型 gpt-5.4 不可用" in payload["report_markdown"]
+    assert "gpt-5.2" in payload["report_markdown"]
+    assert payload["llm"]["provider"] == "OpenAI"
+    assert payload["llm"]["model"] == "gpt-5.4"
+    assert payload["llm"]["fallback_model"] == "gpt-5.2"
+    assert called == {"search": 0, "pages": 0}

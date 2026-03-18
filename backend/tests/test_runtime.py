@@ -1,3 +1,4 @@
+import pytest
 from pathlib import Path
 
 
@@ -228,3 +229,75 @@ def test_incremental_runner_passes_run_logger_and_id(tmp_path: Path, monkeypatch
 
     assert captured["run_logger"] is recorder
     assert captured["run_id"] == "run_1"
+
+
+
+def test_build_sync_runner_stops_before_sync_when_llm_preflight_fails(tmp_path: Path, monkeypatch):
+    from backend.runtime import build_incremental_sync_runner
+    from backend.storage import JsonStore
+    from backend.llm import LLMRequestError
+
+    store = JsonStore(tmp_path)
+    store.save_project(
+        {
+            "id": "kubernetes",
+            "name": "Kubernetes",
+            "github_url": "https://github.com/kubernetes/kubernetes",
+            "repo": "kubernetes/kubernetes",
+            "docs_url": "",
+            "enabled": True,
+            "release_area_enabled": True,
+            "docs_area_enabled": False,
+            "sync_interval_minutes": 30,
+        }
+    )
+    store.save_config(
+        {
+            "llm": {
+                "active_provider": "openai",
+                "openai": {
+                    "enabled": True,
+                    "routes": [
+                        {
+                            "alias": "primary-gpt54",
+                            "enabled": True,
+                            "api_key": "key-54",
+                            "api_url": "https://code.swpumc.cn",
+                            "model": "gpt-5.4",
+                            "protocol": "openai-responses",
+                            "priority": 1,
+                        },
+                        {
+                            "alias": "backup-gpt52",
+                            "enabled": True,
+                            "api_key": "key-52",
+                            "api_url": "https://code.swpumc.cn",
+                            "model": "gpt-5.2",
+                            "protocol": "openai-responses",
+                            "priority": 2,
+                        },
+                    ],
+                },
+                "packy": {"enabled": False},
+            }
+        }
+    )
+
+    captured = {"run_sync_once_called": 0}
+
+    def fake_run_sync_once(**kwargs):
+        captured["run_sync_once_called"] += 1
+        return {"new_events": 0, "analyzed_events": 0, "failed_events": 0, "last_sync_at": kwargs["now_iso"]}
+
+    def fake_preflight(*_args, **_kwargs):
+        raise LLMRequestError("primary gpt-5.4 failed; fallback gpt-5.2 failed")
+
+    monkeypatch.setattr("backend.runtime.run_sync_once", fake_run_sync_once)
+    monkeypatch.setattr("backend.runtime.ensure_llm_availability", fake_preflight, raising=False)
+
+    runner = build_incremental_sync_runner(store, now_provider=lambda: "2026-03-19T00:35:00Z")
+
+    with pytest.raises(LLMRequestError):
+        runner()
+
+    assert captured["run_sync_once_called"] == 0

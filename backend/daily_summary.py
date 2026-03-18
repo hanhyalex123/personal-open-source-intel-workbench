@@ -204,7 +204,9 @@ def _build_project_summary(*, project: dict, summary_date: str, now_iso: str, da
         except Exception:
             llm_summary = {}
 
+    llm_meta = {}
     if llm_summary:
+        llm_meta = llm_summary.get("_llm") or {}
         headline = prefer_chinese_text(llm_summary.get("headline"), fallback=_default_headline(project_name, evidence_items))
         summary_zh = prefer_chinese_text(
             llm_summary.get("summary_zh"),
@@ -238,6 +240,7 @@ def _build_project_summary(*, project: dict, summary_date: str, now_iso: str, da
         "summary_zh": summary_zh,
         "reason": reason,
         "importance": importance,
+        "llm": llm_meta,
         "evidence_ids": [item["id"] for item in evidence_items],
         "evidence_items": [
             {

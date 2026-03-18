@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 from .daily_summary import build_daily_project_summaries, merge_daily_project_summaries
 from .digest_history import build_daily_digest_history
 from .config import load_environment
-from .llm import analyze_event, summarize_project_daily_intel
+from .llm import analyze_event, ensure_llm_availability, summarize_project_daily_intel
 from .projects import collect_project_sources
 from .research import enrich_event_for_analysis
 from .sources import fetch_feed_entries, fetch_github_releases
@@ -30,6 +30,11 @@ def build_incremental_sync_runner(store, now_provider=None):
         snapshot = store.load_all()
         config = snapshot.get("config") or {}
         llm_config = config.get("llm")
+        try:
+            ensure_llm_availability(llm_config)
+        except RuntimeError as error:
+            if "is not configured" not in str(error):
+                raise
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
         result = run_sync_once(
             store=store,
@@ -66,6 +71,11 @@ def build_daily_digest_runner(store, now_provider=None):
         snapshot = store.load_all()
         config = snapshot.get("config") or {}
         llm_config = config.get("llm")
+        try:
+            ensure_llm_availability(llm_config)
+        except RuntimeError as error:
+            if "is not configured" not in str(error):
+                raise
         repos, feeds = collect_project_sources(snapshot["projects"], snapshot["crawl_profiles"])
         if feeds:
             run_sync_once(

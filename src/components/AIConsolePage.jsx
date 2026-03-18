@@ -128,7 +128,20 @@ export default function AIConsolePage({ projects, assistantConfig, onQuery, init
         ) : (
           <div className="assistant-response">
             <section className="assistant-answer assistant-answer--report">
-              <h3>报告</h3>
+              <div className="assistant-answer__header">
+                <h3>报告</h3>
+                {result.llm?.model ? (
+                  <div className="assistant-llm-badge-wrap">
+                    <div className="assistant-llm-badge">
+                      <span>{result.llm.provider || "模型"}</span>
+                      <strong>{result.llm.model}</strong>
+                    </div>
+                    {result.llm.used_fallback && (result.llm.fallback_model || result.llm.fallback_from_model) ? (
+                      <div className="assistant-llm-note">{`主路由失败，已切到 ${result.llm.model}`}</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
               <div className="assistant-markdown">
                 <SimpleMarkdown content={result.report_markdown} />
               </div>

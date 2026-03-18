@@ -5,6 +5,51 @@ import HelpTip from "./HelpTip";
 
 const CATEGORY_OPTIONS = ["", ...FOCUS_CATEGORIES];
 
+function normalizeOpenAIRoutes(openaiConfig = {}) {
+  const rawRoutes = Array.isArray(openaiConfig?.routes) ? openaiConfig.routes : [];
+  const baseRoute = {
+    alias: openaiConfig?.model || "主路由",
+    enabled: true,
+    apiKey: openaiConfig?.api_key || "",
+    apiUrl: openaiConfig?.api_url || "",
+    model: openaiConfig?.model || "",
+    protocol: openaiConfig?.protocol || "openai-responses",
+    priority: 1,
+  };
+  const routes = (rawRoutes.length ? rawRoutes : [baseRoute]).map((route, index) => ({
+    alias: route?.alias || (index === 0 ? "主路由" : "备用路由"),
+    enabled: route?.enabled ?? true,
+    apiKey: route?.api_key || route?.apiKey || (index === 0 ? openaiConfig?.api_key || "" : ""),
+    apiUrl: route?.api_url || route?.apiUrl || openaiConfig?.api_url || "",
+    model: route?.model || (index === 0 ? openaiConfig?.model || "" : ""),
+    protocol: route?.protocol || (index === 0 ? openaiConfig?.protocol || "openai-responses" : openaiConfig?.protocol || "openai-responses"),
+    priority: Number(route?.priority) || index + 1,
+  }));
+  if (routes.length < 2) {
+    routes.push({
+      alias: "备用路由",
+      enabled: true,
+      apiKey: "",
+      apiUrl: routes[0]?.apiUrl || openaiConfig?.api_url || "",
+      model: "",
+      protocol: routes[0]?.protocol || openaiConfig?.protocol || "openai-responses",
+      priority: 2,
+    });
+  }
+  return routes
+    .sort((left, right) => Number(left.priority || 0) - Number(right.priority || 0))
+    .slice(0, 2);
+}
+
+function SummaryMetric({ label, value, tone = "default" }) {
+  return (
+    <article className={`console-summary-card console-summary-card--${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </article>
+  );
+}
+
 function sourceLabel(source) {
   if (source === "config") return "配置";
   if (source === "env") return "环境变量";
@@ -203,6 +248,7 @@ export default function SettingsPage({
       model: "",
       protocol: "",
       apiKeyConfigured: false,
+      routes: normalizeOpenAIRoutes(),
     },
   });
   const [assistantForm, setAssistantForm] = useState({
@@ -258,6 +304,7 @@ export default function SettingsPage({
         model: config?.llm?.openai?.model || "",
         protocol: config?.llm?.openai?.protocol || "",
         apiKeyConfigured: config?.llm?.openai?.api_key_configured ?? false,
+        routes: normalizeOpenAIRoutes(config?.llm?.openai),
       },
     });
     setAssistantForm({
@@ -293,9 +340,45 @@ export default function SettingsPage({
   }, [config]);
   const packyEffective = config?.llm?.packy;
   const openaiEffective = config?.llm?.openai;
+  const openaiPrimaryRoute = llmForm.openai.routes?.[0] || { alias: "主路由" };
+  const openaiBackupRoute = llmForm.openai.routes?.[1] || { alias: "备用路由" };
+  const openaiRouteChain = (llmForm.openai.routes || [])
+    .filter((route) => route.enabled && route.model)
+    .map((route) => route.model)
+    .join(" -> ") || "未配置";
+
+  function updateOpenAIRoute(index, patch) {
+    setLlmForm((current) => {
+      const routes = normalizeOpenAIRoutes(current.openai).map((route, routeIndex) =>
+        routeIndex === index ? { ...route, ...patch, priority: routeIndex + 1 } : { ...route, priority: routeIndex + 1 },
+      );
+      const primaryRoute = routes[0] || {};
+      return {
+        ...current,
+        openai: {
+          ...current.openai,
+          apiKey: primaryRoute.apiKey || "",
+          apiUrl: primaryRoute.apiUrl || "",
+          model: primaryRoute.model || "",
+          protocol: primaryRoute.protocol || "",
+          routes,
+        },
+      };
+    });
+  }
 
   async function handleLlmSubmit(event) {
     event.preventDefault();
+    const openaiRoutes = (llmForm.openai.routes || []).map((route, index) => ({
+      alias: route.alias || (index === 0 ? "主路由" : "备用路由"),
+      enabled: route.enabled ?? true,
+      api_key: route.apiKey,
+      api_url: route.apiUrl,
+      model: route.model,
+      protocol: route.protocol,
+      priority: index + 1,
+    }));
+    const primaryRoute = openaiRoutes[0] || {};
     await onConfigSave({
       llm: {
         active_provider: llmForm.activeProvider,
@@ -311,11 +394,12 @@ export default function SettingsPage({
         },
         openai: {
           enabled: llmForm.openai.enabled,
-          api_key: llmForm.openai.apiKey,
+          api_key: primaryRoute.api_key || "",
           provider: llmForm.openai.provider,
-          api_url: llmForm.openai.apiUrl,
-          model: llmForm.openai.model,
-          protocol: llmForm.openai.protocol,
+          api_url: primaryRoute.api_url || llmForm.openai.apiUrl,
+          model: primaryRoute.model || llmForm.openai.model,
+          protocol: primaryRoute.protocol || llmForm.openai.protocol,
+          routes: openaiRoutes,
         },
       },
     });
@@ -391,40 +475,46 @@ export default function SettingsPage({
       <section className="settings-panel">
         <SettingsSectionHeader title="模型" help="切换主供应商并维护两套模型网关。" />
 
-        <form className="assistant-config-form" onSubmit={handleLlmSubmit}>
-          <label>
-            <span>当前主供应商</span>
-            <select
-              aria-label="当前主供应商"
-              value={llmForm.activeProvider}
-              onChange={(event) => setLlmForm((current) => ({ ...current, activeProvider: event.target.value }))}
-            >
-              <option value="packy">Packy</option>
-              <option value="openai">OpenAI</option>
-            </select>
-          </label>
+        <form className="assistant-config-form settings-console-form" onSubmit={handleLlmSubmit}>
+          <div className="assistant-config-form__full console-summary-row">
+            <SummaryMetric label="主通道" value={llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"} tone="primary" />
+            <SummaryMetric label="路由" value={openaiRouteChain} />
+            <SummaryMetric label="存档" value={llmForm.disableResponseStorage ? "关闭" : "开启"} />
+          </div>
 
-          <label>
-            <span>推理强度</span>
-            <input
-              aria-label="推理强度"
-              value={llmForm.reasoningEffort}
-              onChange={(event) => setLlmForm((current) => ({ ...current, reasoningEffort: event.target.value }))}
-              placeholder="例如 xhigh"
-            />
-          </label>
+          <div className="assistant-config-form__full settings-toolbar-grid">
+            <label>
+              <span>当前主供应商</span>
+              <select
+                aria-label="当前主供应商"
+                value={llmForm.activeProvider}
+                onChange={(event) => setLlmForm((current) => ({ ...current, activeProvider: event.target.value }))}
+              >
+                <option value="packy">Packy</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </label>
 
-          <label className="assistant-config-form__toggle">
-            <input
-              type="checkbox"
-              checked={llmForm.disableResponseStorage}
-              onChange={(event) => setLlmForm((current) => ({ ...current, disableResponseStorage: event.target.checked }))}
-            />
-            <span>禁用响应存档</span>
-          </label>
+            <label>
+              <span>推理强度</span>
+              <input
+                aria-label="推理强度"
+                value={llmForm.reasoningEffort}
+                onChange={(event) => setLlmForm((current) => ({ ...current, reasoningEffort: event.target.value }))}
+                placeholder="例如 xhigh"
+              />
+            </label>
 
-          <div className="assistant-config-form__full assistant-config-form__toggle-row">
-            <label className="assistant-config-form__toggle">
+            <label className="assistant-config-form__toggle settings-switch-tile">
+              <input
+                type="checkbox"
+                checked={llmForm.disableResponseStorage}
+                onChange={(event) => setLlmForm((current) => ({ ...current, disableResponseStorage: event.target.checked }))}
+              />
+              <span>禁用响应存档</span>
+            </label>
+
+            <label className="assistant-config-form__toggle settings-switch-tile">
               <input
                 type="checkbox"
                 checked={llmForm.packy.enabled}
@@ -437,7 +527,8 @@ export default function SettingsPage({
               />
               <span>启用 Packy 通道</span>
             </label>
-            <label className="assistant-config-form__toggle">
+
+            <label className="assistant-config-form__toggle settings-switch-tile">
               <input
                 type="checkbox"
                 checked={llmForm.openai.enabled}
@@ -453,16 +544,17 @@ export default function SettingsPage({
           </div>
 
           <div className="settings-inline-note assistant-config-form__full">
-            <strong>主通道</strong>
-            <span>{llmForm.activeProvider === "packy" ? "Packy" : "OpenAI"}</span>
+            <strong>当前策略</strong>
+            <span>先走 gpt-5.4，失败后自动切到 gpt-5.2；两条路由都失败时，任务会直接告警并中止。</span>
           </div>
 
-          <div className="llm-provider-grid assistant-config-form__full">
+          <div className="llm-provider-grid assistant-config-form__full settings-console-grid">
             <section
               className={`llm-provider-card card-tier--focus ${llmForm.activeProvider === "packy" ? "llm-provider-card--active" : ""}`}
             >
               <div className="llm-provider-card__header">
                 <div>
+                  <p className="section-kicker">Gateway</p>
                   <h3>Packy</h3>
                 </div>
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "packy" ? "主通道" : "备用"}</span>
@@ -546,6 +638,7 @@ export default function SettingsPage({
             >
               <div className="llm-provider-card__header">
                 <div>
+                  <p className="section-kicker">Failover</p>
                   <h3>OpenAI</h3>
                 </div>
                 <span className="llm-provider-card__badge">{llmForm.activeProvider === "openai" ? "主通道" : "备用"}</span>
@@ -554,21 +647,6 @@ export default function SettingsPage({
               <EffectiveConfig data={openaiEffective} />
               <div className="assistant-config-form llm-provider-card__form">
                 <label className="assistant-config-form__full">
-                  <span>OpenAI API Key</span>
-                  <input
-                    type="password"
-                    aria-label="OpenAI API Key"
-                    value={llmForm.openai.apiKey}
-                    onChange={(event) =>
-                      setLlmForm((current) => ({
-                        ...current,
-                        openai: { ...current.openai, apiKey: event.target.value },
-                      }))
-                    }
-                    placeholder="留空时沿用 OPENAI_API_KEY"
-                  />
-                </label>
-                <label>
                   <span>OpenAI 供应商标识</span>
                   <input
                     aria-label="OpenAI 供应商标识"
@@ -581,46 +659,110 @@ export default function SettingsPage({
                     }
                   />
                 </label>
-                <label>
-                  <span>OpenAI API URL</span>
-                  <input
-                    aria-label="OpenAI API URL"
-                    value={llmForm.openai.apiUrl}
-                    onChange={(event) =>
-                      setLlmForm((current) => ({
-                        ...current,
-                        openai: { ...current.openai, apiUrl: event.target.value },
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>OpenAI 模型</span>
-                  <input
-                    aria-label="OpenAI 模型"
-                    value={llmForm.openai.model}
-                    onChange={(event) =>
-                      setLlmForm((current) => ({
-                        ...current,
-                        openai: { ...current.openai, model: event.target.value },
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>OpenAI 协议</span>
-                  <input
-                    aria-label="OpenAI 协议"
-                    value={llmForm.openai.protocol}
-                    onChange={(event) =>
-                      setLlmForm((current) => ({
-                        ...current,
-                        openai: { ...current.openai, protocol: event.target.value },
-                      }))
-                    }
-                    placeholder="例如 openai-responses"
-                  />
-                </label>
+              </div>
+
+              <div className="route-card-grid">
+                <section className="route-card route-card--primary">
+                  <header>
+                    <strong>{openaiPrimaryRoute.model || openaiPrimaryRoute.alias || "主路由"}</strong>
+                    <span>优先级 1</span>
+                  </header>
+                  <div className="assistant-config-form llm-provider-card__form route-card__form">
+                    <label className="assistant-config-form__toggle settings-switch-tile assistant-config-form__full">
+                      <input
+                        type="checkbox"
+                        checked={openaiPrimaryRoute.enabled ?? true}
+                        onChange={(event) => updateOpenAIRoute(0, { enabled: event.target.checked })}
+                      />
+                      <span>主路由启用</span>
+                    </label>
+                    <label className="assistant-config-form__full">
+                      <span>OpenAI API Key</span>
+                      <input
+                        type="password"
+                        aria-label="OpenAI API Key"
+                        value={openaiPrimaryRoute.apiKey || ""}
+                        onChange={(event) => updateOpenAIRoute(0, { apiKey: event.target.value })}
+                        placeholder="留空时沿用 OPENAI_API_KEY"
+                      />
+                    </label>
+                    <label>
+                      <span>OpenAI API URL</span>
+                      <input
+                        aria-label="OpenAI API URL"
+                        value={openaiPrimaryRoute.apiUrl || ""}
+                        onChange={(event) => updateOpenAIRoute(0, { apiUrl: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>OpenAI 模型</span>
+                      <input
+                        aria-label="OpenAI 模型"
+                        value={openaiPrimaryRoute.model || ""}
+                        onChange={(event) => updateOpenAIRoute(0, { model: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>OpenAI 协议</span>
+                      <input
+                        aria-label="OpenAI 协议"
+                        value={openaiPrimaryRoute.protocol || ""}
+                        onChange={(event) => updateOpenAIRoute(0, { protocol: event.target.value })}
+                        placeholder="例如 openai-responses"
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section className="route-card route-card--secondary">
+                  <header>
+                    <strong>{openaiBackupRoute.model || openaiBackupRoute.alias || "备用路由"}</strong>
+                    <span>优先级 2</span>
+                  </header>
+                  <div className="assistant-config-form llm-provider-card__form route-card__form">
+                    <label className="assistant-config-form__toggle settings-switch-tile assistant-config-form__full">
+                      <input
+                        type="checkbox"
+                        checked={openaiBackupRoute.enabled ?? true}
+                        onChange={(event) => updateOpenAIRoute(1, { enabled: event.target.checked })}
+                      />
+                      <span>备用路由启用</span>
+                    </label>
+                    <label className="assistant-config-form__full">
+                      <span>备用 API Key</span>
+                      <input
+                        type="password"
+                        aria-label="备用 API Key"
+                        value={openaiBackupRoute.apiKey || ""}
+                        onChange={(event) => updateOpenAIRoute(1, { apiKey: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>备用 API URL</span>
+                      <input
+                        aria-label="备用 API URL"
+                        value={openaiBackupRoute.apiUrl || ""}
+                        onChange={(event) => updateOpenAIRoute(1, { apiUrl: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>备用模型</span>
+                      <input
+                        aria-label="备用模型"
+                        value={openaiBackupRoute.model || ""}
+                        onChange={(event) => updateOpenAIRoute(1, { model: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>备用协议</span>
+                      <input
+                        aria-label="备用协议"
+                        value={openaiBackupRoute.protocol || ""}
+                        onChange={(event) => updateOpenAIRoute(1, { protocol: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </section>
               </div>
             </section>
           </div>
@@ -634,131 +776,172 @@ export default function SettingsPage({
       <section className="settings-panel">
         <SettingsSectionHeader title="助手" help="设置 Assistant 默认筛选、搜索和 Prompt。" />
 
-        <form className="assistant-config-form" onSubmit={handleAssistantSubmit}>
-          <label className="assistant-config-form__toggle">
-            <input
-              type="checkbox"
-              checked={assistantForm.enabled}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, enabled: event.target.checked }))}
+        <form className="assistant-config-form settings-console-form" onSubmit={handleAssistantSubmit}>
+          <div className="assistant-config-form__full console-summary-row">
+            <SummaryMetric label="状态" value={assistantForm.enabled ? "已启用" : "已关闭"} tone={assistantForm.enabled ? "primary" : "default"} />
+            <SummaryMetric
+              label="默认范围"
+              value={`${assistantForm.defaultProjectId ? projects.find((project) => project.id === assistantForm.defaultProjectId)?.name || assistantForm.defaultProjectId : "全部项目"} / ${assistantForm.defaultTimeframe}`}
             />
-            <span>Assistant 已启用</span>
-          </label>
+            <SummaryMetric label="检索" value={assistantForm.liveSearchEnabled ? `${assistantForm.liveSearchProvider} · ${assistantForm.liveSearchMaxResults}` : "关闭"} />
+          </div>
 
-          <label>
-            <span>默认项目</span>
-            <select
-              aria-label="默认项目"
-              value={assistantForm.defaultProjectId}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, defaultProjectId: event.target.value }))}
-            >
-              <option value="">全部项目</option>
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="settings-console-grid settings-console-grid--assistant assistant-config-form__full">
+            <section className="console-card card-tier--focus">
+              <div className="llm-provider-card__header">
+                <div>
+                  <p className="section-kicker">Scope</p>
+                  <h3>默认范围</h3>
+                </div>
+              </div>
+              <div className="assistant-config-form llm-provider-card__form route-card__form">
+                <label className="assistant-config-form__toggle settings-switch-tile assistant-config-form__full">
+                  <input
+                    type="checkbox"
+                    checked={assistantForm.enabled}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, enabled: event.target.checked }))}
+                  />
+                  <span>Assistant 已启用</span>
+                </label>
 
-          <label>
-            <span>默认分类</span>
-            <select
-              aria-label="默认分类"
-              value={assistantForm.defaultCategory}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, defaultCategory: event.target.value }))}
-            >
-              {CATEGORY_OPTIONS.map((item) => (
-                <option key={item || "all"} value={item}>
-                  {item || "全部分类"}
-                </option>
-              ))}
-            </select>
-          </label>
+                <label>
+                  <span>默认项目</span>
+                  <select
+                    aria-label="默认项目"
+                    value={assistantForm.defaultProjectId}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, defaultProjectId: event.target.value }))}
+                  >
+                    <option value="">全部项目</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-          <label>
-            <span>默认时间范围</span>
-            <input
-              aria-label="默认时间范围"
-              value={assistantForm.defaultTimeframe}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, defaultTimeframe: event.target.value }))}
-            />
-          </label>
+                <label>
+                  <span>默认分类</span>
+                  <select
+                    aria-label="默认分类"
+                    value={assistantForm.defaultCategory}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, defaultCategory: event.target.value }))}
+                  >
+                    {CATEGORY_OPTIONS.map((item) => (
+                      <option key={item || "all"} value={item}>
+                        {item || "全部分类"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-          <label>
-            <span>证据条数</span>
-            <input
-              type="number"
-              value={assistantForm.maxEvidenceItems}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, maxEvidenceItems: event.target.value }))}
-            />
-          </label>
+                <label className="assistant-config-form__full">
+                  <span>默认时间范围</span>
+                  <input
+                    aria-label="默认时间范围"
+                    value={assistantForm.defaultTimeframe}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, defaultTimeframe: event.target.value }))}
+                  />
+                </label>
+              </div>
+            </section>
 
-          <label>
-            <span>来源条数</span>
-            <input
-              type="number"
-              value={assistantForm.maxSourceItems}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, maxSourceItems: event.target.value }))}
-            />
-          </label>
+            <section className="console-card card-tier--focus">
+              <div className="llm-provider-card__header">
+                <div>
+                  <p className="section-kicker">Retrieval</p>
+                  <h3>检索</h3>
+                </div>
+              </div>
+              <div className="assistant-config-form llm-provider-card__form route-card__form">
+                <label>
+                  <span>证据条数</span>
+                  <input
+                    type="number"
+                    value={assistantForm.maxEvidenceItems}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, maxEvidenceItems: event.target.value }))}
+                  />
+                </label>
 
-          <label className="assistant-config-form__toggle">
-            <input
-              type="checkbox"
-              checked={assistantForm.liveSearchEnabled}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchEnabled: event.target.checked }))}
-            />
-            <span>启用实时搜索</span>
-          </label>
+                <label>
+                  <span>来源条数</span>
+                  <input
+                    type="number"
+                    value={assistantForm.maxSourceItems}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, maxSourceItems: event.target.value }))}
+                  />
+                </label>
 
-          <label>
-            <span>搜索提供方</span>
-            <input
-              aria-label="搜索提供方"
-              value={assistantForm.liveSearchProvider}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchProvider: event.target.value }))}
-            />
-          </label>
+                <label className="assistant-config-form__toggle settings-switch-tile assistant-config-form__full">
+                  <input
+                    type="checkbox"
+                    checked={assistantForm.liveSearchEnabled}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchEnabled: event.target.checked }))}
+                  />
+                  <span>启用实时搜索</span>
+                </label>
 
-          <label>
-            <span>搜索结果数</span>
-            <input
-              type="number"
-              aria-label="搜索结果数"
-              value={assistantForm.liveSearchMaxResults}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchMaxResults: event.target.value }))}
-            />
-          </label>
+                <label>
+                  <span>搜索提供方</span>
+                  <input
+                    aria-label="搜索提供方"
+                    value={assistantForm.liveSearchProvider}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchProvider: event.target.value }))}
+                  />
+                </label>
 
-          <label>
-            <span>抓取页数</span>
-            <input
-              type="number"
-              aria-label="抓取页数"
-              value={assistantForm.liveSearchMaxPages}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchMaxPages: event.target.value }))}
-            />
-          </label>
+                <label>
+                  <span>搜索结果数</span>
+                  <input
+                    type="number"
+                    aria-label="搜索结果数"
+                    value={assistantForm.liveSearchMaxResults}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchMaxResults: event.target.value }))}
+                  />
+                </label>
 
-          <label className="assistant-config-form__full">
-            <span>分类 Prompt</span>
-            <textarea
-              aria-label="分类 Prompt"
-              value={assistantForm.classificationPrompt}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, classificationPrompt: event.target.value }))}
-              rows={3}
-            />
-          </label>
+                <label className="assistant-config-form__full">
+                  <span>抓取页数</span>
+                  <input
+                    type="number"
+                    aria-label="抓取页数"
+                    value={assistantForm.liveSearchMaxPages}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, liveSearchMaxPages: event.target.value }))}
+                  />
+                </label>
+              </div>
+            </section>
 
-          <label className="assistant-config-form__full">
-            <span>回答 Prompt</span>
-            <textarea
-              aria-label="回答 Prompt"
-              value={assistantForm.answerPrompt}
-              onChange={(event) => setAssistantForm((current) => ({ ...current, answerPrompt: event.target.value }))}
-              rows={4}
-            />
-          </label>
+            <section className="console-card card-tier--focus assistant-config-form__full">
+              <div className="llm-provider-card__header">
+                <div>
+                  <p className="section-kicker">Prompt</p>
+                  <h3>Prompt</h3>
+                </div>
+              </div>
+              <div className="assistant-config-form">
+                <label className="assistant-config-form__full">
+                  <span>分类 Prompt</span>
+                  <textarea
+                    aria-label="分类 Prompt"
+                    value={assistantForm.classificationPrompt}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, classificationPrompt: event.target.value }))}
+                    rows={3}
+                  />
+                </label>
+
+                <label className="assistant-config-form__full">
+                  <span>回答 Prompt</span>
+                  <textarea
+                    aria-label="回答 Prompt"
+                    value={assistantForm.answerPrompt}
+                    onChange={(event) => setAssistantForm((current) => ({ ...current, answerPrompt: event.target.value }))}
+                    rows={4}
+                  />
+                </label>
+              </div>
+            </section>
+          </div>
 
           <button className="primary-button" type="submit" disabled={savingConfig}>
             {savingConfig ? "保存中..." : "保存 Assistant 配置"}

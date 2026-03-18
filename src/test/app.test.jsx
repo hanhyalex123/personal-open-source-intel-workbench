@@ -276,6 +276,26 @@ const configPayload = {
       api_url: "https://code.swpumc.cn/v1/responses",
       model: "gpt-5.4",
       protocol: "openai-responses",
+      routes: [
+        {
+          alias: "gpt-5.4",
+          enabled: true,
+          api_key: "",
+          api_url: "https://code.swpumc.cn/v1/responses",
+          model: "gpt-5.4",
+          protocol: "openai-responses",
+          priority: 1,
+        },
+        {
+          alias: "gpt-5.2",
+          enabled: true,
+          api_key: "",
+          api_url: "https://code.swpumc.cn/v1/responses",
+          model: "gpt-5.2",
+          protocol: "openai-responses",
+          priority: 2,
+        },
+      ],
       api_key_configured: true,
       api_key_masked: "sk-o****1234",
       api_key_source: "config",
@@ -899,7 +919,7 @@ describe("App", () => {
     expect(screen.getAllByText("AI工具").length).toBeGreaterThan(0);
     expect(screen.getAllByText("大模型推理部署").length).toBeGreaterThan(0);
     expect(screen.getByText("新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。")).toBeInTheDocument();
-    expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
     expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
     expect(screen.queryByLabelText("默认模式")).not.toBeInTheDocument();
@@ -1275,7 +1295,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
     });
 
     fireEvent.change(screen.getByLabelText("当前主供应商"), {
@@ -1306,6 +1326,8 @@ describe("App", () => {
     expect(payload.llm.active_provider).toBe("openai");
     expect(payload.llm.openai.model).toBe("gpt-5.4");
     expect(payload.llm.openai.protocol).toBe("openai-responses");
+    expect(payload.llm.openai.routes[0].model).toBe("gpt-5.4");
+    expect(payload.llm.openai.routes[1].model).toBe("gpt-5.2");
     expect(payload.llm.disable_response_storage).toBe(true);
   });
 
@@ -1437,7 +1459,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
     });
 
     expect(screen.getAllByText("生效值").length).toBeGreaterThan(0);
@@ -1510,7 +1532,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
     await waitFor(() => {
-      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
     });
 
     const effectivePanel = document.querySelector(".llm-effective");
@@ -1542,7 +1564,7 @@ describe("App", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
 
     await waitFor(() => {
-      expect(screen.getByText("AI 能力管理")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
     });
 
     const packyToggle = screen.getByLabelText("启用 Packy 通道");

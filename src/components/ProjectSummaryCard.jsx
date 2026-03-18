@@ -59,7 +59,10 @@ export default function ProjectSummaryCard({ item }) {
           <p className="section-kicker">Project Intel</p>
           <h2>{item.project_name}</h2>
         </div>
-        <div className={`pill pill--${item.importance || "low"}`}>{importanceLabel(item.importance)}</div>
+        <div className="project-summary-card__header-side">
+          {item.llm?.model ? <div className="project-summary-card__llm">{item.llm.model}</div> : null}
+          <div className={`pill pill--${item.importance || "low"}`}>{importanceLabel(item.importance)}</div>
+        </div>
       </header>
 
       <div className="project-summary-card__body">
