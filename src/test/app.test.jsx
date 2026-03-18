@@ -56,6 +56,24 @@ const dashboardPayload = {
       ],
     },
   ],
+  project_board: [
+    {
+      project_id: "kubernetes",
+      project_name: "Kubernetes",
+      importance: "high",
+      ranking_score: 0.92,
+      board_score: 0.86,
+      last_activity_at: "2026-03-10T10:00:00Z",
+      last_activity_label: "2h",
+      read_count: 3,
+      read_decay_applied: true,
+      updates_7d: 4,
+      activity_series_7d: [0, 1, 0, 2, 1, 0, 4],
+      llm: {
+        model: "gpt-5.4",
+      },
+    },
+  ],
   recent_project_updates: [
     {
       project_id: "cilium",
@@ -788,6 +806,54 @@ describe("App", () => {
     expect(screen.getByText("状态")).toBeInTheDocument();
     expect(screen.getByText("入口")).toBeInTheDocument();
     expect(screen.queryByText("今天最重要的结论")).not.toBeInTheDocument();
+  });
+
+  it("renders 项目榜 with recent signal, weight and read count", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "项目榜", level: 2 })).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "查看 Kubernetes" })).toBeInTheDocument();
+    expect(screen.getByText("2h")).toBeInTheDocument();
+    expect(screen.getByText("权重 86")).toBeInTheDocument();
+    expect(screen.getByText("已读 3")).toBeInTheDocument();
+  });
+
+  it("scrolls to the matching project card when clicking 项目榜", async () => {
+    const scrollSpy = vi.fn();
+    const originalScroll = window.HTMLElement.prototype.scrollIntoView;
+    window.HTMLElement.prototype.scrollIntoView = scrollSpy;
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "查看 Kubernetes" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 Kubernetes" }));
+
+    expect(scrollSpy).toHaveBeenCalled();
+
+    window.HTMLElement.prototype.scrollIntoView = originalScroll;
+  });
+
+  it("shows 项目榜 empty state when there are no daily candidates", async () => {
+    global.fetch = createFetchMock({
+      dashboard: {
+        ...dashboardPayload,
+        project_board: [],
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "项目榜", level: 2 })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("当前没有可上榜项目")).toBeInTheDocument();
   });
 
   it("renders the clue desk and current job block", async () => {

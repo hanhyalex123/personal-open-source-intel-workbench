@@ -384,6 +384,209 @@ def test_build_daily_digest_buckets_auto_selects_recent_projects_when_emerging_c
     assert {item["project_id"] for item in buckets["emerging_projects"]} == {"beta", "gamma"}
 
 
+def _project_board_snapshot(*, config: dict, project_specs: list[dict], read_events: list[dict] | None = None) -> dict:
+    projects = []
+    events = {}
+    analyses = {}
+
+    for spec in project_specs:
+        project_id = spec["id"]
+        project_name = spec.get("name", project_id.replace("-", " ").title())
+        repo = spec.get("repo", f"example/{project_id}")
+        version = spec.get("version", "v1.0.0")
+        base_event_id = f"github-release:{repo}:{version}"
+        projects.append(
+            {
+                "id": project_id,
+                "name": project_name,
+                "github_url": f"https://example.com/{project_id}",
+                "repo": repo,
+                "docs_url": "",
+            }
+        )
+        events[base_event_id] = {
+            "id": base_event_id,
+            "project_id": project_id,
+            "source": spec.get("source", "github_release"),
+            "repo": repo,
+            "title": spec.get("title", f"{project_name} {version}"),
+            "version": version,
+            "url": f"https://example.com/{project_id}/{version}",
+            "published_at": spec["published_at"],
+        }
+        analyses[base_event_id] = {
+            "title_zh": spec.get("title_zh", f"{project_name} 更新"),
+            "summary_zh": spec.get("summary_zh", f"{project_name} 有新的变化。"),
+            "urgency": spec.get("urgency", "medium"),
+            "action_items": spec.get("action_items", []),
+            "impact_points": spec.get("impact_points", []),
+            "detail_sections": spec.get("detail_sections", []),
+            "tags": spec.get("tags", [project_id]),
+            "is_stable": True,
+        }
+        for index, extra_published_at in enumerate(spec.get("extra_published_at", []), start=1):
+            extra_event_id = f"docs-feed:{project_id}:docs:{index}"
+            events[extra_event_id] = {
+                "id": extra_event_id,
+                "project_id": project_id,
+                "source": "docs_feed",
+                "title": f"{project_name} doc {index}",
+                "url": f"https://example.com/{project_id}/docs/{index}",
+                "published_at": extra_published_at,
+                "category": "文档",
+            }
+            analyses[extra_event_id] = {
+                "title_zh": f"{project_name} 文档更新 {index}",
+                "summary_zh": f"{project_name} 文档有新增变化。",
+                "urgency": spec.get("extra_urgency", spec.get("urgency", "medium")),
+                "action_items": [],
+                "impact_points": [],
+                "detail_sections": [],
+                "tags": spec.get("tags", [project_id]),
+                "is_stable": True,
+            }
+
+    return {
+        "config": config,
+        "projects": projects,
+        "events": events,
+        "analyses": analyses,
+        "daily_project_summaries": {},
+        "read_events": read_events or [],
+    }
+
+
+
+def test_build_project_rank_board_filters_out_stale_projects_outside_bucket_window():
+    from backend.daily_summary import build_project_rank_board
+
+    snapshot = _project_board_snapshot(
+        config={
+            "daily_digest": {
+                "must_watch_project_ids": ["core-infra"],
+                "emerging_project_ids": ["fresh-ai"],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        project_specs=[
+            {
+                "id": "core-infra",
+                "name": "Core Infra",
+                "published_at": "2026-02-10T09:00:00Z",
+                "urgency": "high",
+                "title_zh": "Core Infra 核心升级",
+            },
+            {
+                "id": "fresh-ai",
+                "name": "Fresh AI",
+                "published_at": "2026-03-18T09:00:00Z",
+                "urgency": "low",
+                "title_zh": "Fresh AI 文档更新",
+            },
+        ],
+    )
+
+    board = build_project_rank_board(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+
+    assert [item["project_id"] for item in board] == ["fresh-ai"]
+
+
+
+def test_build_project_rank_board_prefers_fresher_candidate_over_more_important_one():
+    from backend.daily_summary import build_project_rank_board
+
+    snapshot = _project_board_snapshot(
+        config={
+            "daily_digest": {
+                "must_watch_project_ids": ["important-core", "fresh-docs"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        project_specs=[
+            {
+                "id": "important-core",
+                "name": "Important Core",
+                "published_at": "2026-03-14T09:00:00Z",
+                "urgency": "high",
+                "title_zh": "Important Core 核心升级",
+                "action_items": ["安排验证"],
+                "impact_points": ["集群核心路径"],
+                "detail_sections": [{"title": "核心变化", "bullets": ["需要关注"]}],
+            },
+            {
+                "id": "fresh-docs",
+                "name": "Fresh Docs",
+                "published_at": "2026-03-19T06:00:00Z",
+                "urgency": "low",
+                "title_zh": "Fresh Docs 页面更新",
+            },
+        ],
+    )
+
+    board = build_project_rank_board(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+
+    assert [item["project_id"] for item in board[:2]] == ["fresh-docs", "important-core"]
+    assert board[0]["board_score"] > board[1]["board_score"]
+
+
+
+def test_build_project_rank_board_applies_recent_read_decay():
+    from backend.daily_summary import build_project_rank_board
+
+    snapshot = _project_board_snapshot(
+        config={
+            "daily_digest": {
+                "must_watch_project_ids": ["read-heavy", "unread"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        project_specs=[
+            {
+                "id": "read-heavy",
+                "name": "Read Heavy",
+                "published_at": "2026-03-18T10:00:00Z",
+                "urgency": "medium",
+                "title_zh": "Read Heavy 每日更新",
+            },
+            {
+                "id": "unread",
+                "name": "Unread",
+                "published_at": "2026-03-18T10:00:00Z",
+                "urgency": "medium",
+                "title_zh": "Unread 每日更新",
+            },
+        ],
+        read_events=[
+            {"project_id": "read-heavy", "event_id": "x1", "read_at": "2026-03-18T12:00:00Z"},
+            {"project_id": "read-heavy", "event_id": "x2", "read_at": "2026-03-19T08:00:00Z"},
+        ],
+    )
+
+    board = build_project_rank_board(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+
+    assert [item["project_id"] for item in board[:2]] == ["unread", "read-heavy"]
+    assert board[1]["read_count"] == 2
+    assert board[1]["read_decay_applied"] is True
+
+
+
 def test_daily_ranking_base_score_uses_importance_recency_evidence_source():
     from backend.daily_ranking import compute_base_score
 

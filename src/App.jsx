@@ -219,6 +219,7 @@ export default function App() {
 
   const overview = dashboard?.overview;
   const homepageProjects = dashboard?.homepage_projects ?? [];
+  const projectBoard = dashboard?.project_board ?? [];
   const recentProjectUpdates = dashboard?.recent_project_updates ?? [];
   const dailyDigestHistory = dashboard?.daily_digest_history ?? [];
   const projectSections = dashboard?.projects ?? [];
@@ -308,6 +309,7 @@ export default function App() {
           <IntelOverviewPage
             overview={overview}
             homepageProjects={homepageProjects}
+            projectBoard={projectBoard}
             recentProjectUpdates={recentProjectUpdates}
             dailyDigestHistory={dailyDigestHistory}
           />

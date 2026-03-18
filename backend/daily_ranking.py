@@ -38,6 +38,37 @@ def compute_base_score(
     )
 
 
+def compute_project_board_score(
+    summary: dict,
+    *,
+    now_iso: str,
+    last_activity_at: str | None,
+    updates_7d: int,
+    recent_read_count: int,
+    weights: dict | None = None,
+    recency_half_life_days: float = 2.0,
+) -> float:
+    weights = weights or {
+        "recency": 0.4,
+        "importance": 0.3,
+        "activity": 0.2,
+        "read_freshness": 0.1,
+    }
+    importance_score = IMPORTANCE_SCORES.get(summary.get("importance"), 0.3)
+    recency_score = _compute_recency_score([
+        {"published_at": last_activity_at}
+    ] if last_activity_at else [], now_iso, recency_half_life_days)
+    activity_score = min(1.0, max(0, updates_7d) / 7.0)
+    read_freshness_score = max(0.0, 1.0 - min(max(recent_read_count, 0), 4) / 4.0)
+
+    return (
+        weights.get("recency", 0.0) * recency_score
+        + weights.get("importance", 0.0) * importance_score
+        + weights.get("activity", 0.0) * activity_score
+        + weights.get("read_freshness", 0.0) * read_freshness_score
+    )
+
+
 def apply_read_decay(
     base_score: float,
     *,

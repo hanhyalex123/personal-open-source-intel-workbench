@@ -1,9 +1,9 @@
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from .chinese_text import generic_event_title, has_usable_chinese_text, prefer_chinese_text
 from .llm import normalize_analysis_record
-from .daily_ranking import apply_read_decay, compute_base_score, rerank_with_mmr
+from .daily_ranking import apply_read_decay, compute_base_score, compute_project_board_score, rerank_with_mmr
 from .storage import normalize_config
 from .time_utils import date_key, parse_datetime, timestamp_for_sort as parse_sort_timestamp
 
@@ -140,6 +140,72 @@ def build_daily_digest_buckets(
         "must_watch_projects": must_watch_projects,
         "emerging_projects": emerging_projects,
     }
+
+
+def build_project_rank_board(
+    *,
+    snapshot: dict,
+    summary_date: str,
+    now_iso: str,
+    summarizer=None,
+    digest_buckets: dict[str, list[dict]] | None = None,
+) -> list[dict]:
+    digest_buckets = digest_buckets or build_daily_digest_buckets(
+        snapshot=snapshot,
+        summary_date=summary_date,
+        now_iso=now_iso,
+        summarizer=summarizer,
+    )
+    candidate_summaries = _merge_candidate_summaries(digest_buckets)
+    if not candidate_summaries:
+        return []
+
+    config = normalize_config(snapshot.get("config"))
+    daily_ranking = config.get("daily_ranking", {})
+    items_by_project = _collect_project_items(snapshot)
+    read_events = snapshot.get("read_events") or []
+    board_items = []
+
+    for summary in candidate_summaries:
+        project_id = summary["project_id"]
+        project_items = _sort_items(items_by_project.get(project_id, []))
+        activity_items = project_items or _project_activity_items_from_summary(summary)
+        last_activity_at = _latest_activity_at_for_items(activity_items) or _project_latest_activity_at(summary)
+        activity_series_7d = _build_activity_series_7d(activity_items, now_iso)
+        updates_7d = sum(activity_series_7d)
+        read_stats = _project_read_stats(
+            read_events,
+            project_id=project_id,
+            now_iso=now_iso,
+            read_decay_days=daily_ranking.get("read_decay_days", 2),
+        )
+        board_score = compute_project_board_score(
+            summary,
+            now_iso=now_iso,
+            last_activity_at=last_activity_at,
+            updates_7d=updates_7d,
+            recent_read_count=read_stats["recent_read_count"],
+        )
+        board_items.append(
+            {
+                "project_id": project_id,
+                "project_name": summary.get("project_name", project_id),
+                "bucket": summary.get("bucket", "candidate"),
+                "importance": summary.get("importance", "low"),
+                "ranking_score": summary.get("ranking_score", 0.0),
+                "board_score": board_score,
+                "last_activity_at": last_activity_at,
+                "last_activity_label": _format_activity_label(last_activity_at, now_iso),
+                "updates_7d": updates_7d,
+                "activity_series_7d": activity_series_7d,
+                "read_count": read_stats["read_count"],
+                "read_decay_applied": read_stats["read_decay_applied"],
+                "llm": summary.get("llm") or {},
+            }
+        )
+
+    board_items.sort(key=_project_board_sort_key)
+    return board_items
 
 
 def merge_daily_project_summaries(existing: dict, summaries: list[dict]) -> dict:
@@ -344,6 +410,110 @@ def _project_latest_activity_at(summary: dict) -> str | None:
     return max(timestamps)
 
 
+def _merge_candidate_summaries(digest_buckets: dict[str, list[dict]]) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for bucket_name, bucket_label in (("must_watch_projects", "must_watch"), ("emerging_projects", "emerging")):
+        for summary in digest_buckets.get(bucket_name) or []:
+            project_id = summary.get("project_id")
+            if not project_id or project_id in merged:
+                continue
+            merged[project_id] = {**summary, "bucket": bucket_label}
+    return list(merged.values())
+
+
+def _project_activity_items_from_summary(summary: dict) -> list[dict]:
+    return [
+        {
+            "id": item.get("id", ""),
+            "published_at": item.get("published_at"),
+            "urgency": item.get("urgency", "low"),
+            "source": item.get("source", ""),
+            "action_items": item.get("action_items", []),
+            "impact_points": item.get("impact_points", []),
+            "detail_sections": item.get("detail_sections", []),
+            "tags": item.get("tags", []),
+            "title_zh": item.get("title_zh", ""),
+            "summary_zh": item.get("summary_zh", ""),
+            "url": item.get("url", ""),
+            "version": item.get("version", ""),
+            "category": item.get("category", ""),
+        }
+        for item in (summary.get("evidence_items") or [])
+    ]
+
+
+def _latest_activity_at_for_items(items: list[dict]) -> str | None:
+    timestamps = [item.get("published_at") for item in items if item.get("published_at")]
+    if not timestamps:
+        return None
+    return max(timestamps)
+
+
+def _build_activity_series_7d(items: list[dict], now_iso: str) -> list[int]:
+    now_dt = parse_datetime(now_iso)
+    if not now_dt:
+        return [0] * 7
+
+    end_date = now_dt.date()
+    window_dates = [end_date - timedelta(days=offset) for offset in range(6, -1, -1)]
+    counts = {day.isoformat(): 0 for day in window_dates}
+    for item in items:
+        item_date = _item_date(item.get("published_at"))
+        if item_date in counts:
+            counts[item_date] += 1
+    return [counts[day.isoformat()] for day in window_dates]
+
+
+def _format_activity_label(last_activity_at: str | None, now_iso: str) -> str:
+    now_dt = parse_datetime(now_iso)
+    activity_dt = parse_datetime(last_activity_at)
+    if not now_dt or not activity_dt:
+        return "暂无更新"
+
+    delta_seconds = max(0, int((now_dt - activity_dt).total_seconds()))
+    if delta_seconds < 3600:
+        return "刚刚"
+    if delta_seconds < 24 * 3600:
+        hours = max(1, delta_seconds // 3600)
+        return f"{hours}h"
+    days = max(1, delta_seconds // (24 * 3600))
+    return f"{days}d"
+
+
+def _project_read_stats(read_events: list[dict], *, project_id: str, now_iso: str, read_decay_days: int) -> dict:
+    total_count = 0
+    recent_count = 0
+    now_ts = _timestamp_for_sort(now_iso)
+    max_age_seconds = max(read_decay_days, 0) * 24 * 60 * 60
+
+    for event in read_events:
+        if event.get("project_id") != project_id:
+            continue
+        total_count += 1
+        read_at = event.get("read_at")
+        if not read_at or now_ts <= 0:
+            continue
+        age_seconds = now_ts - _timestamp_for_sort(read_at)
+        if 0 <= age_seconds <= max_age_seconds:
+            recent_count += 1
+
+    return {
+        "read_count": total_count,
+        "recent_read_count": recent_count,
+        "read_decay_applied": recent_count > 0,
+    }
+
+
+def _project_board_sort_key(item: dict) -> tuple:
+    return (
+        -item.get("board_score", 0.0),
+        -_timestamp_for_sort(item.get("last_activity_at")),
+        IMPORTANCE_ORDER.get(item.get("importance"), 2),
+        item.get("read_count", 0),
+        item.get("project_name", ""),
+    )
+
+
 def _summary_key(summary_date: str, project_id: str) -> str:
     return f"{summary_date}:{project_id}"
 
@@ -397,6 +567,8 @@ def _is_generic_summary_title(project_name: str, title: str) -> bool:
         f"{project_name} 版本更新",
         f"{project_name} 项目更新",
     }
+
+
 def _timestamp_for_sort(value: str | None) -> int:
     return parse_sort_timestamp(value)
 

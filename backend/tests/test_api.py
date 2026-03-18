@@ -335,6 +335,11 @@ def test_dashboard_returns_daily_digest_buckets(tmp_path: Path):
     assert [item["project_id"] for item in payload["must_watch_projects"]] == ["alpha"]
     assert [item["project_id"] for item in payload["emerging_projects"]] == ["beta"]
     assert [item["project_id"] for item in payload["homepage_projects"]] == ["alpha", "beta"]
+    assert [item["project_id"] for item in payload["project_board"]] == ["alpha", "beta"]
+    assert isinstance(payload["project_board"][0]["last_activity_label"], str)
+    assert len(payload["project_board"][0]["activity_series_7d"]) == 7
+    assert payload["project_board"][0]["read_count"] == 0
+    assert isinstance(payload["project_board"][0]["board_score"], float)
 
 
 def test_dashboard_auto_fills_recent_bucket_when_emerging_list_is_empty(tmp_path: Path):

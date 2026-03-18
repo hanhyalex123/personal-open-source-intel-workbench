@@ -14,6 +14,7 @@ from .daily_summary import (
     IMPORTANCE_ORDER,
     build_daily_digest_buckets,
     build_daily_project_summaries,
+    build_project_rank_board,
     load_daily_project_summaries_for_date,
     resolve_summary_date,
 )
@@ -59,6 +60,12 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
             now_iso=digest_now_iso,
         )
         homepage_projects = digest_buckets["must_watch_projects"] + digest_buckets["emerging_projects"]
+        project_board = build_project_rank_board(
+            snapshot=snapshot,
+            summary_date=digest_date,
+            now_iso=digest_now_iso,
+            digest_buckets=digest_buckets,
+        )
         return {
             "overview": {
                 "total_items": len(items),
@@ -75,6 +82,7 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
             "homepage_projects": homepage_projects,
             "must_watch_projects": digest_buckets["must_watch_projects"],
             "emerging_projects": digest_buckets["emerging_projects"],
+            "project_board": project_board,
             "recent_project_updates": build_recent_project_updates(
                 snapshot=snapshot,
                 since_iso=snapshot["state"].get("last_daily_digest_at"),

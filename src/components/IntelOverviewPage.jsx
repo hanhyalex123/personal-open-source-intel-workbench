@@ -3,6 +3,7 @@ import DailyDigestHistory from "./DailyDigestHistory";
 import HelpTip from "./HelpTip";
 import IncrementalUpdateList from "./IncrementalUpdateList";
 import ProjectSummaryCard from "./ProjectSummaryCard";
+import ProjectRankBoard from "./ProjectRankBoard";
 
 function formatDate(value) {
   if (!value) return "暂无";
@@ -33,7 +34,7 @@ function CoverSectionHeader({ title, help }) {
   );
 }
 
-export default function IntelOverviewPage({ overview, homepageProjects, recentProjectUpdates, dailyDigestHistory }) {
+export default function IntelOverviewPage({ overview, homepageProjects, projectBoard, recentProjectUpdates, dailyDigestHistory }) {
   const [featuredProject, ...otherProjects] = homepageProjects || [];
   const schedulerRunning = overview?.scheduler?.running;
 
@@ -99,6 +100,11 @@ export default function IntelOverviewPage({ overview, homepageProjects, recentPr
             </div>
           </section>
         </aside>
+      </section>
+
+      <section className="cover-section">
+        <CoverSectionHeader title="项目榜" help="只看日报候选项目，先判断现在该看谁。" />
+        <ProjectRankBoard items={projectBoard} />
       </section>
 
       {otherProjects.length ? (
