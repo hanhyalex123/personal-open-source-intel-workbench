@@ -67,8 +67,14 @@ const dashboardPayload = {
       last_activity_label: "2h",
       read_count: 3,
       read_decay_applied: true,
-      updates_7d: 4,
-      activity_series_7d: [0, 1, 0, 2, 1, 0, 4],
+      updates_30d: 4,
+      activity_series_30d: [0, 1, 0, 2, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      activity_breakdown_30d: {
+        total: 4,
+        release: 2,
+        docs: 2,
+      },
+      board_explanation: "30天内 4 条变化，release 2 条，docs 2 条；最近更新 2h；已读 3 次。",
       llm: {
         model: "gpt-5.4",
       },
@@ -621,6 +627,25 @@ const docsEventsPayload = [
   },
 ];
 
+const archiveDigestPayloads = {
+  "2026-03-10": {
+    date: "2026-03-10",
+    summaries: [
+      {
+        id: "2026-03-10:kubernetes",
+        project_id: "kubernetes",
+        project_name: "Kubernetes",
+        headline: "Kubernetes 历史摘要",
+        summary_zh: "这是一条归档摘要。",
+        reason: "归档查看。",
+        importance: "high",
+        updated_at: "2026-03-10T01:00:00Z",
+        evidence_items: [],
+      },
+    ],
+  },
+};
+
 const docsPagesPayload = [
   {
     id: "network-page",
@@ -651,6 +676,7 @@ function createFetchMock({
   docsPages = docsPagesPayload,
   docsPageDiff = docsPageDiffPayload,
   docsPageDiffById = null,
+  archiveDigests = archiveDigestPayloads,
 } = {}) {
   return vi.fn((url, options) => {
     const requestUrl = String(url);
@@ -659,6 +685,15 @@ function createFetchMock({
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve(dashboard),
+      });
+    }
+
+    const archiveDigestMatch = requestUrl.match(/\/api\/daily-digests\/([^/?]+)/);
+    if (archiveDigestMatch) {
+      const date = decodeURIComponent(archiveDigestMatch[1] || "");
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(archiveDigests[date] || { date, summaries: [] }),
       });
     }
 
@@ -804,11 +839,53 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "封面说明" })).toBeInTheDocument();
     expect(await screen.findByText("头条")).toBeInTheDocument();
     expect(screen.getByText("状态")).toBeInTheDocument();
-    expect(screen.getByText("入口")).toBeInTheDocument();
+    expect(screen.getByText("快讯")).toBeInTheDocument();
+    expect(screen.getByText("项目榜")).toBeInTheDocument();
+    expect(screen.getByText("归档")).toBeInTheDocument();
+    expect(screen.queryByText("入口")).not.toBeInTheDocument();
     expect(screen.queryByText("今天最重要的结论")).not.toBeInTheDocument();
   });
 
-  it("renders 项目榜 with recent signal, weight and read count", async () => {
+  it("renders cover sections in the clarified order and removes 入口", async () => {
+    global.fetch = createFetchMock({
+      dashboard: {
+        ...dashboardPayload,
+        homepage_projects: [
+          ...dashboardPayload.homepage_projects,
+          {
+            project_id: "openclaw",
+            project_name: "OpenClaw",
+            headline: "OpenClaw 今日重点：研究台可继续跟进",
+            summary_zh: "继续看最近完成分析的 release 和文档变化。",
+            reason: "用于校验封面专题区顺序。",
+            importance: "medium",
+            updated_at: "2026-03-10T09:00:00Z",
+            evidence_items: [],
+          },
+        ],
+      },
+    });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "快讯", level: 2 })).toBeInTheDocument();
+    });
+
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((node) => node.textContent);
+    const quickIndex = headings.indexOf("快讯");
+    const boardIndex = headings.indexOf("项目榜");
+    const topicIndex = headings.indexOf("专题");
+    const archiveIndex = headings.indexOf("归档");
+
+    expect(quickIndex).toBeGreaterThan(-1);
+    expect(boardIndex).toBeGreaterThan(quickIndex);
+    expect(topicIndex).toBeGreaterThan(boardIndex);
+    expect(archiveIndex).toBeGreaterThan(topicIndex);
+    expect(screen.queryByText("入口")).not.toBeInTheDocument();
+  });
+
+  it("renders 项目榜 with 30-day signal and explanation tooltip", async () => {
     render(<App />);
 
     await waitFor(() => {
@@ -816,27 +893,67 @@ describe("App", () => {
     });
 
     expect(screen.getByRole("button", { name: "查看 Kubernetes" })).toBeInTheDocument();
-    expect(screen.getByText("2h")).toBeInTheDocument();
+    expect(screen.getByText("30天")).toBeInTheDocument();
     expect(screen.getByText("权重 86")).toBeInTheDocument();
     expect(screen.getByText("已读 3")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Kubernetes 说明" })).toBeInTheDocument();
+    expect(screen.getByText(/release 2 条/)).toBeInTheDocument();
+    expect(screen.getByText(/docs 2 条/)).toBeInTheDocument();
   });
 
-  it("scrolls to the matching project card when clicking 项目榜", async () => {
-    const scrollSpy = vi.fn();
-    const originalScroll = window.HTMLElement.prototype.scrollIntoView;
-    window.HTMLElement.prototype.scrollIntoView = scrollSpy;
+  it("opens docs desk when clicking a docs quick update", async () => {
+    global.fetch = createFetchMock({
+      dashboard: {
+        ...dashboardPayload,
+        recent_project_updates: [
+          {
+            project_id: "kubernetes",
+            project_name: "Kubernetes",
+            latest_published_at: "2026-03-10T13:00:00Z",
+            highest_urgency: "high",
+            items: [
+              {
+                id: "docs-feed:kubernetes:docs:https://example.com/docs/network",
+                title_zh: "网络策略文档更新",
+                summary_zh: "文档强调了网络策略和 CNI 相关行为。",
+                urgency: "high",
+                source: "docs_feed",
+                url: "https://example.com/docs/network",
+                category: "网络",
+              },
+            ],
+          },
+        ],
+      },
+    });
 
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: "查看 Kubernetes" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "查看 Kubernetes 快讯" })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "查看 Kubernetes" }));
+    fireEvent.click(screen.getByRole("button", { name: "查看 Kubernetes 快讯" }));
 
-    expect(scrollSpy).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "文档台", level: 1 })).toBeInTheDocument();
+    });
+  });
 
-    window.HTMLElement.prototype.scrollIntoView = originalScroll;
+  it("loads archive detail when clicking a digest date", async () => {
+    render(<App />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "查看 2026-03-10 日报" })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "查看 2026-03-10 日报" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "归档详情", level: 2 })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Kubernetes 历史摘要")).toBeInTheDocument();
   });
 
   it("shows 项目榜 empty state when there are no daily candidates", async () => {
@@ -899,22 +1016,11 @@ describe("App", () => {
     expect(screen.getByText("架构师")).toBeInTheDocument();
     expect(screen.getByText("开源情报站")).toBeInTheDocument();
     expect(screen.getAllByText("开源动态、中文结论、同步日志").length).toBeGreaterThan(0);
-    expect(screen.getByText("情报值班台")).toBeInTheDocument();
-    expect(screen.getAllByText("日报").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("情报监控").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("AI 控制台").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("文档解读").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("设置").length).toBeGreaterThan(0);
-    expect(screen.queryByText("版本变化直接讲人话")).not.toBeInTheDocument();
-    expect(screen.getByText("情报值班台")).toBeInTheDocument();
     expect(screen.getAllByAltText("品牌头像").length).toBeGreaterThan(0);
-    expect(screen.getByText("重点结论")).toBeInTheDocument();
-    expect(screen.getByText("运行快照")).toBeInTheDocument();
-    expect(screen.getByText("固定日报放首页，增量变化看提醒，项目下钻放到情报监控页。")).toBeInTheDocument();
-    expect(document.querySelector(".homepage-topline")).not.toBeNull();
-    expect(screen.getByText("先看今天最值得跟进的项目和运行信号。")).toBeInTheDocument();
-    expect(screen.getByText("增量快讯")).toBeInTheDocument();
-    expect(screen.getByText("日报归档")).toBeInTheDocument();
+    expect(screen.getByText("头条")).toBeInTheDocument();
+    expect(screen.getByText("快讯")).toBeInTheDocument();
+    expect(screen.getByText("项目榜")).toBeInTheDocument();
+    expect(screen.getByText("归档")).toBeInTheDocument();
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);
     expect(screen.getAllByText("最近抓取成功").length).toBeGreaterThan(0);
     expect(screen.getAllByText("最近日报生成").length).toBeGreaterThan(0);
@@ -922,106 +1028,61 @@ describe("App", () => {
     expect(screen.getByText("2026-03-10")).toBeInTheDocument();
     expect(screen.queryByText("Sync")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
-    expect(screen.getByRole("heading", { name: "同步监控", level: 1 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "当前 Job", level: 2 })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "最近 Job", level: 2 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "线索台", level: 1 })).toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "当前", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "历史", level: 2 })).toBeInTheDocument();
     expect(screen.getAllByText("手动增量同步").length).toBeGreaterThan(0);
     expect(screen.getAllByText("正在抓取 GitHub releases").length).toBeGreaterThan(0);
     expect(screen.getByText("cilium/cilium")).toBeInTheDocument();
-    expect(screen.getByText("1 / 8")).toBeInTheDocument();
-    expect(screen.getByText("心跳状态")).toBeInTheDocument();
-    expect(screen.getAllByText("运行中").length).toBeGreaterThan(0);
-    expect(screen.getByText("失败数")).toBeInTheDocument();
-    expect(screen.getByText("跳过")).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "文档台" }));
     await waitFor(() => {
-      expect(screen.getByRole("dialog", { name: "同步日志" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "文档台", level: 1 })).toBeInTheDocument();
     });
-    const logDialog = screen.getByRole("dialog", { name: "同步日志" });
-    expect(screen.getByText("Cilium 1.20 预发布")).toBeInTheDocument();
-    expect(screen.getByText("新增 KCNP 和 BackendTLSPolicy。")).toBeInTheDocument();
-    expect(within(logDialog).getByRole("button", { name: "跳过" })).toBeInTheDocument();
-    expect(screen.queryByText(/\*\*核心变化点/)).not.toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
-    expect(screen.getByText("按项目跟踪版本、文档与分析结论")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "架构" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "虚拟化" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "GPU" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "网络" })).toBeInTheDocument();
-    expect(screen.getAllByText("ReleaseNote 区").length).toBeGreaterThan(0);
-    expect(screen.getByText("文档区")).toBeInTheDocument();
-    expect(screen.getAllByText("网络").length).toBeGreaterThan(0);
-    expect(screen.getByText("网络策略文档更新")).toBeInTheDocument();
-    expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
-    expect(screen.getByText("快速定位")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Kubernetes" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "ReleaseNote 区" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "网络" })).toBeInTheDocument();
-    expect(screen.getAllByText("虚拟化").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "展开更多" }));
-    expect(screen.getByText(formatZhDateTime("2026-03-12T10:00:00Z"))).toBeInTheDocument();
-    expect(screen.getByText("Kubernetes 1.31 网络推荐变化")).toBeInTheDocument();
-    fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
-    expect(screen.getByText("优先验证。")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "架构" }));
-    expect(document.querySelector('section.project-panel[data-project-id="kubernetes"]')).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "打开文档视图" })[0]);
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "文档解读", level: 1 })).toBeInTheDocument();
-    });
-    await waitFor(() => {
-      expect(screen.getByText("当前页面快照")).toBeInTheDocument();
-    });
-    expect(screen.getAllByText("Kubernetes 网络文档更新").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "情报监控" })[0]);
-    fireEvent.click(screen.getByRole("button", { name: "AI工具" }));
-    expect(screen.getByText("当前筛选下没有匹配内容。")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "项目", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "页面", level: 2 })).toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
-    expect(screen.getAllByText("设置").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("OpenClaw").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("AI工具").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("大模型推理部署").length).toBeGreaterThan(0);
-    expect(screen.getByText("新增项目时只填 GitHub URL 和官方文档 URL，后端会接管后续分析链路。")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "设置" }));
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "设置", level: 1 })).toBeInTheDocument();
+    });
     expect(screen.getByRole("heading", { name: "模型", level: 2 })).toBeInTheDocument();
-    expect(screen.getByText("Assistant 全局配置")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("14d")).toBeInTheDocument();
-    expect(screen.queryByLabelText("默认模式")).not.toBeInTheDocument();
+    expect(screen.getByText("日报分区")).toBeInTheDocument();
   });
 
   it("shows sync monitor page in navigation", async () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("日报首页")).toBeInTheDocument();
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    const monitorTab = screen.getAllByRole("button", { name: "同步监控" })[0];
-    fireEvent.click(monitorTab);
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
 
-    expect(screen.getByRole("heading", { name: "同步监控", level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "线索台", level: 1 })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.queryByText("日报首页")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kubernetes 今日重点：1.31 补丁与网络策略")).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("heading", { name: "当前 Job", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "当前", level: 2 })).toBeInTheDocument();
   });
 
   it("shows sync actions only on sync monitor page", async () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("日报首页")).toBeInTheDocument();
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
     expect(screen.queryByRole("button", { name: "立即同步" })).not.toBeInTheDocument();
-    expect(screen.queryByText("当前 Job")).not.toBeInTheDocument();
+    expect(screen.queryByText("当前")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getAllByRole("button", { name: "同步监控" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
 
     expect(screen.getByRole("button", { name: "立即同步" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "当前 Job", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "当前", level: 2 })).toBeInTheDocument();
   });
 
   it("switches the current job and scopes logs to the selected job", async () => {
@@ -1031,7 +1092,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
     fireEvent.click(screen.getByRole("button", { name: /定时增量同步/ }));
 
     expect(screen.getAllByText("已完成，含失败项").length).toBeGreaterThan(0);
@@ -1539,10 +1600,10 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("日报首页")).toBeInTheDocument();
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
     fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
 
     await waitFor(() => {
@@ -1566,10 +1627,10 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("日报首页")).toBeInTheDocument();
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
     fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
 
     await waitFor(() => {
@@ -1593,7 +1654,7 @@ describe("App", () => {
     render(<App />);
 
     await waitFor(() => {
-      expect(screen.getByText("日报首页")).toBeInTheDocument();
+      expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getAllByRole("button", { name: "设置" })[0]);
@@ -1608,7 +1669,7 @@ describe("App", () => {
       .querySelectorAll(".llm-provider-card")
       .forEach((card) => expect(card).toHaveClass("card-tier--focus"));
 
-    fireEvent.click(screen.getByRole("button", { name: "同步监控" }));
+    fireEvent.click(screen.getByRole("button", { name: "线索台" }));
     fireEvent.click(screen.getAllByRole("button", { name: "查看日志" })[0]);
 
     await waitFor(() => {
@@ -1667,7 +1728,7 @@ describe("App", () => {
       expect(screen.getByText("Kubernetes 今日重点：1.31 补丁与网络策略")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getAllByRole("button", { name: "AI 控制台" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "研究台" })[0]);
 
     expect(screen.getByLabelText("问题输入")).toBeInTheDocument();
     expect(screen.getByLabelText("项目筛选")).toBeInTheDocument();
@@ -1684,7 +1745,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "发起查询" }));
 
     await waitFor(() => {
-    expect(screen.getByRole("heading", { name: "结论摘要" })).toBeInTheDocument();
+      expect(screen.getByText("报告")).toBeInTheDocument();
     });
 
     expect(screen.getAllByText("关键依据").length).toBeGreaterThan(0);

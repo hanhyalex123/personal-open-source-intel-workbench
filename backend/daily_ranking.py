@@ -43,22 +43,25 @@ def compute_project_board_score(
     *,
     now_iso: str,
     last_activity_at: str | None,
-    updates_7d: int,
+    updates_30d: int | None = None,
+    updates_7d: int | None = None,
     recent_read_count: int,
     weights: dict | None = None,
-    recency_half_life_days: float = 2.0,
+    recency_half_life_days: float = 7.0,
 ) -> float:
     weights = weights or {
-        "recency": 0.4,
-        "importance": 0.3,
-        "activity": 0.2,
+        "recency": 0.55,
+        "importance": 0.2,
+        "activity": 0.15,
         "read_freshness": 0.1,
     }
     importance_score = IMPORTANCE_SCORES.get(summary.get("importance"), 0.3)
     recency_score = _compute_recency_score([
         {"published_at": last_activity_at}
     ] if last_activity_at else [], now_iso, recency_half_life_days)
-    activity_score = min(1.0, max(0, updates_7d) / 7.0)
+    activity_window = updates_30d if updates_30d is not None else updates_7d if updates_7d is not None else 0
+    activity_denominator = 30.0 if updates_30d is not None else 7.0
+    activity_score = min(1.0, max(0, activity_window) / activity_denominator)
     read_freshness_score = max(0.0, 1.0 - min(max(recent_read_count, 0), 4) / 4.0)
 
     return (

@@ -24,7 +24,7 @@ import {
 import { selectPrimaryJob } from "./lib/syncJobs";
 
 const NAV_ITEMS = [
-  { id: "cover", icon: "◌", label: "封面", title: "封面", help: "查看今日头条、系统状态和常用入口。" },
+  { id: "cover", icon: "◌", label: "封面", title: "封面", help: "查看头条、快讯、项目榜和历史归档。" },
   { id: "clues", icon: "◎", label: "线索台", title: "线索台", help: "查看当前同步、历史 Job 和异常入口。" },
   { id: "topics", icon: "▣", label: "专题库", title: "专题库", help: "按项目和主题浏览长期变化。" },
   { id: "docsdesk", icon: "◫", label: "文档台", title: "文档台", help: "看页面变化、详细解读和深读入口。" },
@@ -312,6 +312,7 @@ export default function App() {
             projectBoard={projectBoard}
             recentProjectUpdates={recentProjectUpdates}
             dailyDigestHistory={dailyDigestHistory}
+            onOpenDocs={handleOpenDocs}
           />
         ) : null}
 

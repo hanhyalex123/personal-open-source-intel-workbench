@@ -93,6 +93,12 @@ def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest
             "groups": groups,
         }
 
+    @app.get("/api/daily-digests/<digest_date>")
+    def daily_digest_archive(digest_date: str):
+        snapshot = app.config["STORE"].load_all()
+        summaries = load_daily_project_summaries_for_date(snapshot.get("daily_project_summaries"), digest_date)
+        return {"date": digest_date, "summaries": summaries}
+
     @app.get("/api/projects")
     def list_projects():
         return app.config["STORE"].load_all()["projects"]

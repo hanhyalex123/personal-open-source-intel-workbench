@@ -1,4 +1,8 @@
+import { useState } from "react";
+
 import brandAvatar from "../assets/brand-icon.png";
+import { fetchDailyDigestArchive } from "../lib/api";
+import ArchiveDigestPanel from "./ArchiveDigestPanel";
 import DailyDigestHistory from "./DailyDigestHistory";
 import HelpTip from "./HelpTip";
 import IncrementalUpdateList from "./IncrementalUpdateList";
@@ -34,9 +38,36 @@ function CoverSectionHeader({ title, help }) {
   );
 }
 
-export default function IntelOverviewPage({ overview, homepageProjects, projectBoard, recentProjectUpdates, dailyDigestHistory }) {
+export default function IntelOverviewPage({
+  overview,
+  homepageProjects,
+  projectBoard,
+  recentProjectUpdates,
+  dailyDigestHistory,
+  onOpenDocs,
+}) {
+  const [selectedDigestDate, setSelectedDigestDate] = useState("");
+  const [archiveDigest, setArchiveDigest] = useState(null);
+  const [archiveLoading, setArchiveLoading] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
   const [featuredProject, ...otherProjects] = homepageProjects || [];
   const schedulerRunning = overview?.scheduler?.running;
+
+  async function handleSelectDigest(digestDate) {
+    if (!digestDate) return;
+    setSelectedDigestDate(digestDate);
+    setArchiveLoading(true);
+    setArchiveError("");
+    try {
+      const payload = await fetchDailyDigestArchive(digestDate);
+      setArchiveDigest(payload);
+    } catch (loadError) {
+      setArchiveDigest(null);
+      setArchiveError(loadError instanceof Error ? loadError.message : "历史日报读取失败");
+    } finally {
+      setArchiveLoading(false);
+    }
+  }
 
   return (
     <div className="cover-page">
@@ -54,7 +85,7 @@ export default function IntelOverviewPage({ overview, homepageProjects, projectB
           <div className="cover-headline">
             <div className="cover-headline__title">
               <h1>头条</h1>
-              <HelpTip label="头条说明" text="查看今天最值得先看的项目结论。" />
+              <HelpTip label="头条说明" text="当前窗口内最值得先读的项目结论。" />
             </div>
             <div className="cover-avatar">
               <img className="brand-avatar brand-avatar--hero" src={brandAvatar} alt="品牌头像" />
@@ -72,7 +103,7 @@ export default function IntelOverviewPage({ overview, homepageProjects, projectB
 
         <aside className="cover-hero__rail">
           <section className="cover-pulse">
-            <CoverSectionHeader title="状态" help="确认调度、抓取和日报是否正常。" />
+            <CoverSectionHeader title="状态" help="抓取、分析和日报的最近运行时间。" />
             <div className="cover-pulse__grid">
               <PulseItem label="最近抓取成功" value={formatDate(overview?.last_fetch_success_at || overview?.last_sync_at)} />
               <PulseItem label="最近日报生成" value={formatDate(overview?.last_daily_digest_at || overview?.last_daily_summary_at)} />
@@ -84,26 +115,16 @@ export default function IntelOverviewPage({ overview, homepageProjects, projectB
               <PulseItem label="最近分析完成" value={formatDate(overview?.last_incremental_analysis_at || overview?.last_analysis_at)} />
             </div>
           </section>
-
-          <section className="cover-brief">
-            <CoverSectionHeader title="入口" help="常用页面入口。" />
-            <div className="cover-brief__list">
-              <article>
-                <strong>线索台</strong>
-              </article>
-              <article>
-                <strong>专题库</strong>
-              </article>
-              <article>
-                <strong>文档台</strong>
-              </article>
-            </div>
-          </section>
         </aside>
       </section>
 
       <section className="cover-section">
-        <CoverSectionHeader title="项目榜" help="只看日报候选项目，先判断现在该看谁。" />
+        <CoverSectionHeader title="快讯" help="日报后新增。" />
+        <IncrementalUpdateList updates={recentProjectUpdates} onOpenDocs={onOpenDocs} />
+      </section>
+
+      <section className="cover-section">
+        <CoverSectionHeader title="项目榜" help="30天变化，合并 release + 文档。" />
         <ProjectRankBoard items={projectBoard} />
       </section>
 
@@ -118,16 +139,20 @@ export default function IntelOverviewPage({ overview, homepageProjects, projectB
         </section>
       ) : null}
 
-      <section className="cover-lower-grid">
-        <section className="cover-section">
-          <CoverSectionHeader title="快讯" help="最近增量变化。" />
-          <IncrementalUpdateList updates={recentProjectUpdates} />
-        </section>
-
-        <section className="cover-section cover-section--archive">
-          <CoverSectionHeader title="归档" help="查看历史日报。" />
-          <DailyDigestHistory history={dailyDigestHistory} />
-        </section>
+      <section className="cover-section cover-section--archive">
+        <CoverSectionHeader title="归档" help="历史日报。" />
+        <DailyDigestHistory
+          history={dailyDigestHistory}
+          selectedDate={selectedDigestDate}
+          loading={archiveLoading}
+          onSelectDate={handleSelectDigest}
+        />
+        <ArchiveDigestPanel
+          digestDate={selectedDigestDate}
+          payload={archiveDigest}
+          loading={archiveLoading}
+          error={archiveError}
+        />
       </section>
     </div>
   );

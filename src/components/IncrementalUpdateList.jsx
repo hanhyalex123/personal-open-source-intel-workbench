@@ -12,9 +12,28 @@ function urgencyLabel(level) {
   return "一般更新";
 }
 
-export default function IncrementalUpdateList({ updates }) {
+function pickPrimaryItem(project) {
+  const items = project?.items || [];
+  return items.find((item) => item.source === "docs_feed") || items[0] || null;
+}
+
+export default function IncrementalUpdateList({ updates, onOpenDocs }) {
   if (!updates.length) {
     return <div className="empty-state">日报生成后还没有新的项目变化。</div>;
+  }
+
+  function handleOpen(project) {
+    const primaryItem = pickPrimaryItem(project);
+    if (!primaryItem) return;
+
+    if (primaryItem.source === "docs_feed") {
+      onOpenDocs?.(project.project_id, primaryItem.id || "");
+      return;
+    }
+
+    if (primaryItem.url) {
+      window.open(primaryItem.url, "_blank", "noopener,noreferrer");
+    }
   }
 
   return (
@@ -23,7 +42,7 @@ export default function IncrementalUpdateList({ updates }) {
         <article key={project.project_id} className="incremental-project-card">
           <header className="incremental-project-card__header">
             <div>
-              <p className="section-kicker">Project Update</p>
+              <p className="section-kicker">日报后新增</p>
               <h3>{project.project_name}</h3>
             </div>
             <div className={`pill pill--${project.highest_urgency || "low"}`}>{urgencyLabel(project.highest_urgency)}</div>
@@ -46,6 +65,16 @@ export default function IncrementalUpdateList({ updates }) {
                 ) : null}
               </article>
             ))}
+          </div>
+          <div className="incremental-project-card__footer">
+            <button
+              type="button"
+              className="secondary-button incremental-project-card__action"
+              aria-label={`查看 ${project.project_name} 快讯`}
+              onClick={() => handleOpen(project)}
+            >
+              查看
+            </button>
           </div>
         </article>
       ))}

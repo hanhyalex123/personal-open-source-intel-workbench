@@ -156,7 +156,14 @@ def build_project_rank_board(
         now_iso=now_iso,
         summarizer=summarizer,
     )
-    candidate_summaries = _merge_candidate_summaries(digest_buckets)
+    all_summaries = build_daily_project_summaries(
+        snapshot=snapshot,
+        summary_date=summary_date,
+        now_iso=now_iso,
+        summarizer=summarizer,
+    )
+    summary_by_project = {item["project_id"]: item for item in all_summaries}
+    candidate_summaries = _build_project_board_candidates(snapshot, digest_buckets, summary_by_project)
     if not candidate_summaries:
         return []
 
@@ -171,8 +178,9 @@ def build_project_rank_board(
         project_items = _sort_items(items_by_project.get(project_id, []))
         activity_items = project_items or _project_activity_items_from_summary(summary)
         last_activity_at = _latest_activity_at_for_items(activity_items) or _project_latest_activity_at(summary)
-        activity_series_7d = _build_activity_series_7d(activity_items, now_iso)
-        updates_7d = sum(activity_series_7d)
+        activity_series_30d = _build_activity_series(activity_items, now_iso, days=30)
+        activity_breakdown_30d = _build_activity_breakdown(activity_items, now_iso, days=30)
+        updates_30d = activity_breakdown_30d["total"]
         read_stats = _project_read_stats(
             read_events,
             project_id=project_id,
@@ -183,7 +191,7 @@ def build_project_rank_board(
             summary,
             now_iso=now_iso,
             last_activity_at=last_activity_at,
-            updates_7d=updates_7d,
+            updates_30d=updates_30d,
             recent_read_count=read_stats["recent_read_count"],
         )
         board_items.append(
@@ -196,8 +204,15 @@ def build_project_rank_board(
                 "board_score": board_score,
                 "last_activity_at": last_activity_at,
                 "last_activity_label": _format_activity_label(last_activity_at, now_iso),
-                "updates_7d": updates_7d,
-                "activity_series_7d": activity_series_7d,
+                "updates_30d": updates_30d,
+                "activity_series_30d": activity_series_30d,
+                "activity_breakdown_30d": activity_breakdown_30d,
+                "board_explanation": _build_project_board_explanation(
+                    last_activity_at=last_activity_at,
+                    now_iso=now_iso,
+                    breakdown=activity_breakdown_30d,
+                    read_count=read_stats["read_count"],
+                ),
                 "read_count": read_stats["read_count"],
                 "read_decay_applied": read_stats["read_decay_applied"],
                 "llm": summary.get("llm") or {},
@@ -410,14 +425,23 @@ def _project_latest_activity_at(summary: dict) -> str | None:
     return max(timestamps)
 
 
-def _merge_candidate_summaries(digest_buckets: dict[str, list[dict]]) -> list[dict]:
+def _build_project_board_candidates(snapshot: dict, digest_buckets: dict[str, list[dict]], summary_by_project: dict[str, dict]) -> list[dict]:
+    config = normalize_config(snapshot.get("config"))
+    daily_digest = config.get("daily_digest", {})
     merged: dict[str, dict] = {}
-    for bucket_name, bucket_label in (("must_watch_projects", "must_watch"), ("emerging_projects", "emerging")):
-        for summary in digest_buckets.get(bucket_name) or []:
-            project_id = summary.get("project_id")
-            if not project_id or project_id in merged:
-                continue
-            merged[project_id] = {**summary, "bucket": bucket_label}
+
+    for summary in digest_buckets.get("emerging_projects") or []:
+        project_id = summary.get("project_id")
+        if not project_id:
+            continue
+        merged[project_id] = {**summary, "bucket": "emerging"}
+
+    for project_id in daily_digest.get("must_watch_project_ids") or []:
+        summary = summary_by_project.get(project_id)
+        if not summary:
+            continue
+        merged.setdefault(project_id, {**summary, "bucket": "must_watch"})
+
     return list(merged.values())
 
 
@@ -449,19 +473,49 @@ def _latest_activity_at_for_items(items: list[dict]) -> str | None:
     return max(timestamps)
 
 
-def _build_activity_series_7d(items: list[dict], now_iso: str) -> list[int]:
+def _build_activity_series(items: list[dict], now_iso: str, *, days: int) -> list[int]:
     now_dt = parse_datetime(now_iso)
-    if not now_dt:
-        return [0] * 7
+    if not now_dt or days <= 0:
+        return [0] * max(days, 0)
 
     end_date = now_dt.date()
-    window_dates = [end_date - timedelta(days=offset) for offset in range(6, -1, -1)]
+    window_dates = [end_date - timedelta(days=offset) for offset in range(days - 1, -1, -1)]
     counts = {day.isoformat(): 0 for day in window_dates}
     for item in items:
         item_date = _item_date(item.get("published_at"))
         if item_date in counts:
             counts[item_date] += 1
     return [counts[day.isoformat()] for day in window_dates]
+
+
+def _build_activity_breakdown(items: list[dict], now_iso: str, *, days: int) -> dict[str, int]:
+    now_dt = parse_datetime(now_iso)
+    if not now_dt or days <= 0:
+        return {"total": 0, "release": 0, "docs": 0}
+
+    start_date = now_dt.date() - timedelta(days=days - 1)
+    total = 0
+    release = 0
+    docs = 0
+    for item in items:
+        item_dt = parse_datetime(item.get("published_at"))
+        if not item_dt or item_dt.date() < start_date or item_dt > now_dt:
+            continue
+        total += 1
+        if item.get("source") == "github_release":
+            release += 1
+        elif item.get("source") == "docs_feed":
+            docs += 1
+    return {"total": total, "release": release, "docs": docs}
+
+
+def _build_project_board_explanation(*, last_activity_at: str | None, now_iso: str, breakdown: dict[str, int], read_count: int) -> str:
+    activity_label = _format_activity_label(last_activity_at, now_iso)
+    return (
+        f"30天内 {breakdown.get('total', 0)} 条变化，"
+        f"release {breakdown.get('release', 0)} 条，docs {breakdown.get('docs', 0)} 条；"
+        f"最近更新 {activity_label}；已读 {read_count} 次。"
+    )
 
 
 def _format_activity_label(last_activity_at: str | None, now_iso: str) -> str:

@@ -27,7 +27,7 @@ describe("SyncStatusPanel", () => {
       />,
     );
 
-    expect(screen.getByText("当前 Job")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "当前", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("已完成，含失败项")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "查看日志" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "跳过" })).toBeInTheDocument();

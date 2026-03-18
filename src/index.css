@@ -1370,6 +1370,114 @@ a {
   color: rgba(16, 34, 29, 0.62);
 }
 
+.incremental-project-card__footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.incremental-project-card__action {
+  min-width: 88px;
+}
+
+.project-board-row {
+  cursor: default;
+}
+
+.project-board-row__title {
+  width: 100%;
+}
+
+.project-board-row__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-board-row__jump {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.project-board-row__jump:hover,
+.project-board-row__jump:focus-visible {
+  color: var(--accent-electric);
+  outline: none;
+}
+
+.project-board-row__time {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(20, 37, 54, 0.08);
+}
+
+.project-board-row__hint {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(16, 34, 29, 0.66);
+}
+
+.digest-history-button {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(16, 34, 29, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.digest-history-button:hover,
+.digest-history-button:focus-visible,
+.digest-history-button--active {
+  transform: translateY(-1px);
+  border-color: rgba(13, 110, 253, 0.22);
+  box-shadow: 0 18px 42px rgba(32, 55, 82, 0.1);
+  outline: none;
+}
+
+.digest-history-button strong {
+  font-family: "Space Grotesk", "IBM Plex Sans SC", sans-serif;
+  font-size: 24px;
+}
+
+.digest-history-button span {
+  color: rgba(16, 34, 29, 0.62);
+}
+
+.archive-digest-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(20, 37, 54, 0.08);
+}
+
+.archive-digest-panel__header h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.archive-digest-panel__header p {
+  margin: 6px 0 0;
+  color: rgba(16, 34, 29, 0.6);
+}
+
+.archive-digest-panel__grid {
+  display: grid;
+  gap: 18px;
+}
+
 .intel-grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;

@@ -337,9 +337,117 @@ def test_dashboard_returns_daily_digest_buckets(tmp_path: Path):
     assert [item["project_id"] for item in payload["homepage_projects"]] == ["alpha", "beta"]
     assert [item["project_id"] for item in payload["project_board"]] == ["alpha", "beta"]
     assert isinstance(payload["project_board"][0]["last_activity_label"], str)
-    assert len(payload["project_board"][0]["activity_series_7d"]) == 7
+    assert len(payload["project_board"][0]["activity_series_30d"]) == 30
+    assert payload["project_board"][0]["activity_breakdown_30d"] == {"total": 1, "release": 1, "docs": 0}
+    assert payload["project_board"][0]["board_explanation"]
     assert payload["project_board"][0]["read_count"] == 0
     assert isinstance(payload["project_board"][0]["board_score"], float)
+
+
+def test_dashboard_keeps_stale_must_watch_only_in_project_board(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "vllm",
+                "name": "vLLM",
+                "github_url": "https://example.com/vllm",
+                "repo": "example/vllm",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-01T12:00:00Z",
+                "updated_at": "2026-03-01T12:00:00Z",
+            },
+            {
+                "id": "openclaw",
+                "name": "OpenClaw",
+                "github_url": "https://example.com/openclaw",
+                "repo": "example/openclaw",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-01T12:00:00Z",
+                "updated_at": "2026-03-01T12:00:00Z",
+            },
+        ]
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/vllm:v0.14.1",
+            "source": "github_release",
+            "repo": "example/vllm",
+            "source_key": "example/vllm",
+            "title": "vLLM v0.14.1",
+            "version": "v0.14.1",
+            "url": "https://example.com/vllm/v0.14.1",
+            "content_hash": "hash-vllm",
+            "published_at": "2026-02-10T09:00:00Z",
+        }
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/openclaw:v2026.3.19",
+            "source": "github_release",
+            "repo": "example/openclaw",
+            "source_key": "example/openclaw",
+            "title": "OpenClaw 2026.3.19",
+            "version": "v2026.3.19",
+            "url": "https://example.com/openclaw/v2026.3.19",
+            "content_hash": "hash-openclaw",
+            "published_at": "2026-03-18T09:00:00Z",
+        }
+    )
+    store.save_analysis(
+        "github-release:example/vllm:v0.14.1",
+        {
+            "title_zh": "vLLM 安全修复补丁",
+            "summary_zh": "修复了一批稳定性问题。",
+            "urgency": "high",
+            "tags": ["vllm"],
+            "is_stable": True,
+        },
+    )
+    store.save_analysis(
+        "github-release:example/openclaw:v2026.3.19",
+        {
+            "title_zh": "OpenClaw 最新更新",
+            "summary_zh": "最近 1 天有更新。",
+            "urgency": "medium",
+            "tags": ["openclaw"],
+            "is_stable": True,
+        },
+    )
+    store.save_state(
+        {
+            "last_sync_at": "2026-03-19T10:00:00Z",
+            "last_analysis_at": "2026-03-19T10:00:00Z",
+            "last_daily_digest_at": "2026-03-19T08:00:00Z",
+            "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["vllm"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        }
+    )
+
+    payload = create_app(store=store, sync_runner=lambda: {"status": "noop"}).test_client().get("/api/dashboard").get_json()
+
+    assert [item["project_id"] for item in payload["homepage_projects"]] == ["openclaw"]
+    assert [item["project_id"] for item in payload["project_board"]] == ["openclaw", "vllm"]
 
 
 def test_dashboard_auto_fills_recent_bucket_when_emerging_list_is_empty(tmp_path: Path):
@@ -808,6 +916,38 @@ def test_dashboard_returns_digest_history_and_recent_updates_separately(tmp_path
     assert payload["recent_project_updates"][0]["project_id"] == "cilium"
     assert payload["overview"]["last_daily_digest_at"] == "2026-03-10T08:00:00Z"
     assert payload["overview"]["last_incremental_analysis_at"] == "2026-03-11T09:30:00Z"
+
+
+def test_daily_digest_archive_endpoint_returns_summaries_for_date(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_daily_project_summaries(
+        {
+            "2026-03-18:vllm": {
+                "id": "2026-03-18:vllm",
+                "date": "2026-03-18",
+                "project_id": "vllm",
+                "project_name": "vLLM",
+                "headline": "vLLM 今日重点",
+                "summary_zh": "vLLM 当天摘要。",
+                "reason": "归档原因。",
+                "importance": "high",
+                "evidence_ids": [],
+                "evidence_items": [],
+                "updated_at": "2026-03-18T08:00:00Z",
+            }
+        }
+    )
+
+    client = create_app(store=store, sync_runner=lambda: {"status": "noop"}).test_client()
+    response = client.get('/api/daily-digests/2026-03-18')
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["date"] == "2026-03-18"
+    assert [item["project_id"] for item in payload["summaries"]] == ["vllm"]
 
 
 def test_dashboard_orders_release_items_by_stable_semver_not_publish_time(tmp_path: Path):

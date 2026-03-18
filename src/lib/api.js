@@ -6,6 +6,14 @@ export async function fetchDashboard(signal) {
   return response.json();
 }
 
+export async function fetchDailyDigestArchive(digestDate, signal) {
+  const response = await fetch(`/api/daily-digests/${encodeURIComponent(digestDate)}`, { signal });
+  if (!response.ok) {
+    throw new Error(`daily digest archive request failed: ${response.status}`);
+  }
+  return response.json();
+}
+
 export async function triggerSync() {
   const response = await fetch("/api/sync", { method: "POST" });
   if (!response.ok) {

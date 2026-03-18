@@ -457,7 +457,7 @@ def _project_board_snapshot(*, config: dict, project_specs: list[dict], read_eve
 
 
 
-def test_build_project_rank_board_filters_out_stale_projects_outside_bucket_window():
+def test_build_project_rank_board_keeps_stale_must_watch_project_for_monitoring():
     from backend.daily_summary import build_project_rank_board
 
     snapshot = _project_board_snapshot(
@@ -493,7 +493,8 @@ def test_build_project_rank_board_filters_out_stale_projects_outside_bucket_wind
         now_iso="2026-03-19T12:00:00Z",
     )
 
-    assert [item["project_id"] for item in board] == ["fresh-ai"]
+    assert [item["project_id"] for item in board] == ["fresh-ai", "core-infra"]
+    assert board[1]["last_activity_label"] == "37d"
 
 
 
@@ -539,6 +540,41 @@ def test_build_project_rank_board_prefers_fresher_candidate_over_more_important_
     assert [item["project_id"] for item in board[:2]] == ["fresh-docs", "important-core"]
     assert board[0]["board_score"] > board[1]["board_score"]
 
+
+
+def test_build_project_rank_board_outputs_30d_series_breakdown_and_explanation():
+    from backend.daily_summary import build_project_rank_board
+
+    snapshot = _project_board_snapshot(
+        config={
+            "daily_digest": {
+                "must_watch_project_ids": ["alpha"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        project_specs=[
+            {
+                "id": "alpha",
+                "name": "Alpha",
+                "published_at": "2026-03-19T08:00:00Z",
+                "urgency": "medium",
+                "title_zh": "Alpha release",
+                "extra_published_at": ["2026-03-18T08:00:00Z", "2026-03-02T08:00:00Z"],
+            },
+        ],
+    )
+
+    board = build_project_rank_board(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+
+    assert len(board[0]["activity_series_30d"]) == 30
+    assert board[0]["activity_breakdown_30d"] == {"total": 3, "release": 1, "docs": 2}
+    assert "30天内" in board[0]["board_explanation"]
 
 
 def test_build_project_rank_board_applies_recent_read_decay():
