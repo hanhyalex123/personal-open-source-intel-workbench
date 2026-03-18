@@ -2409,6 +2409,103 @@ a {
   color: rgba(16, 34, 29, 0.62);
 }
 
+.digest-transfer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.digest-transfer__panel {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.digest-transfer__panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.digest-transfer__panel-header strong {
+  font-size: 14px;
+}
+
+.digest-transfer__panel-header span,
+.digest-transfer__search span {
+  font-size: 12px;
+  color: rgba(16, 34, 29, 0.52);
+}
+
+.digest-transfer__search {
+  display: grid;
+  gap: 6px;
+}
+
+.digest-transfer__list {
+  display: grid;
+  gap: 8px;
+  min-height: 220px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 6px;
+  border-radius: 18px;
+  background: rgba(244, 248, 245, 0.88);
+  border: 1px solid rgba(16, 34, 29, 0.08);
+}
+
+.digest-transfer__item {
+  width: 100%;
+  border: 1px solid rgba(16, 34, 29, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: left;
+  color: inherit;
+}
+
+.digest-transfer__item--active {
+  border-color: rgba(13, 110, 253, 0.28);
+  background: rgba(232, 242, 255, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.12);
+}
+
+.digest-transfer__actions {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+}
+
+.digest-transfer__action {
+  min-width: 112px;
+  border: 1px solid rgba(16, 34, 29, 0.1);
+  border-radius: 999px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.88);
+  color: inherit;
+  font-weight: 700;
+}
+
+.digest-transfer__action:disabled {
+  opacity: 0.45;
+}
+
+.digest-transfer__empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  border-radius: 14px;
+  border: 1px dashed rgba(16, 34, 29, 0.12);
+  color: rgba(16, 34, 29, 0.5);
+  background: rgba(255, 255, 255, 0.56);
+  font-size: 13px;
+}
+
 .llm-provider-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3002,6 +3099,14 @@ a {
   .llm-provider-card__header {
     align-items: start;
     flex-direction: column;
+  }
+
+  .digest-transfer {
+    grid-template-columns: 1fr;
+  }
+
+  .digest-transfer__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .project-outline {

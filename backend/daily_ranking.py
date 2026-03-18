@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime
+
+from .time_utils import timestamp_for_sort as parse_sort_timestamp
 
 
 IMPORTANCE_SCORES = {
@@ -159,9 +160,4 @@ def _jaccard(left: set[str], right: set[str]) -> float:
 
 
 def _timestamp_for_sort(value: str | None) -> int:
-    if not value:
-        return 0
-    try:
-        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
-    except ValueError:
-        return 0
+    return parse_sort_timestamp(value)

@@ -337,6 +337,110 @@ def test_dashboard_returns_daily_digest_buckets(tmp_path: Path):
     assert [item["project_id"] for item in payload["homepage_projects"]] == ["alpha", "beta"]
 
 
+def test_dashboard_auto_fills_recent_bucket_when_emerging_list_is_empty(tmp_path: Path):
+    from backend.app import create_app
+    from backend.storage import JsonStore
+
+    store = JsonStore(tmp_path)
+    store.save_projects(
+        [
+            {
+                "id": "alpha",
+                "name": "Alpha",
+                "github_url": "https://example.com/alpha",
+                "repo": "example/alpha",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+            {
+                "id": "beta",
+                "name": "Beta",
+                "github_url": "https://example.com/beta",
+                "repo": "example/beta",
+                "docs_url": "",
+                "enabled": True,
+                "release_area_enabled": True,
+                "docs_area_enabled": False,
+                "sync_interval_minutes": 60,
+                "created_at": "2026-03-15T12:00:00Z",
+                "updated_at": "2026-03-15T12:00:00Z",
+            },
+        ]
+    )
+    store.save_event(
+        {
+            "id": "github-release:example/alpha:v1.0.0",
+            "source": "github_release",
+            "repo": "example/alpha",
+            "source_key": "example/alpha",
+            "title": "Alpha v1.0.0",
+            "version": "v1.0.0",
+            "url": "https://example.com/alpha/v1.0.0",
+            "content_hash": "hash-alpha",
+            "published_at": "2026-01-10T09:00:00Z",
+        }
+    )
+    store.save_event(
+        {
+            "id": "docs-feed:beta:docs:https://example.com/beta",
+            "source": "docs_feed",
+            "project_id": "beta",
+            "source_key": "beta:docs",
+            "title": "Beta docs",
+            "url": "https://example.com/beta",
+            "content_hash": "hash-beta",
+            "published_at": "Sun, 15 Mar 2026 11:27:21 GMT",
+        }
+    )
+    store.save_analysis(
+        "github-release:example/alpha:v1.0.0",
+        {
+            "title_zh": "Alpha v1.0.0 发布",
+            "summary_zh": "Alpha 发布。",
+            "urgency": "medium",
+            "tags": ["alpha"],
+            "is_stable": True,
+        },
+    )
+    store.save_analysis(
+        "docs-feed:beta:docs:https://example.com/beta",
+        {
+            "title_zh": "Beta 文档更新",
+            "summary_zh": "Beta 更新。",
+            "urgency": "high",
+            "tags": ["beta"],
+            "is_stable": True,
+        },
+    )
+    store.save_state(
+        {
+            "last_sync_at": "2026-03-17T10:00:00Z",
+            "last_analysis_at": "2026-03-17T10:00:00Z",
+            "last_daily_summary_at": "2026-03-17T10:00:00Z",
+            "scheduler": {"running": True, "interval_minutes": 60},
+        }
+    )
+    store.save_config(
+        {
+            "daily_digest": {
+                "must_watch_project_ids": ["alpha"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        }
+    )
+
+    payload = create_app(store=store, sync_runner=lambda: {"status": "noop"}).test_client().get("/api/dashboard").get_json()
+
+    assert payload["must_watch_projects"] == []
+    assert [item["project_id"] for item in payload["emerging_projects"]] == ["beta"]
+    assert [item["project_id"] for item in payload["homepage_projects"]] == ["beta"]
 
 
 def test_docs_events_replace_english_analysis_with_chinese_fallback(tmp_path: Path):

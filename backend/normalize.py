@@ -1,6 +1,8 @@
 import hashlib
 import json
 
+from .time_utils import normalize_timestamp
+
 
 ANALYSIS_INPUT_VERSION = "research-v2"
 
@@ -16,7 +18,7 @@ def normalize_release_event(repo: str, payload: dict) -> dict:
         "title": payload.get("name") or version,
         "version": version,
         "url": payload.get("html_url", ""),
-        "published_at": payload.get("published_at"),
+        "published_at": normalize_timestamp(payload.get("published_at")),
         "body": payload.get("body", ""),
         "research_bundle": research_bundle,
     }
@@ -43,7 +45,7 @@ def normalize_feed_entry(source_key: str, payload: dict) -> dict:
         "event_kind": payload.get("event_kind") or "docs_update",
         "title": payload.get("title") or "Untitled",
         "url": payload.get("link") or payload.get("id") or "",
-        "published_at": payload.get("published") or payload.get("updated"),
+        "published_at": normalize_timestamp(payload.get("published") or payload.get("updated")),
         "body": payload.get("summary") or payload.get("description") or "",
         "category": payload.get("category", ""),
         "research_bundle": research_bundle,

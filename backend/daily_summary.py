@@ -5,6 +5,7 @@ from .chinese_text import generic_event_title, has_usable_chinese_text, prefer_c
 from .llm import normalize_analysis_record
 from .daily_ranking import apply_read_decay, compute_base_score, rerank_with_mmr
 from .storage import normalize_config
+from .time_utils import date_key, parse_datetime, timestamp_for_sort as parse_sort_timestamp
 
 
 URGENCY_SCORES = {
@@ -38,7 +39,7 @@ def resolve_summary_date(snapshot: dict, now_iso: str | None = None) -> str:
         event.get("published_at") or event.get("last_seen_at")
         for event in (snapshot.get("events") or {}).values()
     )
-    candidate_dates = [value[:10] for value in candidate_values if value]
+    candidate_dates = [normalized for value in candidate_values if (normalized := date_key(value))]
     if candidate_dates:
         return max(candidate_dates)
 
@@ -129,8 +130,11 @@ def build_daily_digest_buckets(
         project_id = summary["project_id"]
         if project_id in must_watch_ids and days_since <= must_watch_days:
             must_watch_projects.append(summary)
-        if project_id in emerging_ids and days_since <= emerging_days:
-            emerging_projects.append(summary)
+        if project_id in must_watch_ids or days_since > emerging_days:
+            continue
+        if emerging_ids and project_id not in emerging_ids:
+            continue
+        emerging_projects.append(summary)
 
     return {
         "must_watch_projects": must_watch_projects,
@@ -318,26 +322,15 @@ def _item_score(item: dict) -> float:
 
 
 def _item_date(value: str | None) -> str:
-    if not value:
-        return ""
-    return value[:10]
+    return date_key(value)
 
 
 def _days_since(value: str | None, now_iso: str) -> int | None:
-    now_dt = _parse_iso_datetime(now_iso)
-    value_dt = _parse_iso_datetime(value)
+    now_dt = parse_datetime(now_iso)
+    value_dt = parse_datetime(value)
     if not now_dt or not value_dt:
         return None
     return (now_dt - value_dt).days
-
-
-def _parse_iso_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
-    except ValueError:
-        return None
 
 
 def _project_latest_activity_at(summary: dict) -> str | None:
@@ -402,12 +395,7 @@ def _is_generic_summary_title(project_name: str, title: str) -> bool:
         f"{project_name} 项目更新",
     }
 def _timestamp_for_sort(value: str | None) -> int:
-    if not value:
-        return 0
-    try:
-        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
-    except ValueError:
-        return 0
+    return parse_sort_timestamp(value)
 
 
 def _infer_project_id(event: dict, projects: list[dict]) -> str:

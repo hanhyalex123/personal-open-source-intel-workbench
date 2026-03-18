@@ -23,6 +23,7 @@ from .docs_classify import group_docs_records
 from .llm import build_llm_config_view, normalize_analysis_record
 from .projects import build_default_crawl_profile, build_project_record, normalize_project_record
 from .storage import JsonStore, normalize_config
+from .time_utils import timestamp_for_sort as parse_sort_timestamp
 
 
 def create_app(*, store: JsonStore | None = None, sync_runner=None, daily_digest_runner=None) -> Flask:
@@ -830,9 +831,4 @@ def _get_project_by_id(projects: list[dict], project_id: str) -> dict | None:
 
 
 def _timestamp_for_sort(value: str | None) -> int:
-    if not value:
-        return 0
-    try:
-        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
-    except ValueError:
-        return 0
+    return parse_sort_timestamp(value)

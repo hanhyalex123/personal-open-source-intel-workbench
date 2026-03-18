@@ -1,7 +1,7 @@
 from collections import defaultdict
-from datetime import datetime
 
 from .daily_summary import IMPORTANCE_ORDER
+from .time_utils import timestamp_for_sort as parse_sort_timestamp
 from .llm import normalize_analysis_record
 
 
@@ -99,9 +99,4 @@ def _urgency_rank(level: str | None) -> int:
 
 
 def _timestamp_for_sort(value: str | None) -> int:
-    if not value:
-        return 0
-    try:
-        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
-    except ValueError:
-        return 0
+    return parse_sort_timestamp(value)

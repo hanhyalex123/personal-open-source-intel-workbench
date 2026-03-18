@@ -53,6 +53,123 @@ function SettingsSectionHeader({ title, help }) {
   );
 }
 
+function MustWatchTransfer({ projects, value, onChange }) {
+  const [query, setQuery] = useState("");
+  const [availableSelection, setAvailableSelection] = useState("");
+  const [selectedSelection, setSelectedSelection] = useState("");
+  const selectedIds = new Set(value);
+  const normalizedQuery = query.trim().toLowerCase();
+  const availableProjects = projects.filter((project) => {
+    if (selectedIds.has(project.id)) {
+      return false;
+    }
+    if (!normalizedQuery) {
+      return true;
+    }
+    return (project.name || project.id).toLowerCase().includes(normalizedQuery);
+  });
+  const selectedProjects = value
+    .map((projectId) => projects.find((project) => project.id === projectId) || { id: projectId, name: projectId })
+    .filter(Boolean);
+
+  useEffect(() => {
+    if (availableSelection && !availableProjects.some((project) => project.id === availableSelection)) {
+      setAvailableSelection("");
+    }
+  }, [availableProjects, availableSelection]);
+
+  useEffect(() => {
+    if (selectedSelection && !selectedProjects.some((project) => project.id === selectedSelection)) {
+      setSelectedSelection("");
+    }
+  }, [selectedProjects, selectedSelection]);
+
+  function addProject() {
+    if (!availableSelection || selectedIds.has(availableSelection)) {
+      return;
+    }
+    onChange([...value, availableSelection]);
+    setSelectedSelection(availableSelection);
+    setAvailableSelection("");
+  }
+
+  function removeProject() {
+    if (!selectedSelection) {
+      return;
+    }
+    onChange(value.filter((projectId) => projectId !== selectedSelection));
+    setSelectedSelection("");
+  }
+
+  return (
+    <div className="digest-transfer assistant-config-form__full">
+      <div className="digest-transfer__panel">
+        <div className="digest-transfer__panel-header">
+          <strong>项目库</strong>
+          <span>{availableProjects.length} 项</span>
+        </div>
+        <label className="digest-transfer__search">
+          <span>搜索置顶项目</span>
+          <input
+            aria-label="搜索置顶项目"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="按项目名筛选"
+          />
+        </label>
+        <div className="digest-transfer__list" role="listbox" aria-label="待选项目">
+          {availableProjects.length ? (
+            availableProjects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                className={`digest-transfer__item ${availableSelection === project.id ? "digest-transfer__item--active" : ""}`}
+                onClick={() => setAvailableSelection(project.id)}
+              >
+                {project.name || project.id}
+              </button>
+            ))
+          ) : (
+            <div className="digest-transfer__empty">没有匹配项目</div>
+          )}
+        </div>
+      </div>
+
+      <div className="digest-transfer__actions">
+        <button type="button" className="digest-transfer__action" onClick={addProject} disabled={!availableSelection}>
+          加入必看
+        </button>
+        <button type="button" className="digest-transfer__action" onClick={removeProject} disabled={!selectedSelection}>
+          移出必看
+        </button>
+      </div>
+
+      <div className="digest-transfer__panel">
+        <div className="digest-transfer__panel-header">
+          <strong>已置顶</strong>
+          <span>{selectedProjects.length} 项</span>
+        </div>
+        <div className="digest-transfer__list" role="listbox" aria-label="已置顶项目">
+          {selectedProjects.length ? (
+            selectedProjects.map((project) => (
+              <button
+                key={project.id}
+                type="button"
+                className={`digest-transfer__item ${selectedSelection === project.id ? "digest-transfer__item--active" : ""}`}
+                onClick={() => setSelectedSelection(project.id)}
+              >
+                {project.name || project.id}
+              </button>
+            ))
+          ) : (
+            <div className="digest-transfer__empty">还没有置顶项目</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage({
   config,
   projects,
@@ -115,7 +232,6 @@ export default function SettingsPage({
   });
   const [dailyDigestForm, setDailyDigestForm] = useState({
     mustWatchProjectIds: [],
-    emergingProjectIds: [],
     mustWatchDays: 30,
     emergingDays: 3,
   });
@@ -171,7 +287,6 @@ export default function SettingsPage({
     });
     setDailyDigestForm({
       mustWatchProjectIds: config?.daily_digest?.must_watch_project_ids ?? [],
-      emergingProjectIds: config?.daily_digest?.emerging_project_ids ?? [],
       mustWatchDays: config?.daily_digest?.must_watch_days ?? 30,
       emergingDays: config?.daily_digest?.emerging_days ?? 3,
     });
@@ -236,14 +351,6 @@ export default function SettingsPage({
     return Number.isFinite(parsed) ? parsed : fallback;
   }
 
-  function selectedValues(event) {
-    const options = Array.from(event.target.options || []);
-    if (options.length) {
-      return options.filter((option) => option.selected).map((option) => option.value).filter(Boolean);
-    }
-    return Array.from(event.target.selectedOptions || []).map((option) => option.value).filter(Boolean);
-  }
-
   async function handleDailyRankingSubmit(event) {
     event.preventDefault();
     const diversityKeys = dailyRankingForm.mmrDiversityKeys
@@ -272,7 +379,7 @@ export default function SettingsPage({
     await onConfigSave({
       daily_digest: {
         must_watch_project_ids: dailyDigestForm.mustWatchProjectIds,
-        emerging_project_ids: dailyDigestForm.emergingProjectIds,
+        emerging_project_ids: [],
         must_watch_days: Math.max(1, Math.floor(toNumber(dailyDigestForm.mustWatchDays, 30))),
         emerging_days: Math.max(1, Math.floor(toNumber(dailyDigestForm.emergingDays, 3))),
       },
@@ -660,49 +767,26 @@ export default function SettingsPage({
       </section>
 
       <section className="settings-panel">
-        <SettingsSectionHeader title="日报分区" help="挑选老牌必看与近期更新项目，并设置时间窗口。" />
+        <SettingsSectionHeader title="日报分区" help="只维护老牌必看项目；近期更新会按窗口自动收录。" />
 
         <form className="assistant-config-form" onSubmit={handleDailyDigestSubmit}>
-          <label className="assistant-config-form__full">
-            <span>老牌必看项目</span>
-            <select
-              multiple
-              aria-label="老牌必看项目"
-              value={dailyDigestForm.mustWatchProjectIds}
-              onChange={(event) =>
-                setDailyDigestForm((current) => ({
-                  ...current,
-                  mustWatchProjectIds: selectedValues(event),
-                }))
-              }
-            >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="settings-inline-note assistant-config-form__full">
+            <strong>当前规则</strong>
+            <span>{`置顶项目手动维护；近期更新会自动收录最近 ${dailyDigestForm.emergingDays || 3} 天内有变化、且不在置顶区的项目。`}</span>
+          </div>
 
           <label className="assistant-config-form__full">
-            <span>近期更新项目</span>
-            <select
-              multiple
-              aria-label="近期更新项目"
-              value={dailyDigestForm.emergingProjectIds}
-              onChange={(event) =>
+            <span>老牌必看项目</span>
+            <MustWatchTransfer
+              projects={projects}
+              value={dailyDigestForm.mustWatchProjectIds}
+              onChange={(mustWatchProjectIds) =>
                 setDailyDigestForm((current) => ({
                   ...current,
-                  emergingProjectIds: selectedValues(event),
+                  mustWatchProjectIds,
                 }))
               }
-            >
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+            />
           </label>
 
           <label>

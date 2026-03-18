@@ -175,6 +175,21 @@ def test_resolve_summary_date_prefers_freshest_known_date():
     assert resolve_summary_date(snapshot) == "2026-03-10"
 
 
+def test_resolve_summary_date_accepts_rfc_2822_dates():
+    from backend.daily_summary import resolve_summary_date
+
+    snapshot = {
+        "events": {
+            "docs-feed:podman:docs:https://example.com/podman": {
+                "published_at": "Wed, 11 Mar 2026 10:08:25 GMT",
+            }
+        },
+        "state": {},
+    }
+
+    assert resolve_summary_date(snapshot) == "2026-03-11"
+
+
 def test_build_daily_project_summaries_replaces_english_analysis_with_chinese_text():
     from backend.daily_summary import build_daily_project_summaries
 
@@ -294,6 +309,79 @@ def test_build_daily_digest_buckets_filters_by_recency():
 
     assert [item["project_id"] for item in buckets["must_watch_projects"]] == ["alpha"]
     assert [item["project_id"] for item in buckets["emerging_projects"]] == ["gamma"]
+
+
+def test_build_daily_digest_buckets_auto_selects_recent_projects_when_emerging_config_is_empty():
+    from backend.daily_summary import build_daily_digest_buckets
+
+    snapshot = {
+        "config": {
+            "daily_digest": {
+                "must_watch_project_ids": ["alpha"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        "projects": [
+            {"id": "alpha", "name": "Alpha"},
+            {"id": "beta", "name": "Beta"},
+            {"id": "gamma", "name": "Gamma"},
+        ],
+        "events": {
+            "github-release:alpha/alpha:v1.0.0": {
+                "id": "github-release:alpha/alpha:v1.0.0",
+                "project_id": "alpha",
+                "source": "github_release",
+                "title": "Alpha v1.0.0",
+                "published_at": "2026-01-10T09:00:00Z",
+            },
+            "docs-feed:beta:docs:https://example.com/beta": {
+                "id": "docs-feed:beta:docs:https://example.com/beta",
+                "project_id": "beta",
+                "source": "docs_feed",
+                "title": "Beta docs",
+                "published_at": "Sun, 15 Mar 2026 11:27:21 GMT",
+            },
+            "github-release:gamma/gamma:v0.1.0": {
+                "id": "github-release:gamma/gamma:v0.1.0",
+                "project_id": "gamma",
+                "source": "github_release",
+                "title": "Gamma v0.1.0",
+                "published_at": "2026-03-16T09:00:00Z",
+            },
+        },
+        "analyses": {
+            "github-release:alpha/alpha:v1.0.0": {
+                "title_zh": "Alpha v1.0.0 发布",
+                "summary_zh": "Alpha 发布了首个正式版。",
+                "urgency": "medium",
+                "tags": ["alpha"],
+            },
+            "docs-feed:beta:docs:https://example.com/beta": {
+                "title_zh": "Beta 文档更新",
+                "summary_zh": "Beta 最近有新文档变化。",
+                "urgency": "medium",
+                "tags": ["beta"],
+            },
+            "github-release:gamma/gamma:v0.1.0": {
+                "title_zh": "Gamma v0.1.0 发布",
+                "summary_zh": "Gamma 首次发布。",
+                "urgency": "high",
+                "tags": ["gamma"],
+            },
+        },
+        "daily_project_summaries": {},
+    }
+
+    buckets = build_daily_digest_buckets(
+        snapshot=snapshot,
+        summary_date="2026-03-17",
+        now_iso="2026-03-17T08:00:00Z",
+    )
+
+    assert buckets["must_watch_projects"] == []
+    assert {item["project_id"] for item in buckets["emerging_projects"]} == {"beta", "gamma"}
 
 
 def test_daily_ranking_base_score_uses_importance_recency_evidence_source():
