@@ -336,10 +336,12 @@ def test_dashboard_returns_daily_digest_buckets(tmp_path: Path):
     assert [item["project_id"] for item in payload["emerging_projects"]] == ["beta"]
     assert [item["project_id"] for item in payload["homepage_projects"]] == ["alpha", "beta"]
     assert [item["project_id"] for item in payload["project_board"]] == ["alpha", "beta"]
+    assert payload["homepage_projects"][0]["ranking_explanation"]
     assert isinstance(payload["project_board"][0]["last_activity_label"], str)
     assert len(payload["project_board"][0]["activity_series_30d"]) == 30
     assert payload["project_board"][0]["activity_breakdown_30d"] == {"total": 1, "release": 1, "docs": 0}
     assert payload["project_board"][0]["board_explanation"]
+    assert payload["project_board"][0]["board_score_breakdown"]["activity"] >= 0
     assert payload["project_board"][0]["read_count"] == 0
     assert isinstance(payload["project_board"][0]["board_score"], float)
 

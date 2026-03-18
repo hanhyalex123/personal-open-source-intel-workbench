@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useMemo, useState } from "react";
+import { Alert, Badge, Button, Layout, Spin, Typography } from "antd";
 
 import brandAvatar from "./assets/brand-icon.png";
 import AIConsolePage from "./components/AIConsolePage";
@@ -22,6 +23,9 @@ import {
   updateProject,
 } from "./lib/api";
 import { selectPrimaryJob } from "./lib/syncJobs";
+
+const { Header, Sider, Content } = Layout;
+const { Text, Title } = Typography;
 
 const NAV_ITEMS = [
   { id: "cover", icon: "◌", label: "封面", title: "封面", help: "查看头条、快讯、项目榜和历史归档。" },
@@ -259,105 +263,127 @@ export default function App() {
   }
 
   return (
-    <div className="workbench-shell">
-      <aside className="sidebar">
-        <div className="sidebar__brand">
-          <div className="sidebar__brand-mark">
+    <Layout className="app-shell" hasSider>
+      <Sider className="app-shell__sider" width={272} data-testid="app-shell-sider">
+        <div className="app-shell__brand">
+          <div className="app-shell__brand-mark">
             <img className="brand-avatar brand-avatar--sidebar" src={brandAvatar} alt="品牌头像" />
-            <div>
-              <p>架构师</p>
+            <div className="app-shell__brand-copy">
+              <Text className="app-shell__brand-eyebrow">架构师</Text>
               <strong>开源情报站</strong>
             </div>
           </div>
-          <span className="sidebar__brand-note">开源动态、中文结论、同步日志</span>
+          <Text className="app-shell__brand-note">开源动态、中文结论、同步日志</Text>
         </div>
-        <nav className="sidebar__nav">
+
+        <nav className="app-shell__nav" aria-label="主导航">
           {NAV_ITEMS.map((item) => (
-            <button
+            <Button
               key={item.id}
-              className={`sidebar__nav-item ${item.id === activePage ? "sidebar__nav-item--active" : ""}`}
-              type="button"
+              block
+              type={item.id === activePage ? "primary" : "text"}
+              className={`app-shell__nav-button ${item.id === activePage ? "app-shell__nav-button--active" : ""}`}
               onClick={() => setActivePage(item.id)}
             >
-              <span className="sidebar__nav-icon" aria-hidden="true">
+              <span className="app-shell__nav-icon" aria-hidden="true">
                 {item.icon}
               </span>
               <span>{item.label}</span>
-            </button>
+            </Button>
           ))}
         </nav>
-        <footer className="sidebar__footer">开源动态、中文结论、同步日志</footer>
-      </aside>
 
-      <main className="workbench-main">
-        <header className="topbar">
-          <div className="topbar__title">
-            <h1>{currentPage.title}</h1>
-            <HelpTip label={`${currentPage.title}说明`} text={currentPage.help} />
+        <div className="app-shell__footer">
+          <Badge status={syncStatus?.status === "running" ? "processing" : "default"} />
+          <span>{syncStatus?.status === "running" ? "同步运行中" : "等待任务"}</span>
+        </div>
+      </Sider>
+
+      <Layout className="app-shell__main-layout">
+        <Header className="app-shell__header" data-testid="app-shell-header">
+          <div className="app-shell__header-main">
+            <div className="app-shell__header-title">
+              <Title level={1}>{currentPage.title}</Title>
+              <HelpTip label={`${currentPage.title}说明`} text={currentPage.help} />
+            </div>
+            <Text className="app-shell__header-badge">{currentPage.label}</Text>
           </div>
+
           {activePage === "clues" ? (
-            <button className="primary-button" onClick={handleSync} disabled={syncing}>
+            <Button type="primary" size="large" onClick={handleSync} loading={syncing}>
               {syncing ? "正在同步..." : "立即同步"}
-            </button>
+            </Button>
           ) : null}
-        </header>
+        </Header>
 
-        {error ? <div className="error-banner">{error}</div> : null}
-        {loading ? <section className="empty-state">正在读取最新数据...</section> : null}
+        <Content className="app-shell__content">
+          {error ? <Alert className="app-shell__alert" type="error" showIcon message={error} /> : null}
+          {loading ? (
+            <section className="app-shell__loading">
+              <Spin size="large" />
+              <Text>正在读取最新数据...</Text>
+            </section>
+          ) : null}
 
-        {!loading && activePage === "cover" ? (
-          <IntelOverviewPage
-            overview={overview}
-            homepageProjects={homepageProjects}
-            projectBoard={projectBoard}
-            recentProjectUpdates={recentProjectUpdates}
-            dailyDigestHistory={dailyDigestHistory}
-            onOpenDocs={handleOpenDocs}
-          />
-        ) : null}
+          {!loading && activePage === "cover" ? (
+            <IntelOverviewPage
+              overview={overview}
+              homepageProjects={homepageProjects}
+              projectBoard={projectBoard}
+              recentProjectUpdates={recentProjectUpdates}
+              dailyDigestHistory={dailyDigestHistory}
+              onOpenDocs={handleOpenDocs}
+            />
+          ) : null}
 
-        {!loading && activePage === "clues" ? (
-          <SyncMonitorPage
-            primaryRun={primarySyncRun}
-            runs={syncRuns}
-            selectedRunId={selectedSyncRunId}
-            liveStatus={syncStatus}
-            onSelectRun={setSelectedSyncRunId}
-            onOpenLogs={handleOpenLogs}
-          />
-        ) : null}
+          {!loading && activePage === "clues" ? (
+            <SyncMonitorPage
+              primaryRun={primarySyncRun}
+              runs={syncRuns}
+              selectedRunId={selectedSyncRunId}
+              liveStatus={syncStatus}
+              onSelectRun={setSelectedSyncRunId}
+              onOpenLogs={handleOpenLogs}
+            />
+          ) : null}
 
-        {!loading && activePage === "topics" ? (
-          <ProjectMonitorPage projectSections={projectSections} onOpenDocs={handleOpenDocs} />
-        ) : null}
+          {!loading && activePage === "topics" ? (
+            <ProjectMonitorPage projectSections={projectSections} onOpenDocs={handleOpenDocs} />
+          ) : null}
 
-        {!loading && activePage === "docsdesk" ? (
-          <DocsWorkbenchPage
-            initialProjectId={selectedDocsProjectId}
-            highlightedEventId={highlightedDocsEventId}
-            onSelectProject={setSelectedDocsProjectId}
-            onStartResearch={handleStartResearch}
-          />
-        ) : null}
+          {!loading && activePage === "docsdesk" ? (
+            <DocsWorkbenchPage
+              initialProjectId={selectedDocsProjectId}
+              highlightedEventId={highlightedDocsEventId}
+              onSelectProject={setSelectedDocsProjectId}
+              onStartResearch={handleStartResearch}
+            />
+          ) : null}
 
-        {!loading && activePage === "research" ? (
-          <AIConsolePage projects={projects} assistantConfig={config?.assistant} onQuery={queryAssistant} initialContext={researchSeed} />
-        ) : null}
+          {!loading && activePage === "research" ? (
+            <AIConsolePage
+              projects={projects}
+              assistantConfig={config?.assistant}
+              onQuery={queryAssistant}
+              initialContext={researchSeed}
+            />
+          ) : null}
 
-        {!loading && activePage === "settings" ? (
-          <SettingsPage
-            config={config}
-            projects={projects}
-            projectForm={projectForm}
-            setProjectForm={setProjectForm}
-            submittingProject={submittingProject}
-            savingProjectMetadataId={savingProjectMetadataId}
-            savingConfig={savingConfig}
-            onProjectSubmit={handleProjectSubmit}
-            onProjectMetadataSave={handleProjectMetadataSave}
-            onConfigSave={handleConfigSave}
-          />
-        ) : null}
+          {!loading && activePage === "settings" ? (
+            <SettingsPage
+              config={config}
+              projects={projects}
+              projectForm={projectForm}
+              setProjectForm={setProjectForm}
+              submittingProject={submittingProject}
+              savingProjectMetadataId={savingProjectMetadataId}
+              savingConfig={savingConfig}
+              onProjectSubmit={handleProjectSubmit}
+              onProjectMetadataSave={handleProjectMetadataSave}
+              onConfigSave={handleConfigSave}
+            />
+          ) : null}
+        </Content>
 
         <SyncLogDrawer
           open={logDrawerOpen}
@@ -365,7 +391,7 @@ export default function App() {
           currentRunId={selectedSyncRunId || syncStatus?.run_id}
           initialFilter={logFilter}
         />
-      </main>
-    </div>
+      </Layout>
+    </Layout>
   );
 }

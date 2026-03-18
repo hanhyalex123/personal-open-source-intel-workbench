@@ -577,6 +577,62 @@ def test_build_project_rank_board_outputs_30d_series_breakdown_and_explanation()
     assert "30天内" in board[0]["board_explanation"]
 
 
+def test_digest_and_monitor_rankings_can_diverge_for_same_projects():
+    from backend.daily_summary import build_daily_project_summaries, build_project_rank_board
+
+    snapshot = _project_board_snapshot(
+        config={
+            "daily_digest": {
+                "must_watch_project_ids": ["steady-core"],
+                "emerging_project_ids": [],
+                "must_watch_days": 30,
+                "emerging_days": 3,
+            }
+        },
+        project_specs=[
+            {
+                "id": "steady-core",
+                "name": "Steady Core",
+                "published_at": "2026-03-17T09:00:00Z",
+                "urgency": "high",
+                "title_zh": "Steady Core 连续修复",
+                "action_items": ["安排验证"],
+                "impact_points": ["核心链路"],
+                "detail_sections": [{"title": "核心变化", "bullets": ["持续修复"]}],
+                "extra_published_at": [
+                    "2026-03-16T09:00:00Z",
+                    "2026-03-15T09:00:00Z",
+                    "2026-03-14T09:00:00Z",
+                    "2026-03-13T09:00:00Z",
+                ],
+            },
+            {
+                "id": "fresh-flash",
+                "name": "Fresh Flash",
+                "published_at": "2026-03-19T08:00:00Z",
+                "urgency": "medium",
+                "title_zh": "Fresh Flash 今日更新",
+            },
+        ],
+    )
+
+    summaries = build_daily_project_summaries(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+    board = build_project_rank_board(
+        snapshot=snapshot,
+        summary_date="2026-03-19",
+        now_iso="2026-03-19T12:00:00Z",
+    )
+
+    assert [item["project_id"] for item in summaries[:2]] == ["fresh-flash", "steady-core"]
+    assert [item["project_id"] for item in board[:2]] == ["steady-core", "fresh-flash"]
+    assert "新鲜度" in summaries[0]["ranking_explanation"]
+    assert "30天变化量" in board[0]["board_explanation"]
+
+
 def test_build_project_rank_board_applies_recent_read_decay():
     from backend.daily_summary import build_project_rank_board
 

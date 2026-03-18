@@ -3,7 +3,11 @@ from datetime import UTC, date, datetime, timedelta
 
 from .chinese_text import generic_event_title, has_usable_chinese_text, prefer_chinese_text
 from .llm import normalize_analysis_record
-from .daily_ranking import apply_read_decay, compute_base_score, compute_project_board_score, rerank_with_mmr
+from .daily_ranking import (
+    compute_digest_ranking_score,
+    compute_monitor_ranking_score,
+    rerank_with_mmr,
+)
 from .storage import normalize_config
 from .time_utils import date_key, parse_datetime, timestamp_for_sort as parse_sort_timestamp
 
@@ -74,19 +78,30 @@ def build_daily_project_summaries(
             evidence_items=evidence_items,
             summarizer=summarizer,
         )
-        base_score = compute_base_score(
-            summary,
-            weights=daily_ranking.get("weights", {}),
-            now_iso=now_iso,
-            recency_half_life_days=daily_ranking.get("recency_half_life_days", 3),
-        )
-        summary["ranking_score"] = apply_read_decay(
-            base_score,
+        activity_breakdown_30d = _build_activity_breakdown(ranked_items, now_iso, days=30)
+        last_activity_at = _latest_activity_at_for_items(ranked_items) or _project_latest_activity_at(summary)
+        read_stats = _project_read_stats(
+            read_events,
             project_id=project_id,
-            read_events=read_events,
             now_iso=now_iso,
             read_decay_days=daily_ranking.get("read_decay_days", 2),
-            read_decay_factor=daily_ranking.get("read_decay_factor", 0.5),
+        )
+        ranking_score, ranking_factors = compute_digest_ranking_score(
+            summary,
+            now_iso=now_iso,
+            last_activity_at=last_activity_at,
+            updates_30d=activity_breakdown_30d["total"],
+            recent_read_count=read_stats["recent_read_count"],
+            weights=daily_ranking.get("digest_weights"),
+            recency_half_life_days=daily_ranking.get("digest_recency_half_life_days", 3),
+        )
+        summary["ranking_score"] = ranking_score
+        summary["ranking_factors"] = ranking_factors
+        summary["ranking_explanation"] = _build_digest_ranking_explanation(
+            last_activity_at=last_activity_at,
+            now_iso=now_iso,
+            updates_30d=activity_breakdown_30d["total"],
+            read_stats=read_stats,
         )
         summaries.append(summary)
 
@@ -187,12 +202,15 @@ def build_project_rank_board(
             now_iso=now_iso,
             read_decay_days=daily_ranking.get("read_decay_days", 2),
         )
-        board_score = compute_project_board_score(
+        board_score, board_score_breakdown = compute_monitor_ranking_score(
             summary,
             now_iso=now_iso,
             last_activity_at=last_activity_at,
             updates_30d=updates_30d,
             recent_read_count=read_stats["recent_read_count"],
+            bucket=summary.get("bucket"),
+            weights=daily_ranking.get("monitor_weights"),
+            recency_half_life_days=daily_ranking.get("monitor_recency_half_life_days", 7),
         )
         board_items.append(
             {
@@ -213,6 +231,7 @@ def build_project_rank_board(
                     breakdown=activity_breakdown_30d,
                     read_count=read_stats["read_count"],
                 ),
+                "board_score_breakdown": board_score_breakdown,
                 "read_count": read_stats["read_count"],
                 "read_decay_applied": read_stats["read_decay_applied"],
                 "llm": summary.get("llm") or {},
@@ -512,9 +531,18 @@ def _build_activity_breakdown(items: list[dict], now_iso: str, *, days: int) -> 
 def _build_project_board_explanation(*, last_activity_at: str | None, now_iso: str, breakdown: dict[str, int], read_count: int) -> str:
     activity_label = _format_activity_label(last_activity_at, now_iso)
     return (
-        f"30天内 {breakdown.get('total', 0)} 条变化，"
+        f"30天变化量 {breakdown.get('total', 0)} 条（30天内），"
         f"release {breakdown.get('release', 0)} 条，docs {breakdown.get('docs', 0)} 条；"
         f"最近更新 {activity_label}；已读 {read_count} 次。"
+    )
+
+
+def _build_digest_ranking_explanation(*, last_activity_at: str | None, now_iso: str, updates_30d: int, read_stats: dict) -> str:
+    activity_label = _format_activity_label(last_activity_at, now_iso)
+    read_hint = "已触发" if read_stats.get("read_decay_applied") else "未触发"
+    return (
+        f"新鲜度 {activity_label}；30天活跃度 {updates_30d} 条；"
+        f"已读衰减 {read_hint}；总已读 {read_stats.get('read_count', 0)} 次。"
     )
 
 

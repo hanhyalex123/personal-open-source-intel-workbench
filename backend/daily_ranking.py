@@ -72,6 +72,85 @@ def compute_project_board_score(
     )
 
 
+def compute_digest_ranking_score(
+    summary: dict,
+    *,
+    now_iso: str,
+    last_activity_at: str | None,
+    updates_30d: int,
+    recent_read_count: int,
+    weights: dict | None = None,
+    recency_half_life_days: float = 3.0,
+) -> tuple[float, dict[str, float]]:
+    weights = weights or {
+        "freshness": 0.45,
+        "importance": 0.30,
+        "activity": 0.15,
+        "unread": 0.10,
+    }
+    importance_score = IMPORTANCE_SCORES.get(summary.get("importance"), 0.3)
+    freshness_score = _compute_recency_score(
+        [{"published_at": last_activity_at}] if last_activity_at else [],
+        now_iso,
+        recency_half_life_days,
+    )
+    activity_score = _bounded_count_score(updates_30d, full_score_at=8)
+    unread_score = _unread_score(recent_read_count)
+
+    total = (
+        weights.get("freshness", 0.0) * freshness_score
+        + weights.get("importance", 0.0) * importance_score
+        + weights.get("activity", 0.0) * activity_score
+        + weights.get("unread", 0.0) * unread_score
+    )
+    return total, {
+        "freshness": freshness_score,
+        "importance": importance_score,
+        "activity": activity_score,
+        "unread": unread_score,
+    }
+
+
+def compute_monitor_ranking_score(
+    summary: dict,
+    *,
+    now_iso: str,
+    last_activity_at: str | None,
+    updates_30d: int,
+    recent_read_count: int,
+    bucket: str | None = None,
+    weights: dict | None = None,
+    recency_half_life_days: float = 7.0,
+) -> tuple[float, dict[str, float]]:
+    weights = weights or {
+        "activity": 0.35,
+        "freshness": 0.30,
+        "project_weight": 0.25,
+        "unread": 0.10,
+    }
+    freshness_score = _compute_recency_score(
+        [{"published_at": last_activity_at}] if last_activity_at else [],
+        now_iso,
+        recency_half_life_days,
+    )
+    project_weight_score = 1.0 if bucket == "must_watch" else 0.65 if bucket == "emerging" else 0.5
+    activity_score = _bounded_count_score(updates_30d, full_score_at=12)
+    unread_score = _unread_score(recent_read_count)
+
+    total = (
+        weights.get("activity", 0.0) * activity_score
+        + weights.get("freshness", 0.0) * freshness_score
+        + weights.get("project_weight", 0.0) * project_weight_score
+        + weights.get("unread", 0.0) * unread_score
+    )
+    return total, {
+        "activity": activity_score,
+        "freshness": freshness_score,
+        "project_weight": project_weight_score,
+        "unread": unread_score,
+    }
+
+
 def apply_read_decay(
     base_score: float,
     *,
@@ -167,6 +246,16 @@ def _compute_source_score(items: list[dict]) -> float:
     if not items:
         return 0.5
     return max(SOURCE_SCORES.get(item.get("source"), 0.5) for item in items)
+
+
+def _bounded_count_score(value: int | float | None, *, full_score_at: float) -> float:
+    if full_score_at <= 0:
+        return 0.0
+    return min(1.0, max(float(value or 0), 0.0) / full_score_at)
+
+
+def _unread_score(recent_read_count: int) -> float:
+    return max(0.0, 1.0 - min(max(recent_read_count, 0), 4) / 4.0)
 
 
 def _build_diversity_set(item: dict, diversity_keys: list[str]) -> set[str]:
