@@ -2,6 +2,30 @@ import pytest
 from pathlib import Path
 
 
+@pytest.fixture(autouse=True)
+def isolate_runtime_environment(monkeypatch):
+    monkeypatch.setattr("backend.runtime.load_environment", lambda: None)
+    for key in (
+        "PACKY_API_KEY",
+        "PACKY_API_URL",
+        "PACKY_MODEL",
+        "PACKY_PROTOCOL",
+        "OPENAI_API_KEY",
+        "OPENAI_API_URL",
+        "OPENAI_MODEL",
+        "OPENAI_PROTOCOL",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "NO_PROXY",
+        "no_proxy",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+
 def test_build_sync_runner_uses_store_config_and_persists_results(tmp_path: Path, monkeypatch):
     from backend.runtime import build_incremental_sync_runner
     from backend.storage import JsonStore
